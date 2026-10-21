@@ -859,9 +859,17 @@ impl WordApp {
 
     /// Activate the document tab at bar position `d` (0 = the first document tab). The document
     /// showing and the one asked for swap their state, each keeping its undo history, scroll
-    /// position and autosave target.
+    /// position and autosave target. Clicking the active document's own tab from the Home tab
+    /// just leaves Home for it — nothing to swap.
     pub(crate) fn activate_tab(&mut self, d: usize) {
-        if !self.has_document() || d == self.active_slot || d > self.tabs.len() {
+        if !self.has_document() || d > self.tabs.len() {
+            return;
+        }
+        if d == self.active_slot {
+            if self.home {
+                self.home = false;
+                self.canvas.want_focus = true;
+            }
             return;
         }
         let i = if d > self.active_slot { d - 1 } else { d };

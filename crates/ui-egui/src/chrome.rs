@@ -355,12 +355,16 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 if resp.clicked() {
                     let _ = app.run("ui.home", json!({}));
                 }
-                // A tab per document, then +.
+                // A tab per document, then +. A tab counts as active only while its document is
+                // really showing: with the Home tab up, clicking any document tab — its own
+                // included — goes back to the document rather than renaming it.
+                let showing = !app.home && !app.ui.backstage;
                 for (i, (title, dirty, active)) in infos.iter().enumerate().take(shown) {
                     let w = widths.get(i).copied().unwrap_or(66.0);
                     let (r, resp) = ui.allocate_exact_size(vec2(w, control_h), Sense::click());
                     let hovered = resp.hovered();
-                    tab_look(ui, r, hovered, *active, &t);
+                    let active = *active && showing;
+                    tab_look(ui, r, hovered, active, &t);
                     // The close ✕, over the tab's right end.
                     let cx = Rect::from_min_max(pos2(r.max.x - 20.0, r.min.y), r.max);
                     let close = ui.interact(cx, ui.id().with(("tab_close", i)), Sense::click());
@@ -381,8 +385,8 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         ui.painter().circle_filled(pos2(r.min.x + 10.0, r.center().y), 2.5, t.accent);
                     }
                     let room = w - close_room - dot_room - 12.0;
-                    let font = if *active { semibold(12.0) } else { TypeRung::Control.medium() };
-                    let color = if *active { t.text } else { t.text_dim };
+                    let font = if active { semibold(12.0) } else { TypeRung::Control.medium() };
+                    let color = if active { t.text } else { t.text_dim };
                     if title_ws.get(i).is_some_and(|tw| *tw > room) {
                         let mut job = egui::text::LayoutJob::single_section(title.clone(), egui::text::TextFormat::simple(font, color));
                         job.wrap =
@@ -401,11 +405,11 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     } else {
                         tl!("Not saved")
                     };
-                    let label = if *active { format!("{title} — {state}") } else { format!("{title}{}", if *dirty { " •" } else { "" }) };
-                    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, *active, &label));
+                    let label = if active { format!("{title} — {state}") } else { format!("{title}{}", if *dirty { " •" } else { "" }) };
+                    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, &label));
                     if resp.middle_clicked() {
                         let _ = app.run("ui.tabClose", json!({"index": i}));
-                    } else if resp.clicked() && *active {
+                    } else if resp.clicked() && active {
                         let _ = app.run("file.rename", json!({}));
                     } else if resp.clicked() {
                         let _ = app.run("ui.tabActivate", json!({"index": i}));
@@ -952,6 +956,34 @@ mod tests {
             assert!(drawn(&h, id), "{id} is back");
         }
         assert!(h.ctx.read_response(qat_menu_button_id()).is_some());
+    }
+
+    /// With the Home tab showing, clicking the active document's own tab goes back to the
+    /// document (nothing to activate, so it must not be read as the rename click it is when the
+    /// document is showing); with the document showing, the same click renames it.
+    #[test]
+    fn clicking_the_active_tab_from_home_returns_to_the_document() {
+        use egui_kittest::kittest::Queryable;
+        let mut a = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());
+        let _ = a.run("ui.home", json!({}));
+        let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
+            |ui, app: &mut WordApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            a,
+        );
+        h.run_steps(6);
+        assert!(h.state().home, "the Home tab shows");
+        h.get_by_label("Document1").click();
+        h.run_steps(3);
+        assert!(!h.state().home, "the click returned to the document");
+        assert!(h.state().dialog.is_none(), "it renamed nothing");
+        // With the document showing, the same click is the rename the title bar used to offer.
+        h.get_by_label("Document1 — Not saved").click();
+        h.run_steps(3);
+        assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::RenameDocument { .. })));
     }
 
     /// #3040: clicking a row in the Undo list hands the keyboard back to the document.
