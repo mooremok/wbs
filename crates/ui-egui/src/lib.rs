@@ -825,6 +825,9 @@ impl WordApp {
     /// The documents on the tab bar, left to right: the title, whether it has unsaved changes,
     /// and whether it is the active tab. For the bar itself, `ui.tabs`, and tests.
     pub(crate) fn tab_infos(&self) -> Vec<(String, bool, bool)> {
+        if !self.has_document() {
+            return Vec::new();
+        }
         let mut v: Vec<(usize, String, bool, bool)> = self
             .tabs
             .iter()
@@ -1150,11 +1153,12 @@ impl WordApp {
             return Ok(json!({"pending": name}));
         }
         // WPS tabs: New and Open with a document already open keep it in its own tab and work on
-        // a new one, so they neither replace it nor need to ask about its changes — unless the
-        // document showing is an untouched blank one (a new window's first document, never typed
-        // in), which they simply take the place of, without leaving an empty tab behind. Open
-        // without a path only brings up the file picker; the open that follows carries a path.
-        if self.has_document() && !self.untouched_blank() && (id == "file.new" || (id == "file.open" && params.get("path").is_some())) {
+        // a new one, so they neither replace it nor need to ask about its changes. New always
+        // opens its own tab, even over an untouched blank one (the + button builds up the bar, as
+        // in WPS); an opened file still takes an untouched blank's place, without leaving an
+        // empty tab behind. Open without a path only brings up the file picker; the open that
+        // follows carries a path.
+        if self.has_document() && (id == "file.new" || (id == "file.open" && params.get("path").is_some() && !self.untouched_blank())) {
             return self.open_in_tab(id, &params);
         }
         if (self.session.dirty || self.save_unconfirmed() || refused.is_some()) && discards_document(id, &params) {
@@ -5080,6 +5084,20 @@ mod tests {
         assert!(!body_text(&a).contains(UNSAVED), "the undo history travelled with the tab");
     }
 
+    /// With no document open (the Home tab over the Start-screen placeholder) the bar shows no
+    /// document tab, and + creates a document that shows at once — not a dead tab to click first.
+    #[test]
+    fn with_no_document_there_is_no_tab_and_plus_opens_one() {
+        let mut a = app();
+        assert!(a.start_screen(), "on the Home tab, nothing open");
+        assert!(a.tab_infos().is_empty(), "the placeholder draws no tab");
+        assert_eq!(a.tab_state()["tabs"].as_array().unwrap().len(), 0, "`ui.tabs` says none either");
+        a.run("ui.tabNew", json!({})).unwrap();
+        assert!(a.has_document(), "a document was created");
+        assert!(!a.home, "and its page shows, not the Home tab");
+        assert_eq!(a.tab_infos().len(), 1, "now it has its tab");
+    }
+
     /// Ctrl+Tab walks the tabs around the bar, forward and back, and never leaves the documents.
     #[test]
     fn ctrl_tab_walks_the_tabs() {
@@ -5126,18 +5144,24 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// New and Open take the place of an untouched blank document (a new window's first one)
-    /// instead of leaving an empty tab behind.
+    /// An opened file takes the place of an untouched blank document (a new window's first
+    /// one) instead of leaving an empty tab behind; New, on the other hand, always opens its
+    /// own tab, as WPS's + does, even over a blank.
     #[test]
-    fn an_untouched_blank_document_is_replaced_without_a_tab() {
+    fn an_untouched_blank_gives_way_to_a_file_but_not_to_new() {
+        let dir = scratch("untouched");
+        let path = docx_on_disk(&dir, "Opened");
         let mut a = app();
-        a.run("file.new", json!({"template": "letter"})).unwrap();
-        assert_eq!(a.tabs.len(), 0, "the untouched blank gave way");
-        assert!(!body_text(&a).trim().is_empty(), "the template was used");
-        // One letter typed makes it worth a tab of its own.
-        a.run("text.insert", json!({"text": "Dear "})).unwrap();
+        a.run("file.open", json!({"path": path.to_string_lossy()})).unwrap();
+        assert_eq!(a.tabs.len(), 0, "the untouched blank gave way to the file");
+        assert!(body_text(&a).contains("Opened"));
         a.run("file.new", json!({})).unwrap();
-        assert_eq!(a.tabs.len(), 1, "the edited document stayed as a tab");
+        assert_eq!(a.tabs.len(), 1, "New opened a tab for the opened file");
+        assert!(body_text(&a).trim().is_empty());
+        // + over a blank: another tab, visibly a new document each time.
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(a.tabs.len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A document opening into its own tab carries the window's choices (the paper region a
@@ -5155,11 +5179,13 @@ mod tests {
     }
 
     #[test]
-    fn a_clean_document_is_replaced_without_asking() {
+    fn a_clean_document_needs_no_asking() {
+        // New opens its own tab even over a blank document, as WPS's + does, and never asks.
         let mut a = app();
         a.run("file.new", json!({"template": "letter"})).unwrap();
         assert_eq!(prompt(&a), None);
         assert!(!body_text(&a).trim().is_empty());
+        assert_eq!(a.tabs.len(), 1, "the blank first document stayed as a tab");
     }
 
     /// #55: a password-protected document asks for its password (after Save Changes) instead of
