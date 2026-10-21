@@ -335,6 +335,7 @@ pub fn canvas_events(app: &mut WordApp, ctx: &egui::Context) {
                 }
                 egui::Event::Ime(egui::ImeEvent::Commit(text)) => {
                     app.canvas.ime_preedit.clear();
+                    app.canvas.ime_preedit_cursor = None;
                     if !text.is_empty() {
                         let _ = app.run("equation.type", json!({"text": text}));
                     }
@@ -364,9 +365,16 @@ pub fn canvas_events(app: &mut WordApp, ctx: &egui::Context) {
                 }
             }
             egui::Event::Ime(egui::ImeEvent::DeleteSurrounding { before_chars, after_chars }) => delete_surrounding(app, before_chars, after_chars),
-            egui::Event::Ime(egui::ImeEvent::Preedit { text, .. }) => app.canvas.ime_preedit = text,
+            egui::Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars }) => {
+                app.canvas.ime_preedit = text;
+                app.canvas.ime_preedit_cursor = active_range_chars;
+                // Every change of the composition restarts the blink, so the caret is plainly
+                // visible while the input method works.
+                app.canvas.caret_visible_since = crate::now_ms();
+            }
             egui::Event::Ime(egui::ImeEvent::Commit(text)) => {
                 app.canvas.ime_preedit.clear();
+                app.canvas.ime_preedit_cursor = None;
                 if !text.is_empty() && !crate::dialogs_smart_art::type_into(app, &text) {
                     type_text(app, &text);
                 }
@@ -702,6 +710,35 @@ pub fn global_shortcuts(app: &mut WordApp, ctx: &egui::Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pre-edit keeps its caret range for the canvas to ride the caret on, and a commit clears
+    /// both; every pre-edit change restarts the caret blink so the caret stays visible while the
+    /// input method works.
+    #[test]
+    fn preedit_keeps_its_caret_range_until_the_commit() {
+        let ctx = egui::Context::default();
+        let mut a = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());
+        let preedit = |text: &str, range: Option<std::ops::Range<usize>>| {
+            egui::Event::Ime(egui::ImeEvent::Preedit { text: text.into(), active_range_chars: range })
+        };
+        let frame = |a: &mut WordApp, e: egui::Event| {
+            ctx.run_ui(egui::RawInput { events: vec![e], ..Default::default() }, |ui| {
+                crate::keytips::logic(a, ui.ctx());
+                canvas_events(a, ui.ctx());
+            })
+            .drop_without_applying_deltas();
+        };
+        frame(&mut a, preedit("ni", None));
+        assert_eq!(a.canvas.ime_preedit, "ni");
+        assert_eq!(a.canvas.ime_preedit_cursor, None, "no range: the caret rides the end");
+        frame(&mut a, preedit("nihao", Some(2..2)));
+        assert_eq!(a.canvas.ime_preedit, "nihao");
+        assert_eq!(a.canvas.ime_preedit_cursor, Some(2..2), "the range reaches the canvas");
+        frame(&mut a, egui::Event::Ime(egui::ImeEvent::Commit("你好".into())));
+        assert_eq!(a.canvas.ime_preedit, "");
+        assert_eq!(a.canvas.ime_preedit_cursor, None, "the commit clears the range");
+        assert_eq!(a.session.doc.plain_text(wordcraft_doc::StoryRef::Body).trim_end(), "你好");
+    }
 
     #[test]
     fn shift_backspace_still_erases() {

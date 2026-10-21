@@ -93,6 +93,10 @@ pub struct CanvasState {
     pub(crate) widget_id: Option<(egui::Id, u64)>,
     pub render_ms: f64,
     pub ime_preedit: String,
+    /// Where the caret sits inside `ime_preedit`, in characters (from the Preedit event's
+    /// active range; `None` puts it at the end). While composing, the caret rides the
+    /// composition text instead of waiting at its left edge until the commit.
+    pub ime_preedit_cursor: Option<std::ops::Range<usize>>,
     /// Document faces added to the interface fonts so the input method's composition (#565) and a
     /// file name in the window caption can be drawn.
     pub(crate) ime_faces: Vec<std::sync::Arc<wordcraft_fonts::FontFace>>,
@@ -247,6 +251,7 @@ impl Default for CanvasState {
             widget_id: None,
             render_ms: 0.0,
             ime_preedit: String::new(),
+            ime_preedit_cursor: None,
             ime_faces: Vec::new(),
             want_focus: true,
             context_issue: None,
@@ -1519,6 +1524,18 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
             let x = pr.min.x + c.x * scale;
             let y0 = pr.min.y + c.top * scale;
             let y1 = y0 + c.height * scale;
+            // While composing, the caret rides the composition text — at its cursor, else its
+            // end — instead of waiting at the text's left edge until the commit jumps it over.
+            let mut caret_x = x;
+            if !app.canvas.ime_preedit.is_empty() && c.width == 0.0 {
+                let preedit_font = regular(c.height * scale * 0.8);
+                let chars = app.canvas.ime_preedit.chars().count();
+                let upto = app.canvas.ime_preedit_cursor.as_ref().map_or(chars, |r| r.start.min(chars));
+                if upto > 0 {
+                    let prefix: String = app.canvas.ime_preedit.chars().take(upto).collect();
+                    caret_x = x + ui.ctx().fonts_mut(|f| f.layout_no_wrap(prefix, preedit_font, Color32::WHITE)).size().x;
+                }
+            }
             let since = crate::now_ms() - app.canvas.caret_visible_since;
             let on = ((since / 530.0) as u64).is_multiple_of(2);
             // The caret contrasts with what lies under it, like Word's inverted caret (#299):
@@ -1528,7 +1545,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                 // Turned text (a table cell's text direction): the caret lies across the page.
                 [pos2(x, y0.round() + 0.5), pos2(x + c.width * scale, y0.round() + 0.5)]
             } else {
-                [pos2(x.round() + 0.5, y0), pos2(x.round() + 0.5, y1)]
+                [pos2(caret_x.round() + 0.5, y0), pos2(caret_x.round() + 0.5, y1)]
             };
             // The caret glides and fades like Word's (`caret_glide`).
             let shown = app.session.sel.is_collapsed() && focused;
@@ -1539,8 +1556,8 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
             if focused {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(530 - (since as u64 % 530)));
             }
-            // IME candidate window placement.
-            let cr = Rect::from_min_max(pos2(x, y0), pos2(x + 1.0, y1));
+            // IME candidate window placement: where the caret rides the composition text.
+            let cr = Rect::from_min_max(pos2(caret_x, y0), pos2(caret_x + 1.0, y1));
             if focused {
                 ui.ctx().output_mut(|o| {
                     o.ime = Some(egui::output::IMEOutput {

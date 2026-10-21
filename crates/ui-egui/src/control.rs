@@ -252,6 +252,25 @@ pub fn handle(app: &mut WordApp, ctx: &egui::Context, req: &ControlRequest) -> O
             app.synthetic.push(egui::Event::Text(t.to_string()));
             ok(json!({"queued": true}))
         }
+        // An input method event, as the platform would send it: {"event": "preedit", "text": "nihao",
+        // "cursor"?: [start, end]} (character range in the text) or {"event": "commit", "text": "你好"}.
+        "ui.ime" => match s("event") {
+            Some("preedit") => {
+                let text = s("text").unwrap_or("").to_string();
+                let cursor = p.get("cursor").and_then(Value::as_array).and_then(|a| {
+                    let (start, end) = (a.first()?.as_u64()?, a.get(1)?.as_u64()?);
+                    Some(start as usize..end as usize)
+                });
+                app.synthetic.push(egui::Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars: cursor }));
+                ok(json!({"queued": true}))
+            }
+            Some("commit") => {
+                let Some(t) = s("text") else { return err("missing text") };
+                app.synthetic.push(egui::Event::Ime(egui::ImeEvent::Commit(t.to_string())));
+                ok(json!({"queued": true}))
+            }
+            _ => err("missing event (preedit|commit)"),
+        },
         "ui.screenshot" => Outcome::Screenshot { path: s("path").map(str::to_string) },
         "ui.render" => {
             let page = p.get("page").and_then(Value::as_u64).unwrap_or(1);
