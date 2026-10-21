@@ -1533,6 +1533,9 @@
 	Print	Штампај
 	Print Layout	Приказ за штампу
 	Print Markup	Штампај ознаке
+	Auto orientation	Аутоматска оријентација
+	No Scaling	Без скалирања
+	Scale to paper size	Скалирај на величину папира
 	Print failed: the printing worker stopped.	Штампање није успело: процес штампања је заустављен.
 	Print failed: {error}	Штампање неуспело: {error}
 	Print job submitted.	Задатак за штампање је послат.
@@ -1746,6 +1749,9 @@
 	Search commands and help	Претражи наредбе и помоћ
 	Search document	Претражи документ
 	Search for templates	Претражи шаблоне
+	Good morning	Добро јутро
+	Good afternoon	Добар дан
+	Good evening	Добро вече
 	Search icons	Претражи иконице
 	Section 1.01	Одељак 1.01
 	Section Break	Прекид одељка

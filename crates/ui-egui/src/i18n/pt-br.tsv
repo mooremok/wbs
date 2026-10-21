@@ -1531,6 +1531,9 @@
 	Print	Imprimir
 	Print Layout	Layout de impressão
 	Print Markup	Imprimir marcação
+	Auto orientation	Orientação automática
+	No Scaling	Sem escala
+	Scale to paper size	Dimensionar para o tamanho do papel
 	Print failed: the printing worker stopped.	A impressão falhou: o processo de impressão parou.
 	Print failed: {error}	Falha na impressão: {error}
 	Print job submitted.	Trabalho de impressão enviado.
@@ -1744,6 +1747,9 @@
 	Search commands and help	Pesquisar comandos e ajuda
 	Search document	Pesquisar no documento
 	Search for templates	Pesquisar modelos
+	Good morning	Bom dia
+	Good afternoon	Boa tarde
+	Good evening	Boa noite
 	Search icons	Pesquisar ícones
 	Section 1.01	Seção 1.01
 	Section Break	Quebra de seção

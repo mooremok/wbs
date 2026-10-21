@@ -1521,6 +1521,9 @@ homeTab	Home	首頁
 	Print	列印
 	Print Layout	整頁模式
 	Print Markup	列印標記
+	Auto orientation	自動方向
+	No Scaling	不縮放
+	Scale to paper size	縮放到紙張大小
 	Print failed: the printing worker stopped.	列印失敗：列印工作執行緒已停止。
 	Print failed: {error}	列印失敗：{error}
 	Print job submitted.	列印工作已提交。
@@ -1734,6 +1737,9 @@ homeTab	Home	首頁
 	Search commands and help	搜尋命令和說明
 	Search document	搜尋文件
 	Search for templates	搜尋範本
+	Good morning	早上好
+	Good afternoon	下午好
+	Good evening	晚上好
 	Search icons	搜尋圖示
 	Section 1.01	第 1.01 節
 	Section Break	分節符號

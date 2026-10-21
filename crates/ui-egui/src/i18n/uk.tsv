@@ -1531,6 +1531,9 @@
 	Print	Друк
 	Print Layout	Макет друку
 	Print Markup	Друкувати примітки та виправлення
+	Auto orientation	Автоматична орієнтація
+	No Scaling	Без масштабування
+	Scale to paper size	Масштабувати до розміру паперу
 	Print failed: the printing worker stopped.	Друк не вдався: процес друку зупинився.
 	Print failed: {error}	Не вдалося надрукувати: {error}
 	Print job submitted.	Завдання на друк надіслано.
@@ -1744,6 +1747,9 @@
 	Search commands and help	Пошук команд і довідки
 	Search document	Пошук у документі
 	Search for templates	Пошук шаблонів
+	Good morning	Доброго ранку
+	Good afternoon	Добрий день
+	Good evening	Добрий вечір
 	Search icons	Пошук піктограм
 	Section 1.01	Розділ 1.01
 	Section Break	Розрив розділу

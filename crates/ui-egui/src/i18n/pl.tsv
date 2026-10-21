@@ -1806,6 +1806,9 @@
 	Print	Drukuj
 	Print Layout	Układ wydruku
 	Print Markup	Drukuj adiustację
+	Auto orientation	Automatyczna orientacja
+	No Scaling	Bez skalowania
+	Scale to paper size	Skaluj do rozmiaru papieru
 	Print failed: the printing worker stopped.	Drukowanie nie powiodło się: proces drukowania został zatrzymany.
 	Print failed: {error}	Drukowanie nie powiodło się: {error}
 	Print job submitted.	Zadanie drukowania wysłane.

@@ -243,9 +243,7 @@ impl WordApp {
         match after {
             AfterPick::OpenDocument => {
                 let Some(path) = picked else { return Ok(json!({"cancelled": true})) };
-                let r = self.run("file.open", json!({"path": path}));
-                self.ui.backstage = false;
-                r
+                self.run("file.open", json!({"path": path}))
             }
             AfterPick::Picture => {
                 let Some(path) = picked else {
@@ -334,7 +332,6 @@ impl WordApp {
                 let result = picked.map(|path| self.run("file.save", json!({"path": path})));
                 let saved = matches!(&result, Some(Ok(v)) if v.get("saved").and_then(Value::as_bool) == Some(true) || v.get("downloaded").is_some());
                 if saved {
-                    self.ui.backstage = false;
                     self.canvas.want_focus = true;
                 }
                 match after {
@@ -614,7 +611,6 @@ mod tests {
         a.run("ui.language", json!({"value": "en"})).unwrap();
         a.run("file.open", json!({"path": original})).unwrap();
         typed(&mut a);
-        a.run("ui.backstage", json!({"value": true, "page": "home"})).unwrap();
         let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
             |ui, app: &mut WordApp| {
                 let ctx = ui.ctx().clone();
@@ -624,6 +620,9 @@ mod tests {
             a,
         );
         h.run_steps(4);
+        // The file menu's Save.
+        h.state_mut().run("ui.fileMenu", json!({})).unwrap();
+        h.run_steps(3);
         h.get_by_label("Save").click();
         h.run_steps(3);
         assert!(h.state().file_dialog_open(), "the Save button asks for a supported target");
@@ -631,7 +630,6 @@ mod tests {
         answer(&shown, None);
         h.run_steps(3);
 
-        h.state_mut().run("ui.backstage", json!({"value": false})).unwrap();
         h.state_mut().canvas.want_focus = true;
         h.run_steps(6);
         assert!(h.state().canvas.focused, "Mod+S starts in the editor");

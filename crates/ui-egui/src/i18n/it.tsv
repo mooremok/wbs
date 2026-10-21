@@ -1809,6 +1809,9 @@
 	Print	Stampa
 	Print Layout	Layout di stampa
 	Print Markup	Stampa revisioni
+	Auto orientation	Orientamento automatico
+	No Scaling	Nessun ridimensionamento
+	Scale to paper size	Adatta al formato carta
 	Print failed: the printing worker stopped.	Stampa non riuscita: il processo di stampa si è interrotto.
 	Print failed: {error}	Stampa non riuscita: {error}
 	Print job submitted.	Lavoro di stampa inviato.

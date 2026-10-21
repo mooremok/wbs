@@ -1519,6 +1519,9 @@
 	Print	印刷
 	Print Layout	印刷レイアウト
 	Print Markup	変更履歴とコメントを印刷
+	Auto orientation	自動方向
+	No Scaling	拡大/縮小なし
+	Scale to paper size	用紙サイズに合わせて拡大/縮小
 	Print failed: the printing worker stopped.	印刷に失敗しました：印刷ワーカーが停止しました。
 	Print failed: {error}	印刷できませんでした: {error}
 	Print job submitted.	印刷ジョブを送信しました。
@@ -1732,6 +1735,9 @@
 	Search commands and help	コマンドとヘルプを検索
 	Search document	文書内を検索
 	Search for templates	テンプレートを検索
+	Good morning	おはようございます
+	Good afternoon	こんにちは
+	Good evening	こんばんは
 	Search icons	アイコンを検索
 	Section 1.01	第 1.01 節
 	Section Break	セクション区切り

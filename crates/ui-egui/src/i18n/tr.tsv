@@ -1807,6 +1807,9 @@
 	Print	Yazdır
 	Print Layout	Baskı Düzeni
 	Print Markup	İşaretlemeyi Yazdır
+	Auto orientation	Otomatik yönelim
+	No Scaling	Ölçekleme yok
+	Scale to paper size	Kağıt boyutuna ölçekle
 	Print failed: the printing worker stopped.	Yazdırma başarısız oldu: yazdırma işlemi durdu.
 	Print failed: {error}	Yazdırma başarısız: {error}
 	Print job submitted.	Yazdırma işi gönderildi.

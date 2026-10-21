@@ -1797,6 +1797,9 @@
 	Print	Печат
 	Print Layout	Оформление за печат
 	Print Markup	Печат на маркировките
+	Auto orientation	Автоматична ориентация
+	No Scaling	Без мащабиране
+	Scale to paper size	Мащабиране към размера на хартията
 	Print failed: the printing worker stopped.	Печатът е неуспешен: процесът на печат спря.
 	Print failed: {error}	Неуспешен печат: {error}
 	Print job submitted.	Заданието за печат е изпратено.

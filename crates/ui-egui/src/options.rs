@@ -105,11 +105,10 @@ fn pane_label(id: &str) -> &'static str {
     }
 }
 
-/// The Options page.
+/// The Options window's page (the file menu's Options, WPS's 选项): the pane list on the left,
+/// the chosen pane's settings on the right. The window's own title names it.
 pub fn page(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    ui.label(RichText::new(tl!("Options")).font(semibold(26.0)));
-    ui.add_space(16.0);
     let current = if PANES.contains(&app.ui.options_pane.as_str()) { app.ui.options_pane.clone() } else { "general".to_string() };
     ui.horizontal_top(|ui| {
         ui.vertical(|ui| {
@@ -920,13 +919,13 @@ mod tests {
         assert_eq!(saved["editing"]["measurementUnits"], "millimeters");
     }
 
-    /// `file.options` opens the page at a pane; the pane list switches panes, and their
+    /// `file.options` opens the Options window at a pane; the pane list switches panes, and their
     /// checkboxes change the settings (#485).
     #[test]
     fn options_panes_open_and_change_settings() {
         let mut a = app();
         a.run("file.options", json!({"pane": "display"})).unwrap();
-        assert!(a.ui.backstage);
+        assert!(matches!(a.dialog, Some(crate::dialogs::Dialog::Options)));
         let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
             |ui, app: &mut WordApp| {
                 let ctx = ui.ctx().clone();

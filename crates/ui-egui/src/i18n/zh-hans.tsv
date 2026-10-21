@@ -1532,6 +1532,9 @@ homeTab	Home	首页
 	Print	打印
 	Print Layout	页面视图
 	Print Markup	打印标记
+	Auto orientation	自动方向
+	No Scaling	不缩放
+	Scale to paper size	缩放到纸张大小
 	Print failed: the printing worker stopped.	打印失败：打印工作线程已停止。
 	Print failed: {error}	打印失败：{error}
 	Print job submitted.	打印作业已提交。
@@ -1745,6 +1748,9 @@ homeTab	Home	首页
 	Search commands and help	搜索命令和帮助
 	Search document	搜索文档
 	Search for templates	搜索模板
+	Good morning	早上好
+	Good afternoon	下午好
+	Good evening	晚上好
 	Search icons	搜索图标
 	Section 1.01	第 1.01 节
 	Section Break	分节符

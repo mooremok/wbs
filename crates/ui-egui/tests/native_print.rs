@@ -51,7 +51,7 @@ fn control_print_discovery_reports_metadata_without_host_side_effects() {
     }
     assert_eq!(discoveries.get(), 0, "metadata never starts printer discovery");
     assert_eq!(submissions.get(), 0, "metadata never submits");
-    assert!(app.dialog.is_none() && !app.ui.backstage, "metadata never opens a dialog or Print page");
+    assert!(app.dialog.is_none(), "metadata never opens a dialog");
     assert!(!app.printing.busy() && !app.session.dirty);
 }
 
@@ -106,8 +106,7 @@ fn print_settings_are_visible_in_a_narrow_window() {
         sender.send(Ok("queued".into())).unwrap();
         receiver
     }));
-    app.ui.backstage = true;
-    app.ui.backstage_page = "print".into();
+    app.run("ui.dialog", json!({"name": "print"})).unwrap();
     let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(800.0, 700.0)).build_ui_state(
         |ui, app: &mut WordApp| {
             app.logic(ui.ctx());

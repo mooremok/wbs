@@ -1775,6 +1775,9 @@
 	Print	Imprimir
 	Print Layout	Diseño de impresión
 	Print Markup	Imprimir marcas
+	Auto orientation	Orientación automática
+	No Scaling	Sin escala
+	Scale to paper size	Escalar al tamaño del papel
 	Print failed: the printing worker stopped.	La impresión falló: el proceso de impresión se detuvo.
 	Print failed: {error}	Error al imprimir: {error}
 	Print job submitted.	Trabajo de impresión enviado.

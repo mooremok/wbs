@@ -1700,6 +1700,9 @@
 	Print	인쇄
 	Print Layout	인쇄 레이아웃
 	Print Markup	변경 내용 표시 인쇄
+	Auto orientation	자동 방향
+	No Scaling	배율 없음
+	Scale to paper size	용지 크기에 맞게 조정
 	Print failed: the printing worker stopped.	인쇄 실패: 인쇄 작업자가 중지되었습니다.
 	Print failed: {error}	인쇄 실패: {error}
 	Print job submitted.	인쇄 작업을 전송했습니다.

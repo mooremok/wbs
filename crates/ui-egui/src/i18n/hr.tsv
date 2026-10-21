@@ -1794,6 +1794,9 @@
 	Print	Ispis
 	Print Layout	Izgled ispisa
 	Print Markup	Ispis oznaka
+	Auto orientation	Automatski smjer
+	No Scaling	Bez skaliranja
+	Scale to paper size	Prilagodi veličini papira
 	Print failed: the printing worker stopped.	Ispis nije uspio: proces ispisa se zaustavio.
 	Print failed: {error}	Ispis nije uspio: {error}
 	Print job submitted.	Zadatak ispisa je poslan.

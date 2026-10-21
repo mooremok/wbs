@@ -1804,6 +1804,9 @@
 	Print	Imprimer
 	Print Layout	Mode Page
 	Print Markup	Imprimer les marques de révision
+	Auto orientation	Orientation automatique
+	No Scaling	Sans mise à l’échelle
+	Scale to paper size	Mettre à l’échelle au format du papier
 	Print failed: the printing worker stopped.	L'impression a échoué : le processus d'impression s'est arrêté.
 	Print failed: {error}	Échec de l’impression : {error}
 	Print job submitted.	Travail d'impression envoyé.

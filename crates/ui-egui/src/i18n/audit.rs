@@ -201,17 +201,24 @@ fn untranslated_interface_text() {
         record(&app, &format!("tab {tab}"), drawn);
     }
     let _ = app.run("ui.tab", json!({"tab": "Home"}));
-    for page in ["home", "new", "open", "info", "export", "options"] {
-        let _ = app.run("ui.backstage", json!({"value": true, "page": page}));
+    // The home view (the old File › Home/New/Open pages in one place).
+    let _ = app.run("ui.home", json!({}));
+    let drawn = frame(&ctx, &mut app);
+    record(&app, "home", drawn);
+    let _ = app.run("ui.home", json!({"value": false}));
+    // The file menu's windows (the old Info/Print/Export/Options pages).
+    for name in ["info", "print", "export"] {
+        let _ = app.run("ui.dialog", json!({"name": name}));
         let drawn = frame(&ctx, &mut app);
-        record(&app, &format!("File › {page}"), drawn);
+        record(&app, &format!("dialog {name}"), drawn);
+        app.dialog = None;
     }
     for pane in wordcraft_engine::cmd::options::PANES {
-        let _ = app.run("ui.backstage", json!({"value": true, "page": "options", "pane": pane}));
+        let _ = app.run("ui.dialog", json!({"name": "options", "pane": pane}));
         let drawn = frame(&ctx, &mut app);
-        record(&app, &format!("File › Options › {pane}"), drawn);
+        record(&app, &format!("Options › {pane}"), drawn);
+        app.dialog = None;
     }
-    let _ = app.run("ui.backstage", json!({"value": false}));
     let dialogs = [
         "font",
         "paragraph",

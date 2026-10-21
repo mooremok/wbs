@@ -17,7 +17,7 @@ use wordcraft_engine::cmd::mailings::{FilterOp, FilterRule, SortKey};
 
 use crate::WordApp;
 use crate::options::MeasureExt;
-use crate::theme::{Tokens, semibold};
+use crate::theme::{Tokens, medium, semibold};
 
 /// The Find and Replace dialog's search options beyond the first row (#543).
 #[derive(Clone, Debug, Default, Serialize)]
@@ -559,6 +559,17 @@ pub enum Dialog {
     },
     /// Line Numbers, Hyphenation, Language, Envelopes and Labels (#407).
     Layout(Box<crate::dialogs_layout::LayoutDialog>),
+    /// The file menu's Print: the print settings and a page preview ([`crate::print_page`]).
+    Print,
+    /// The file menu's Export: the "save a copy" formats ([`crate::print_page::export_formats`]).
+    Export,
+    /// The file menu's Info: the document's properties, protection and statistics.
+    Info,
+    /// The file menu's Options (WPS's 选项): the settings ([`crate::options::page`]) in a window.
+    Options,
+    /// Unsaved copies WBS kept while it ran: restore one or discard it after a crash or a forced
+    /// quit. Leaving never discards anything.
+    Recovery,
 }
 
 /// The Table Properties dialog's fields. Lengths are in the interface unit
@@ -1022,6 +1033,11 @@ impl Dialog {
             Dialog::Templates { .. } => "templates",
             Dialog::Organizer { .. } => "organizer",
             Dialog::Layout(d) => d.name(),
+            Dialog::Print => "print",
+            Dialog::Export => "export",
+            Dialog::Info => "info",
+            Dialog::Options => "options",
+            Dialog::Recovery => "recovery",
         }
     }
 
@@ -1307,6 +1323,13 @@ impl Dialog {
             "noteOptions" => Dialog::NoteOptions { form: Box::new(crate::dialogs_notes::NoteForm::read(app)) },
             "templates" => Dialog::Templates { form: Box::new(crate::dialogs_templates::TemplatesForm::read(app)) },
             "organizer" => Dialog::Organizer { form: Box::new(crate::dialogs_templates::OrganizerForm::read(app, None)) },
+            // The file menu's window-per-page set. Print, Export and Info need a document (the
+            // menu greys them out without one); Options and Recovery never do.
+            "print" if app.has_document() => Dialog::Print,
+            "export" if app.has_document() => Dialog::Export,
+            "info" if app.has_document() => Dialog::Info,
+            "options" => Dialog::Options,
+            "recovery" => Dialog::Recovery,
             "controlProperties" => match crate::dialogs_controls::ControlForm::read(app) {
                 Some(form) => Dialog::Control { form: Box::new(form) },
                 None => {
@@ -1493,6 +1516,11 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
         Dialog::Templates { .. } => "Templates and Add-ins",
         Dialog::Organizer { .. } => "Organizer",
         Dialog::Layout(d) => d.title(),
+        Dialog::Print => "Print",
+        Dialog::Export => "Export",
+        Dialog::Info => "Info",
+        Dialog::Options => "Options",
+        Dialog::Recovery => "Recover documents",
     };
     let id = egui::Id::new(("dialog", title));
     let window = crate::window_close::window(ctx, egui::Window::new(tl!(title)).id(id).collapsible(false).resizable(false));
@@ -2885,10 +2913,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 }
                 // `execute`, not `run`: Save Changes was asked when the open began.
                 match app.execute("file.open", p) {
-                    Ok(_) => {
-                        app.ui.backstage = false;
-                        return true;
-                    }
+                    Ok(_) => return true,
                     Err(e) if wordcraft_engine::io::wrong_password(&e) => {
                         *message = tl!("That password isn't right. Check it (passwords are case-sensitive) and try again.").to_string();
                         password.as_mut_string().clear();
@@ -3013,6 +3038,71 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
         Dialog::Templates { form } => crate::dialogs_templates::templates(app, ui, form),
         Dialog::Organizer { form } => crate::dialogs_templates::organizer(app, ui, form),
         Dialog::Layout(d) => crate::dialogs_layout::body(app, ui, d),
+        Dialog::Print => {
+            // The old Print page as a window: settings left, page preview right. The room is
+            // given as a fixed rect, not measured, or the auto-sized window would offer the
+            // preview an unbounded pane and grow to the zoomed page instead of scrolling it.
+            // A narrow window narrows the room (the preview shrinks, the settings stay whole)
+            // instead of pushing the settings off the screen.
+            let w = (ui.ctx().input(|i| i.viewport_rect().width()) - 60.0).clamp(560.0, 920.0);
+            ui.set_min_width(w + 30.0);
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(w, 540.0), Sense::hover());
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                // Print Markup (a print setting, as in Word): the comments beside each page.
+                let mut markup = app.session.prefs.print_markup;
+                if ui
+                    .checkbox(&mut markup, tl!("Print Markup"))
+                    .on_hover_text(tl!(
+                        "Comments beside each page and tracked changes in PDFs, prints and images; a comment list at the end of web pages, Markdown and text."
+                    ))
+                    .changed()
+                {
+                    let _ = app.run("file.printMarkup", json!({"value": markup}));
+                }
+                ui.add_space(4.0);
+                crate::print_page::show(app, ui);
+            });
+            // A button may have opened another window (an export's file dialog).
+            close_button(ui) || app.dialog.is_some()
+        }
+        Dialog::Export => {
+            ui.set_min_width(372.0);
+            ui.label(tl!("Save a copy in another format. Printing goes through a PDF you can print from any viewer."));
+            ui.add_space(8.0);
+            egui::ScrollArea::vertical().max_height(430.0).id_salt("export_formats").show(ui, |ui| crate::print_page::export_formats(app, ui));
+            // The image formats open the Export Image window right here.
+            close_button(ui) || app.dialog.is_some()
+        }
+        Dialog::Info => {
+            ui.set_min_width(680.0);
+            egui::ScrollArea::vertical().max_height(440.0).id_salt("info_scroll").show(ui, |ui| info_body(app, ui));
+            // Encrypt with Password… opens the password window over this one.
+            close_button(ui) || app.dialog.is_some()
+        }
+        Dialog::Options => {
+            // The settings in a window, the pane list on the left like Word's dialog. The scroll
+            // needs its own height bound: an auto-sized window offers unbounded room.
+            ui.set_min_width(870.0);
+            egui::ScrollArea::vertical().max_height(480.0).id_salt("options_scroll").show(ui, |ui| crate::options::page(app, ui));
+            close_button(ui) || app.dialog.is_some()
+        }
+        Dialog::Recovery => {
+            ui.set_min_width(560.0);
+            ui.label(tl!("Restore opens an unsaved copy. Your original file stays unchanged."));
+            ui.add_space(12.0);
+            egui::ScrollArea::vertical().max_height(360.0).id_salt("recovery_scroll").show(ui, |ui| recovery_body(app, ui));
+            ui.horizontal(|ui| {
+                let refresh = ui.add_enabled(!app.session.recovery_busy() && app.session.recovery_ready(), egui::Button::new(tl!("Refresh")));
+                if refresh.clicked() {
+                    let _ = app.run("file.recover", json!({"refresh": true}));
+                }
+                let leave = ui.button(tl!("Continue without restoring"));
+                // Discard… asks for confirmation and Restore may ask about unsaved changes; the
+                // window they open stays, this one gives way.
+                leave.clicked() || app.dialog.is_some()
+            })
+            .inner
+        }
         Dialog::FindRecipient { text, message } => {
             ui.horizontal(|ui| {
                 ui.label(tl!("Find:"));
@@ -4087,12 +4177,232 @@ fn page_valign_value(v: wordcraft_doc::section::PageVAlign) -> &'static str {
     }
 }
 
+/// The Info window's body: the properties, protection and statistics of the open document, as
+/// the old File › Info page had them.
+fn info_body(app: &mut WordApp, ui: &mut Ui) {
+    let info = app.session.run("file.info", &json!({})).unwrap_or_default();
+    ui.columns(2, |cols| {
+        let ui = &mut cols[0];
+        ui.label(egui::RichText::new(tl!("Properties")).font(semibold(15.0)));
+        // The fields edit a copy of the document's properties that is read afresh every frame,
+        // so each change goes into the document as it is typed (#260): waiting for the field to
+        // lose focus dropped the keystrokes, and closing the window with Escape never loses it at
+        // all. The keystrokes of one visit to a field are a single undo step.
+        let mut props = app.session.doc.core.clone();
+        let mut edited = None;
+        let mut focused = None;
+        egui::Grid::new("props").num_columns(2).spacing(egui::vec2(12.0, 6.0)).show(ui, |ui| {
+            for (l, v) in [("Title", &mut props.title), ("Subject", &mut props.subject), ("Author", &mut props.creator), ("Keywords", &mut props.keywords), ("Category", &mut props.category)] {
+                let label = ui.label(tl!(l));
+                let r = ui.add(egui::TextEdit::singleline(v).id_salt(("info-prop", l))).labelled_by(label.id);
+                if r.changed() {
+                    edited = Some(l);
+                }
+                if r.has_focus() {
+                    focused = Some(l);
+                }
+                ui.end_row();
+            }
+        });
+        if let Some(field) = edited {
+            if app.info_editing == Some((field, app.session.rev())) {
+                app.session.join_next_undo();
+            }
+            let ok = app.run("file.properties", json!({"title": props.title, "subject": props.subject, "author": props.creator, "keywords": props.keywords, "category": props.category})).is_ok();
+            app.info_editing = ok.then(|| (field, app.session.rev()));
+        }
+        if focused != app.info_editing.map(|(f, _)| f) {
+            app.info_editing = None;
+        }
+        // Protect Document › Encrypt with Password (#55).
+        ui.add_space(18.0);
+        ui.label(egui::RichText::new(tl!("Protect Document")).font(semibold(15.0)));
+        let encrypted = info.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
+        ui.label(if encrypted {
+            tl!("A password is required to open this document.")
+        } else {
+            tl!("Anyone can open this document. Encrypt it with a password to keep it private.")
+        });
+        ui.horizontal(|ui| {
+            let label = if encrypted { tl!("Change Password…") } else { tl!("Encrypt with Password…") };
+            if ui.button(egui::RichText::new(label).font(medium(13.5))).clicked() {
+                let _ = app.run("file.encrypt", json!({}));
+            }
+            if encrypted && ui.button(egui::RichText::new(tl!("Remove Password")).font(medium(13.5))).clicked() {
+                let _ = app.run("file.encrypt", json!({"password": null}));
+            }
+        });
+        let ui = &mut cols[1];
+        ui.label(egui::RichText::new(tl!("Statistics")).font(semibold(15.0)));
+        for (l, k) in [("Pages", "pages"), ("Words", "words"), ("Paragraphs", "paragraphs"), ("Sections", "sections"), ("Comments", "comments")] {
+            ui.label(format!("{}: {}", tl!(l), info.get(k).map(|v| v.to_string()).unwrap_or_default()));
+        }
+        let path = info.get("path").and_then(|v| v.as_str()).unwrap_or(tl!("Not saved yet"));
+        ui.label(crate::i18n::fmt(tl!("Location: {path}"), &[("path", path)]));
+    });
+}
+
+/// The Recovery window's body: each unsaved copy with Restore and Discard, as the old Recover
+/// page had them (on the window's own background, not black). Leaving never discards anything.
+fn recovery_body(app: &mut WordApp, ui: &mut Ui) {
+    if app.session.password.is_some() {
+        ui.label(tl!("Recovery is disabled while this document has a password."));
+    }
+    if let Some(error) = app.session.recovery_error() {
+        ui.label(error);
+    }
+    if !app.session.recovery_ready() {
+        ui.label(tl!("Local recovery is unavailable or still loading."));
+    }
+    let documents = app.session.recovery_documents();
+    if documents.is_empty() && app.session.recovery_ready() {
+        ui.label(tl!("No recovery copies."));
+    }
+    let busy = app.session.recovery_busy();
+    egui::Grid::new("recovery_documents").min_col_width(180.0).spacing(egui::vec2(24.0, 16.0)).show(ui, |ui| {
+        if !documents.is_empty() {
+            ui.strong(tl!("Document"));
+            ui.strong(tl!("Recovery copy"));
+            ui.end_row();
+        }
+        for doc in documents {
+            ui.label(&doc.name);
+            ui.label(&doc.saved_at);
+            ui.add_enabled_ui(!busy, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(tl!("Restore")).clicked() {
+                        let _ = app.run("file.recover", json!({"restore": doc.id}));
+                    }
+                    if ui.button(tl!("Discard…")).clicked() {
+                        let _ = app.run("ui.recoveryDiscard", json!({"id": doc.id}));
+                    }
+                });
+            });
+            ui.end_row();
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use wordcraft_doc::Pos;
     use wordcraft_doc::props::Align;
     use wordcraft_engine::Session;
+
+    /// The Recovery window (the old Recover page): copies WBS kept while it ran, with Restore
+    /// and Discard. Leaving the window never discards anything.
+    mod recovery {
+        use super::*;
+        use egui_kittest::kittest::Queryable;
+        use serde_json::json;
+
+        fn recovery_app() -> (WordApp, std::path::PathBuf) {
+            let root = std::env::temp_dir().join(format!(
+                "wordcraft-recovery-ui-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+            ));
+            let id = "0123456789abcdef0123456789abcdef";
+            let dir = root.join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("snapshot-00000000000000000001.json"),
+                serde_json::to_vec(&json!({
+                    "version": 1, "generation": 1, "info": {"id": id, "name": "Synthetic draft", "savedAt": "2026-10-11T10:42:00Z"},
+                    "document": wordcraft_doc::Document::from_text("Recovered synthetic work")
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+            let mut app = WordApp::new(Session::new(wordcraft_doc::Document::new()), Default::default());
+            app.session.enable_recovery(root.clone(), std::sync::Arc::new(|| {})).unwrap();
+            (app, root)
+        }
+
+        fn harness(app: WordApp) -> egui_kittest::Harness<'static, WordApp> {
+            egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            )
+        }
+
+        fn settle(h: &mut egui_kittest::Harness<'_, WordApp>) {
+            let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                h.run_steps(2);
+                if h.state().session.recovery_ready() && !h.state().session.recovery_busy() {
+                    break;
+                }
+                assert!(std::time::Instant::now() < end);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            // Worker completion is a state boundary; egui needs later frames to expose buttons.
+            h.run_steps(4);
+        }
+
+        #[test]
+        fn the_recovery_window_keeps_dismissed_copies_and_confirms_discard() {
+            let (app, root) = recovery_app();
+            let mut h = harness(app);
+            settle(&mut h);
+            assert!(matches!(h.state().dialog, Some(Dialog::Recovery)), "the window opens by itself at start-up");
+            h.get_by_label("Continue without restoring").click();
+            h.run_steps(4);
+            assert!(h.state().dialog.is_none(), "leaving discards nothing");
+            assert_eq!(h.state().session.recovery_documents().len(), 1);
+            h.state_mut().run("file.recover", json!({})).unwrap();
+            h.run_steps(4);
+            h.get_by_label("Discard…").click();
+            h.run_steps(4);
+            assert!(matches!(h.state().dialog, Some(Dialog::DiscardRecovery { .. })));
+            h.get_by_label("Cancel").click();
+            h.run_steps(4);
+            assert_eq!(h.state().session.recovery_documents().len(), 1, "Cancel keeps the copy");
+            // Cancel closed the window over it; the list is one `file.recover` away again.
+            h.state_mut().run("file.recover", json!({})).unwrap();
+            h.run_steps(4);
+            h.get_by_label("Discard…").click();
+            h.run_steps(4);
+            h.get_by_label("Discard").click();
+            settle(&mut h);
+            assert!(h.state().session.recovery_documents().is_empty());
+            // Reopened, the window says so.
+            h.state_mut().run("file.recover", json!({})).unwrap();
+            h.run_steps(4);
+            assert!(h.query_by_label("No recovery copies.").is_some());
+            drop(h);
+            let _ = std::fs::remove_dir_all(root);
+        }
+
+        /// Restore asks Save / Don't Save / Cancel about the document showing, and Don't Save
+        /// replaces it with the recovered copy without writing anywhere first.
+        #[test]
+        fn restore_asks_about_the_current_document() {
+            let (app, root) = recovery_app();
+            let mut h = harness(app);
+            settle(&mut h);
+            h.state_mut().execute("text.insert", json!({"text": "Current unsaved work"})).unwrap();
+            h.state_mut().autosave_path = Some(root.join("must-not-write.docx"));
+            h.state_mut().run("file.recover", json!({})).unwrap();
+            h.run_steps(4);
+            h.get_by_label("Restore").click();
+            h.run_steps(4);
+            assert!(matches!(h.state().dialog, Some(Dialog::SaveChanges { .. })));
+            h.get_by_label("Don't Save").click();
+            settle(&mut h);
+            assert_eq!(h.state().session.doc.plain_text(wordcraft_doc::StoryRef::Body), "Recovered synthetic work");
+            assert!(h.state().session.dirty && h.state().session.path.is_none());
+            assert!(h.state().autosave_path.is_none());
+            assert!(!root.join("must-not-write.docx").exists());
+            drop(h);
+            let _ = std::fs::remove_dir_all(root);
+        }
+    }
 
     /// Go To's page box (#712): a number, +n / -n from the current page (a typographic minus
     /// too), empty for the next page; anything else is refused.

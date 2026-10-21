@@ -24,7 +24,6 @@ pub mod a11y;
 pub mod a11y_pane;
 pub mod async_saves;
 pub mod autoscroll;
-pub mod backstage;
 pub mod canvas;
 pub mod caret_glide;
 pub mod chrome;
@@ -219,11 +218,11 @@ pub enum DefaultApp {
 pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
 
 /// Whether a pasted picture belongs in the document: the page has keyboard focus, and no
-/// Backstage or dialog is open (#1349). A focused text field (comment, Find box) means the page
+/// dialog is open (#1349). A focused text field (comment, Find box) means the page
 /// does not have focus, so `canvas_focused` already covers it; egui's own "wants keyboard input"
 /// is true for the focused page itself and can't be used.
-fn paste_target(canvas_focused: bool, backstage: bool, dialog: bool) -> bool {
-    canvas_focused && !backstage && !dialog
+fn paste_target(canvas_focused: bool, dialog: bool) -> bool {
+    canvas_focused && !dialog
 }
 
 /// File › Export image choices, kept between exports and read by `file.exportPng` calls the
@@ -248,10 +247,8 @@ impl Default for ExportImageSettings {
 #[serde(default, rename_all = "camelCase")]
 pub struct UiState {
     /// The ribbon tab showing. It is written to `ui.json` but not restored at startup: Word opens
-    /// on Home every launch, and only going File and back to the editor keeps the tab ([`WordApp::apply_prefs`]).
+    /// on Home every launch, and only going Home and back to the editor keeps the tab ([`WordApp::apply_prefs`]).
     pub tab: String,
-    pub backstage: bool,
-    pub backstage_page: String,
     /// File › Print settings (#641); not saved.
     #[serde(skip)]
     pub print: print_page::PrintSettings,
@@ -377,8 +374,6 @@ impl Default for UiState {
     fn default() -> Self {
         UiState {
             tab: DEFAULT_TAB.into(),
-            backstage: false,
-            backstage_page: "home".into(),
             print: print_page::PrintSettings::default(),
             ribbon_collapsed: false,
             quick_access_toolbar: true,
@@ -854,7 +849,6 @@ impl WordApp {
     /// document tab brings its page back ([`WordApp::activate_tab`]).
     pub(crate) fn show_home(&mut self) {
         self.home = true;
-        self.ui.backstage = false;
         self.dialog = None;
         self.canvas.ime_preedit.clear();
         self.canvas.ime_preedit_cursor = None;
@@ -948,7 +942,7 @@ impl WordApp {
     /// file that fails to open drops the empty tab and returns to the document that was showing.
     fn open_in_tab(&mut self, id: &str, params: &Value) -> Result<Value, String> {
         let mut fresh = self.fresh_session_like();
-        let was = (self.ui.backstage, self.home);
+        let was_home = self.home;
         self.stash_active_tab();
         #[cfg(not(target_arch = "wasm32"))]
         if let (Some(root), Some(wake)) = (self.recovery_root.clone(), self.recovery_wake.clone()) {
@@ -962,10 +956,9 @@ impl WordApp {
         }
         if r.is_err() {
             // Nothing opened: drop the empty tab, go back to the document that was showing and
-            // the view it was in (a failed Recent open keeps the File page up to say why).
+            // the view it was in (a failed Recent open stays on Home to say why).
             self.close_active_tab();
-            self.ui.backstage = was.0;
-            self.home = was.1;
+            self.home = was_home;
         }
         r
     }
@@ -1033,7 +1026,6 @@ impl WordApp {
         self.no_document = None;
         self.dialog = None;
         self.status_msg = None;
-        self.ui.backstage = false;
         self.canvas.ime_preedit.clear();
         self.canvas.ime_preedit_cursor = None;
         self.canvas.caret_visible_since = now_ms();
@@ -1066,8 +1058,7 @@ impl WordApp {
     /// Restore preferences saved by [`WordApp::prefs`].
     pub fn apply_prefs(&mut self, ui: UiState) {
         self.ui = ui;
-        self.ui.backstage = false;
-        // Word opens on Home every launch, so the tab `ui.json` holds is not restored. Going File
+        // Word opens on Home every launch, so the tab `ui.json` holds is not restored. Going Home
         // and back to the editor within the run still returns to the tab that was showing.
         self.ui.tab = DEFAULT_TAB.into();
         let recent_fonts = recent_fonts_from(self.ui.recent_fonts.iter().map(String::as_str));
@@ -1145,8 +1136,7 @@ impl WordApp {
         // line), and replacing the document asks Save / Don't Save / Cancel about it.
         let refused = if flushes_comment_drafts(id, &params) { panes::flush_comment_drafts(self).err() } else { None };
         if id == "file.recover" && params.as_object().is_none_or(|p| p.is_empty()) {
-            self.ui.backstage = true;
-            self.ui.backstage_page = "recover".into();
+            self.dialog = Some(dialogs::Dialog::Recovery);
         }
         // A button whose command needs input the user hasn't given yet opens its dialog (#240).
         if let Some(name) = input_dialog(id, &params)
@@ -1670,12 +1660,10 @@ impl WordApp {
         }
         if !self.tabs.is_empty() {
             self.close_active_tab();
-            self.ui.backstage = false;
             return Ok(json!({"closed": true}));
         }
         self.execute("file.new", json!({}))?;
         self.no_document = Some(self.session.document_id());
-        self.ui.backstage = false;
         self.home = true;
         Ok(json!({"closed": true}))
     }
@@ -1759,15 +1747,13 @@ impl WordApp {
                 "addFont" => self.pick_font(),
                 "loadSystemFonts" => self.load_system_fonts(),
                 "print" => {
-                    self.ui.backstage = true;
-                    self.ui.backstage_page = "print".into();
+                    self.dialog = Some(dialogs::Dialog::Print);
                 }
                 "options" => {
-                    self.ui.backstage = true;
-                    self.ui.backstage_page = "options".into();
                     if let Some(pane) = req.get("pane").and_then(Value::as_str) {
                         self.ui.options_pane = pane.into();
                     }
+                    self.dialog = Some(dialogs::Dialog::Options);
                 }
                 "pasteSpecial" => self.dialog = Some(dialogs::Dialog::paste_special(self, req)),
                 other => self.dialog = dialogs::Dialog::open(other, self),
@@ -1813,12 +1799,7 @@ impl WordApp {
         Some(Ok(match id {
             "ui.tab" => {
                 let tab = s("tab").unwrap_or("Home").to_string();
-                if tab == "File" {
-                    self.ui.backstage = true;
-                } else {
-                    self.ui.tab = tab;
-                    self.ui.backstage = false;
-                }
+                self.ui.tab = tab;
                 json!({"tab": self.ui.tab})
             }
             // The Home tab (WPS's 首页): the editor area becomes the home view. `{"value":
@@ -1856,16 +1837,6 @@ impl WordApp {
                 self.close_tab(d);
                 self.tab_state()
             }
-            "ui.backstage" => {
-                self.ui.backstage = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.backstage);
-                if let Some(pg) = s("page") {
-                    self.ui.backstage_page = pg.into();
-                }
-                if let Some(pane) = s("pane") {
-                    self.ui.options_pane = pane.into();
-                }
-                json!({"backstage": self.ui.backstage})
-            }
             "ui.dialog" if s("name") == Some("colors") => {
                 // The font colour's More Colors… (#606); `tab`: standard or custom.
                 let target = colors::Target::cmd("format.color").remember(colors::Remember::FontColor);
@@ -1879,6 +1850,13 @@ impl WordApp {
                 json!({"dialog": "colors"})
             }
             "ui.dialog" => {
+                // The Options window can open on a pane (`"pane": "advanced"`), as the old File
+                // page's Options did.
+                if s("name") == Some("options")
+                    && let Some(pane) = s("pane")
+                {
+                    self.ui.options_pane = pane.into();
+                }
                 self.dialog = dialogs::Dialog::open(s("name").unwrap_or(""), self);
                 // New / Modify Table Style can open on a part (`"part": "firstRow"`…).
                 if let Some(dialogs::Dialog::TableStyle { region, .. }) = &mut self.dialog
@@ -2424,14 +2402,12 @@ impl WordApp {
         if self.session.document_id() != document && !std::mem::take(&mut self.switched_tab) {
             self.autosave_path = None;
             self.dialog = None;
-            self.ui.backstage = false;
             self.canvas.want_focus = true;
         }
         if !self.recovery_seen && self.session.recovery_ready() {
             self.recovery_seen = true;
             if !self.session.recovery_documents().is_empty() && !self.session.dirty {
-                self.ui.backstage = true;
-                self.ui.backstage_page = "recover".into();
+                self.dialog = Some(dialogs::Dialog::Recovery);
             }
         }
         if let Some(wait) = self.session.recovery_wait() {
@@ -2606,7 +2582,7 @@ impl WordApp {
             return;
         }
         let t = theme::Tokens::get(&ctx);
-        self.escape_free = self.dialog.is_none() && !self.ui.backstage && self.ui.keytips == keytips::Phase::Off && !egui::Popup::is_any_open(&ctx);
+        self.escape_free = self.dialog.is_none() && self.ui.keytips == keytips::Phase::Off && !egui::Popup::is_any_open(&ctx);
         // Keytips are read before layout so the frame paints the new state; badges paint after
         // the ribbon so they sit on top of it.
         crate::keytips::logic(self, &ctx);
@@ -2615,28 +2591,24 @@ impl WordApp {
         if self.session.view.focus_mode && self.dialog.is_none() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             let _ = self.run("view.focus", json!({"value": false}));
         }
-        // A failed Recent open is news only until File closes (#2938).
-        if !self.ui.backstage {
-            backstage::forget_open_error(&ctx);
+        // A failed Recent open is news only until Home is left (#2938).
+        if !self.home {
+            home::forget_open_error(&ctx);
         }
-        if self.ui.backstage {
-            backstage::show(self, ui);
+        chrome::tab_bar(self, ui);
+        if self.home || !self.has_document() {
+            // The Home tab is showing (WPS's 首页), or nothing is open yet (#1129): the
+            // editor area is the home view.
+            crate::home::show(self, ui);
         } else {
-            chrome::tab_bar(self, ui);
-            if self.home || !self.has_document() {
-                // The Home tab is showing (WPS's 首页), or nothing is open yet (#1129): the
-                // editor area is the home view.
-                crate::home::show(self, ui);
-            } else {
-                if !self.session.view.focus_mode {
-                    ribbon::show(self, ui);
-                    chrome::status_bar(self, ui);
-                    panes::show(self, ui);
-                }
-                egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
-                    canvas::show(self, ui);
-                });
+            if !self.session.view.focus_mode {
+                ribbon::show(self, ui);
+                chrome::status_bar(self, ui);
+                panes::show(self, ui);
             }
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+                canvas::show(self, ui);
+            });
         }
         content_controls::popup(self, &ctx);
         dialogs::show(self, &ctx);
@@ -2695,7 +2667,7 @@ impl WordApp {
     /// (font size, zoom, command search) keeps the focus it took, and clicks on a dialog, menu or
     /// popup, or while one is open, leave focus alone. Clicks on the page are the canvas's own.
     fn refocus_after_chrome_click(&mut self, ctx: &egui::Context) {
-        if self.ui.backstage || self.dialog.is_some() || self.colors.is_some() {
+        if self.dialog.is_some() || self.colors.is_some() {
             return;
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -2744,22 +2716,18 @@ impl WordApp {
             let list = lower.ends_with(".csv") || lower.ends_with(".tsv") || (lower.ends_with(".txt") && asked);
             let sheet = wordcraft_engine::cmd::mailings::is_spreadsheet_name(&lower);
             self.recipient_list_pending = asked && !list && !sheet;
-            let r = if sheet {
-                self.load_recipients(json!({"path": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}))
+            if sheet {
+                let _ = self.load_recipients(json!({"path": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}));
             } else if wordcraft_fonts::is_font_file_name(&lower) {
-                self.run("font.add", json!({"name": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}))
+                let _ = self.run("font.add", json!({"name": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}));
             } else if list {
-                self.load_recipients(json!({"csv": wordcraft_engine::io::decode_text(&bytes)}))
+                let _ = self.load_recipients(json!({"csv": wordcraft_engine::io::decode_text(&bytes)}));
             } else if img {
                 self.caret_after_placed_picture(placed_picture);
                 let r = self.insert_or_change_picture(json!({"data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}));
                 placed_picture = Self::placed_in_text(&r);
-                r
             } else {
-                self.run("file.open", json!({"path": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}))
-            };
-            if r.is_ok() {
-                self.ui.backstage = false;
+                let _ = self.run("file.open", json!({"path": name, "data": wordcraft_engine::cmd::insert::base64_encode(&bytes)}));
             }
         }
     }
@@ -2769,7 +2737,7 @@ impl WordApp {
     fn drain_pasted(&mut self) {
         let Some(pasted) = self.services.pasted.clone() else { return };
         let pictures = std::mem::take(&mut *pasted.lock().unwrap_or_else(|e| e.into_inner()));
-        let target = paste_target(self.canvas.focused, self.ui.backstage, self.dialog.is_some() || self.file_dialog_open());
+        let target = paste_target(self.canvas.focused, self.dialog.is_some() || self.file_dialog_open());
         for (_, bytes) in pictures {
             if !target {
                 log::debug!("pasted picture ignored: the document is not the edit target");
@@ -3013,7 +2981,6 @@ pub(crate) fn works_without_document(id: &str) -> bool {
             | "ui.tabActivate"
             | "ui.tabNew"
             | "ui.tabClose"
-            | "ui.backstage"
             | "ui.dialog"
             | "ui.closeDialog"
             | "ui.collapseRibbon"
@@ -3272,8 +3239,7 @@ mod tests {
         assert_eq!(h.state().title_stem(), long_name.trim());
         h.get_by_label("Account").click();
         h.run_steps(2);
-        assert!(h.state().ui.backstage);
-        assert_eq!(h.state().ui.backstage_page, "options");
+        assert!(matches!(h.state().dialog, Some(dialogs::Dialog::Options)), "the Options window opened");
         assert_eq!(h.state().ui.options_pane, "general");
         assert!(h.query_by_label("User name:").is_some());
     }
@@ -3358,20 +3324,18 @@ mod tests {
         )
     }
 
-    /// #766: started with nothing to open, the app shows File › Home (the Start screen) as Word
-    /// does. #1129: no document is open behind it, so Esc (or Back) shows an empty window, with
-    /// no page, the ribbon greyed out but for Help, and nothing to save on close. With the setting
-    /// off it starts in the editor, and `WordApp::new` alone (tests, ui_shot, windows opened for a
-    /// document) never shows it.
+    /// #766: started with nothing to open, the app shows the Home tab (WPS's 首页) as Word does
+    /// its Start screen. #1129: no document is open behind it, so the home view has no document
+    /// to act on, and nothing to save on close. With the setting off it starts in the editor, and
+    /// `WordApp::new` alone (tests, ui_shot, windows opened for a document) never shows it.
     #[test]
     fn start_screen_shows_the_home_tab_with_no_document() {
         use egui_kittest::kittest::Queryable;
         let mut a = app();
-        assert!(!a.home && !a.ui.backstage, "`new` starts in the editor");
+        assert!(!a.home, "`new` starts in the editor");
         assert!(a.has_document());
-        a.ui.backstage_page = "print".into();
         assert!(a.start_screen(), "on by default");
-        assert!(a.home && !a.ui.backstage, "the Home tab shows, not the File page");
+        assert!(a.home, "the Home tab shows");
         assert!(!a.has_document(), "no document behind the home view");
         let mut h = harness(a);
         h.run_steps(4);
@@ -3402,7 +3366,7 @@ mod tests {
         for id in [
             "file.new",
             "file.open",
-            "ui.backstage",
+            "ui.dialog",
             "ui.tab",
             "ui.home",
             "ui.tabs",
@@ -3437,7 +3401,7 @@ mod tests {
         let mut b = app();
         b.run("ui.startScreen", json!({"value": false})).unwrap();
         assert!(!b.start_screen(), "off: today's behaviour");
-        assert!(!b.ui.backstage && !b.home && b.has_document());
+        assert!(!b.home && b.has_document());
     }
 
     /// #3045: on the empty window (no document behind the Start screen) the ribbon is greyed
@@ -3457,34 +3421,32 @@ mod tests {
         h.get_by_label("File").click();
         h.run_steps(3);
         assert!(egui::Popup::is_any_open(&h.ctx), "the menu is open");
-        assert!(!h.state().ui.backstage, "not the File page");
-        // New in the menu reaches the templates, where a document can be made.
+        assert!(h.state().dialog.is_none(), "the menu is not a window");
+        // New in the menu reaches the home view's templates, where a document can be made.
         // Two controls say "New": the bar's + button and the menu's entry; the menu's is the
         // lower one.
         let news = h.get_all_by_label("New").max_by(|a, b| a.rect().min.y.total_cmp(&b.rect().min.y)).expect("the menu's New");
         news.click();
         h.run_steps(4);
-        assert!(h.state().ui.backstage && h.state().ui.backstage_page == "new", "New reaches the templates");
+        assert!(h.state().home, "New reaches the home view");
         assert!(h.query_by_label("Blank document").is_some(), "where a document can be made");
     }
 
-    /// #1129: the empty window's File tab goes back to the Backstage with only Home, New, Open
-    /// and Options; picking Blank document there opens one, ready for typing.
+    /// #1129: on the empty window the Home tab's templates are one click away; picking Blank
+    /// document there opens one, ready for typing.
     #[test]
     fn blank_document_opens_a_document_from_the_start_screen() {
         use egui_kittest::kittest::Queryable;
         let mut a = app();
         a.start_screen();
-        a.run("ui.backstage", json!({"value": false})).unwrap();
-        a.run("ui.backstage", json!({"value": true, "page": "info"})).unwrap();
         let first = a.session.document_id();
         let mut h = harness(a);
         h.run_steps(4);
-        assert_eq!(h.state().ui.backstage_page, "home", "Info needs a document");
+        assert!(h.state().home, "the home view is showing");
         h.get_by_label("Blank document").click();
         h.run_steps(4);
         let a = h.state_mut();
-        assert!(a.has_document() && !a.ui.backstage, "Blank document opens one");
+        assert!(a.has_document() && !a.home, "Blank document opens one");
         assert_ne!(a.session.document_id(), first);
         assert!(widgets::enabled(a, "format.bold"));
         a.run("text.insert", json!({"text": "Hello"})).unwrap();
@@ -3533,8 +3495,8 @@ mod tests {
         assert!(old.start_screen, "settings from before the option leave it on");
         let mut c = app();
         c.apply_prefs(old);
-        assert!(!c.ui.backstage, "applying settings alone stays in the editor");
-        assert!(c.start_screen() && c.ui.backstage_page == "home");
+        assert!(!c.home, "applying settings alone stays in the editor");
+        assert!(c.start_screen());
     }
 
     /// Insert › Icons (#309) opens the icon picker from the ribbon; an id inserts without it.
@@ -5333,7 +5295,7 @@ mod tests {
         a.run("file.close", json!({})).unwrap();
         a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
         assert!(!a.quit_requested, "the window stays");
-        assert!(!a.has_document() && !a.session.dirty && !a.ui.backstage, "no document, no page");
+        assert!(!a.has_document() && !a.session.dirty, "no document, nothing else showing");
         assert!(a.close_requested(), "closing the empty window asks nothing");
         a.run("file.close", json!({})).unwrap();
         assert!(!a.quit_requested && !a.has_document(), "nothing left to close");
@@ -5803,11 +5765,11 @@ mod tests {
             for _ in 0..4 {
                 h.step();
             }
-            assert!(h.state().ui.backstage && h.state().ui.backstage_page == "print", "the Print page is open");
+            assert!(matches!(h.state().dialog, Some(dialogs::Dialog::Print)), "the Print window is open");
             assert_eq!(h.query_by_label(BLURB).is_some(), hook, "hook {hook}: the Print button's blurb");
-            assert!(h.query_by_label("PDF document (*.pdf)").is_some(), "hook {hook}: the page rendered its export choices");
+            assert!(h.query_by_label("PDF document (*.pdf)").is_some(), "hook {hook}: the window rendered its export choices");
             if hook {
-                // The page's own Print button (the backstage list has a Print entry too): the last.
+                // The window's own Print button (the file menu has a Print entry too): the last.
                 let buttons: Vec<_> = h.query_all(egui_kittest::kittest::By::new().role(egui::accesskit::Role::Button).label("Print")).collect();
                 buttons.last().expect("a Print button").click();
                 h.step();
@@ -5836,7 +5798,7 @@ mod tests {
         h.run_steps(4);
         let page = |h: &egui_kittest::Harness<'_, WordApp>| h.get(By::new().role(Role::Image)).rect();
         let fit = page(&h);
-        assert!(fit.height() > 650.0, "the page fills the pane's height: {fit:?}");
+        assert!(fit.height() > 330.0, "the page fills the window's preview pane: {fit:?}");
         assert!(h.query(By::new().role(Role::Label).label("Page 1 of 1")).is_some(), "the page indicator stays");
 
         for _ in 0..5 {
@@ -5844,9 +5806,13 @@ mod tests {
             h.run_steps(2);
         }
         let zoomed = page(&h);
-        assert!(zoomed.width() > fit.width() * 1.4 && zoomed.height() > 900.0, "zoomed in: {zoomed:?}");
+        assert!(zoomed.width() > fit.width() * 1.4 && zoomed.height() > 700.0, "zoomed in: {zoomed:?}");
 
-        h.input_mut().events.push(egui::Event::PointerMoved(zoomed.center()));
+        // Aim inside the preview pane itself: the image node's rect is in content
+        // coordinates, which the zoomed page pushes outside the pane.
+        let bar = h.get(By::new().role(Role::Label).label("Page 1 of 1")).rect();
+        let over_preview = egui::pos2((bar.min.x + bar.max.x) / 2.0, bar.min.y - 80.0);
+        h.input_mut().events.push(egui::Event::PointerMoved(over_preview));
         h.input_mut().events.push(egui::Event::MouseWheel {
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(-120.0, -120.0),
@@ -5880,7 +5846,7 @@ mod tests {
                     Ok(DefaultApp::MadeDefault)
                 }));
             }
-            a.run("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+            a.run("ui.dialog", json!({"name": "options"})).unwrap();
             let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
                 |ui, app: &mut WordApp| {
                     let ctx = ui.ctx().clone();
@@ -5890,7 +5856,7 @@ mod tests {
                 a,
             );
             h.run_steps(4);
-            assert!(h.query_by_label("Show the Start screen when WBS starts").is_some(), "hook {hook}: the Options page rendered");
+            assert!(h.query_by_label("Show the Start screen when WBS starts").is_some(), "hook {hook}: the Options window rendered");
             assert_eq!(h.query_by_label(LABEL).is_some(), hook, "hook {hook}: the button");
             if hook {
                 h.get_by_label(LABEL).click();
@@ -7175,7 +7141,7 @@ mod tests {
         a.apply_prefs(serde_json::from_str(r#"{"dark": true, "backstage": true}"#).unwrap());
         assert_eq!(a.session.author, default);
         assert_eq!(a.ui.theme, theme::Appearance::Dark);
-        assert!(!a.ui.backstage);
+        assert!(!a.home);
     }
 
     /// #115: the old dark-mode switch migrates to Light/Dark; a saved System stays System, and the
@@ -7600,16 +7566,16 @@ mod tests {
         assert_eq!(b.ui.theme, theme::Appearance::Dark, "the other preferences are");
     }
 
-    /// Going File and back to the editor returns to the tab that was showing, contextual tabs
+    /// Going Home and back to the editor returns to the tab that was showing, contextual tabs
     /// included (Word behaves the same way).
     #[test]
-    fn going_to_file_and_back_keeps_the_tab() {
+    fn going_home_and_back_keeps_the_tab() {
         let mut a = app();
         a.ui_command("ui.tab", &json!({"tab": "Table Design"})).unwrap().unwrap();
-        a.ui_command("ui.tab", &json!({"tab": "File"})).unwrap().unwrap();
-        assert!(a.ui.backstage, "File opens Backstage, leaving the tab alone");
-        a.ui_command("ui.tab", &json!({"tab": "Table Design"})).unwrap().unwrap();
-        assert!(!a.ui.backstage && a.ui.tab == "Table Design");
+        a.ui_command("ui.home", &json!({})).unwrap().unwrap();
+        assert!(a.home, "Home shows, leaving the tab alone");
+        a.ui_command("ui.home", &json!({"value": false})).unwrap().unwrap();
+        assert!(!a.home && a.ui.tab == "Table Design");
     }
 
     fn png_bytes(c: [u8; 4]) -> Vec<u8> {
@@ -7673,13 +7639,13 @@ mod tests {
         a.drain_pasted();
         assert_eq!(object_count(&mut a), 1);
         a.dialog = None;
-        // The Backstage is open.
-        a.ui.backstage = true;
+        // A dialog is open.
+        a.dialog = Some(dialogs::Dialog::Options);
         push(&mut a, [1, 2, 3, 255]);
         a.drain_pasted();
         assert_eq!(object_count(&mut a), 1);
         assert!(q.lock().unwrap().is_empty(), "ignored pictures are dropped, not kept for later");
-        a.ui.backstage = false;
+        a.dialog = None;
         // A dropped file still inserts with the page unfocused.
         a.canvas.focused = false;
         a.session.run("select.collapse", &json!({"end": true})).unwrap();
@@ -7753,7 +7719,7 @@ mod tests {
         h.step();
         h.step();
         let app = h.state();
-        assert!(app.dialog.is_none() && !app.ui.backstage, "no dialog, no Backstage");
+        assert!(app.dialog.is_none(), "no dialog");
         assert!(!app.canvas.focused, "the search box has the focus, not the page");
         q.lock().unwrap().push(("pasted.png".into(), png_bytes([9, 9, 9, 255])));
         h.step();

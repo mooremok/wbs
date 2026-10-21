@@ -1836,6 +1836,9 @@ homeTab	Home	Trang chủ
 	Print	In
 	Print Layout	Bố cục in
 	Print Markup	In kèm nhận xét và thay đổi được theo dõi
+	Auto orientation	Hướng tự động
+	No Scaling	Không thu phóng
+	Scale to paper size	Thu phóng theo khổ giấy
 	Print failed: the printing worker stopped.	In thất bại: tiến trình in đã dừng.
 	Print failed: {error}	Không in được: {error}
 	Print job submitted.	Đã gửi lệnh in.

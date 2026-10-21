@@ -355,7 +355,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                         }
                         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, share));
                         if resp.on_hover_text(tl!("Export a copy to share (PDF, Word document)")).clicked() {
-                            let _ = app.run("ui.backstage", json!({"value": true, "page": "export"}));
+                            let _ = app.run("ui.dialog", json!({"name": "export"}));
                         }
                         ui.add_space(6.0);
                         let track = app.session.doc.settings.track_changes;
@@ -398,7 +398,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                             if app.ui.keytips == crate::keytips::Phase::Tabs {
                                 crate::keytips::record_tab(r, tab, &app.ui.keytip_prefix, &mut app.keytip_rects);
                             }
-                            let active = app.ui.tab == tab && !app.ui.backstage;
+                            let active = app.ui.tab == tab;
                             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, shown));
                             if resp.hovered() && !active {
                                 ui.painter().rect_filled(r.shrink2(vec2(0.0, 4.0)), 4.0, t.hover);
@@ -3311,7 +3311,7 @@ mod tests {
         assert!(h.query(item("French (France)")).is_some(), "the current language is listed (only while it is the current one)");
         h.get(item("Language Preferences…")).click();
         h.run();
-        assert!(h.state().ui.backstage, "File › Options opened");
+        assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::Options)), "the Options window opened");
         assert_eq!(h.state().ui.options_pane, "language");
         assert_eq!(language_name(Some("de-DE")), "German (Germany)");
     }

@@ -355,7 +355,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         ui.add_enabled(on, egui::Label::new(text).sense(Sense::click())).clicked() && on
                     };
                     if item(ui, tl!("New"), true) {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "new"}));
+                        let _ = app.run("ui.home", json!({}));
                         ui.close();
                     }
                     if item(ui, tl!("Open"), true) {
@@ -373,15 +373,15 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     }
                     ui.separator();
                     if item(ui, tl!("Print"), doc) {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "print"}));
+                        let _ = app.run("ui.dialog", json!({"name": "print"}));
                         ui.close();
                     }
                     if item(ui, tl!("Export"), doc) {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "export"}));
+                        let _ = app.run("ui.dialog", json!({"name": "export"}));
                         ui.close();
                     }
                     if item(ui, tl!("Info"), doc) {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "info"}));
+                        let _ = app.run("ui.dialog", json!({"name": "info"}));
                         ui.close();
                     }
                     ui.separator();
@@ -390,7 +390,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         ui.close();
                     }
                     if item(ui, tl!("Options"), true) {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "options"}));
+                        let _ = app.run("ui.dialog", json!({"name": "options"}));
                         ui.close();
                     }
                     // The recent files, as WPS lists them under its file menu.
@@ -409,7 +409,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 });
                 // The Home tab (首页).
                 let (r, resp) = ui.allocate_exact_size(vec2(home_w, control_h), Sense::click());
-                let active = app.home && !app.ui.backstage;
+                let active = app.home;
                 tab_look(ui, r, resp.hovered(), active, &t);
                 let label = home_label;
                 ui.painter().text(
@@ -426,7 +426,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 // A tab per document, then +. A tab counts as active only while its document is
                 // really showing: with the Home tab up, clicking any document tab — its own
                 // included — goes back to the document rather than renaming it.
-                let showing = !app.home && !app.ui.backstage;
+                let showing = !app.home;
                 for (i, (title, dirty, active)) in infos.iter().enumerate().take(shown) {
                     let w = widths.get(i).copied().unwrap_or(66.0);
                     let (r, resp) = ui.allocate_exact_size(vec2(w, control_h), Sense::click());
@@ -518,8 +518,8 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Account")));
                     let initials: String = app.session.user_initials().chars().take(2).collect();
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, initials, semibold(10.5), t.on_accent);
-                    if resp.on_hover_text(format!("{} — set your name in File › Options", app.session.author)).clicked() {
-                        let _ = app.run("ui.backstage", json!({"value": true, "page": "options", "pane": "general"}));
+                    if resp.on_hover_text(format!("{} — set your name in the Options window", app.session.author)).clicked() {
+                        let _ = app.run("ui.dialog", json!({"name": "options", "pane": "general"}));
                     }
                     ui.add_space(8.0);
                     // Search ("Tell me").

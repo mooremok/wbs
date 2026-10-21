@@ -1798,6 +1798,9 @@
 	Print	Nyomtatás
 	Print Layout	Nyomtatási elrendezés
 	Print Markup	Jelölések nyomtatása
+	Auto orientation	Automatikus tájolás
+	No Scaling	Nincs méretezés
+	Scale to paper size	Méretezés papírméretre
 	Print failed: the printing worker stopped.	A nyomtatás sikertelen: a nyomtatási folyamat leállt.
 	Print failed: {error}	A nyomtatás sikertelen: {error}
 	Print job submitted.	Nyomtatási feladat elküldve.

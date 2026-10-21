@@ -1529,6 +1529,9 @@
 	Print	Štampaj
 	Print Layout	Prikaz za štampu
 	Print Markup	Štampaj oznake
+	Auto orientation	Automatska orijentacija
+	No Scaling	Bez skaliranja
+	Scale to paper size	Skaliraj na veličinu papira
 	Print failed: the printing worker stopped.	Štampanje nije uspelo: proces štampanja je zaustavljen.
 	Print failed: {error}	Štampanje neuspelo: {error}
 	Print job submitted.	Zadatak za štampanje je poslat.
@@ -1742,6 +1745,9 @@
 	Search commands and help	Pretraži naredbe i pomoć
 	Search document	Pretraži dokument
 	Search for templates	Pretraži šablone
+	Good morning	Dobro jutro
+	Good afternoon	Dobar dan
+	Good evening	Dobro veče
 	Search icons	Pretraži ikonice
 	Section 1.01	Odeljak 1.01
 	Section Break	Prekid odeljka

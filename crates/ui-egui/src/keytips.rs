@@ -639,11 +639,11 @@ pub fn activate(app: &mut WordApp) {
 
 use crate::keys;
 
-/// Keytips are suppressed while the Backstage or a modal dialog is open, or while a text field
+/// Keytips are suppressed while a modal dialog is open, or while a text field
 /// (not the canvas) has focus; the canvas lets Alt open keytips and `canvas_events` swallows
 /// typing while they show.
 pub fn suppressed(app: &WordApp, ctx: &egui::Context) -> bool {
-    !app.ui.keytips_enabled || app.ui.backstage || app.dialog.is_some() || (ctx.egui_wants_keyboard_input() && !app.canvas.focused)
+    !app.ui.keytips_enabled || app.dialog.is_some() || (ctx.egui_wants_keyboard_input() && !app.canvas.focused)
 }
 
 /// Native backends report Alt through both key and modifier events, in either order. Track
@@ -862,9 +862,9 @@ mod tests {
         input_frame(&ctx, &mut a, vec![key_event(egui::Key::AltLeft, false, alt), egui::Event::ModifiersChanged(egui::Modifiers::NONE)]);
         assert_eq!(a.ui.keytips, Phase::Off, "returning after Alt+Tab must not arm keytips");
         input_frame(&ctx, &mut a, vec![egui::Event::ModifiersChanged(alt)]);
-        a.ui.backstage = true;
+        a.dialog = Some(crate::dialogs::Dialog::Options);
         input_frame(&ctx, &mut a, vec![]);
-        a.ui.backstage = false;
+        a.dialog = None;
         input_frame(&ctx, &mut a, vec![egui::Event::ModifiersChanged(egui::Modifiers::NONE)]);
         assert_eq!(a.ui.keytips, Phase::Off, "suppression cancels the pending Alt tap");
     }
@@ -959,7 +959,6 @@ mod tests {
     fn alt_click_or_drag_does_not_arm_keytips_on_release() {
         let ctx = egui::Context::default();
         let mut a = app();
-        a.ui.backstage = false;
         a.dialog = None;
         let alt = egui::Modifiers { alt: true, ..Default::default() };
         let key = |pressed, modifiers| egui::Event::Key { key: egui::Key::AltLeft, physical_key: None, pressed, repeat: false, modifiers };
@@ -990,7 +989,6 @@ mod tests {
     #[test]
     fn keytip_state_machine() {
         let mut a = app();
-        a.ui.backstage = false;
         a.dialog = None;
         a.canvas.focused = false;
         activate(&mut a);
@@ -1004,13 +1002,11 @@ mod tests {
         assert!(handle_key(&mut a, egui::Key::F));
         assert_eq!(a.ui.keytips, Phase::Off);
         // Alt, F: the file menu opens in place over the tab bar, and keytips end.
-        a.ui.backstage = false;
         activate(&mut a);
         assert!(handle_key(&mut a, egui::Key::F));
-        assert!(!a.ui.backstage, "the menu is not the File page");
+        assert!(a.dialog.is_none(), "the menu is not a window");
         assert_eq!(a.ui.keytips, Phase::Off);
         // Alt, W: View; Alt, R: Review (Word's letters, not V and S).
-        a.ui.backstage = false;
         activate(&mut a);
         assert!(handle_key(&mut a, egui::Key::W));
         assert_eq!((a.ui.tab.as_str(), a.ui.keytips), ("View", Phase::Commands));
@@ -1204,7 +1200,6 @@ mod tests {
     #[test]
     fn alt_then_q_opens_search() {
         let mut a = app();
-        a.ui.backstage = false;
         a.dialog = None;
         assert!(TAB_LETTERS.iter().all(|(_, l)| *l != SEARCH_LETTER));
         activate(&mut a);

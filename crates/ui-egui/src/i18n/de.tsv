@@ -1518,6 +1518,9 @@
 	Print	Drucken
 	Print Layout	Seitenlayout
 	Print Markup	Markups drucken
+	Auto orientation	Automatische Ausrichtung
+	No Scaling	Keine Skalierung
+	Scale to paper size	Auf Papierformat skalieren
 	Print failed: the printing worker stopped.	Drucken fehlgeschlagen: Der Druckvorgang wurde angehalten.
 	Print failed: {error}	Drucken fehlgeschlagen: {error}
 	Print job submitted.	Druckauftrag gesendet.
@@ -1731,6 +1734,9 @@
 	Search commands and help	Befehle und Hilfe suchen
 	Search document	Dokument durchsuchen
 	Search for templates	Vorlagen suchen
+	Good morning	Guten Morgen
+	Good afternoon	Guten Tag
+	Good evening	Guten Abend
 	Search icons	Symbole suchen
 	Section 1.01	Abschnitt 1.01
 	Section Break	Abschnittsumbruch

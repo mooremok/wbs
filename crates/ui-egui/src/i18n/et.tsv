@@ -1543,6 +1543,9 @@
 	Print	Prindi
 	Print Layout	Prindipaigutus
 	Print Markup	Prindi märgistus
+	Auto orientation	Automaatne suund
+	No Scaling	Skaleerimiseta
+	Scale to paper size	Skaleeri paberi suurusele
 	Print failed: the printing worker stopped.	Printimine nurjus: printimisprotsess peatus.
 	Print failed: {error}	Printimine ebaõnnestus: {error}
 	Print job submitted.	Prinditöö saadetud.
@@ -1757,6 +1760,9 @@
 	Search commands and help	Otsi käske ja abi
 	Search document	Otsi dokumendist
 	Search for templates	Otsi malle
+	Good morning	Tere hommikust
+	Good afternoon	Tere päevast
+	Good evening	Tere õhtust
 	Search icons	Otsi ikoone
 	Section 1.01	Jaotis 1.01
 	Section Break	Jaotisepiir

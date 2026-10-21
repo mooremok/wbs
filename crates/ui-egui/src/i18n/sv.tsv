@@ -1815,6 +1815,9 @@
 	Print	Skriv ut
 	Print Layout	Utskriftslayout
 	Print Markup	Skriv ut märkning
+	Auto orientation	Automatisk orientering
+	No Scaling	Ingen skalning
+	Scale to paper size	Skala till pappersformat
 	Print failed: the printing worker stopped.	Utskriften misslyckades: utskriftsprocessen avbröts.
 	Print failed: {error}	Utskriften misslyckades: {error}
 	Print job submitted.	Utskriften har skickats.

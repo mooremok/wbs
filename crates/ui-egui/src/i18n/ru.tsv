@@ -1808,6 +1808,9 @@
 	Print	Печать
 	Print Layout	Разметка страницы
 	Print Markup	Печатать исправления и примечания
+	Auto orientation	Автоориентация
+	No Scaling	Без масштабирования
+	Scale to paper size	Масштабировать к размеру бумаги
 	Print failed: the printing worker stopped.	Печать не удалась: процесс печати остановлен.
 	Print failed: {error}	Ошибка печати: {error}
 	Print job submitted.	Задание на печать отправлено.
