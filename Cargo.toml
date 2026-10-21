@@ -104,3 +104,9 @@ debug = 0
 # Required by craft-pdf: the backend rejects writers that failed during unwinding.
 [patch.crates-io]
 krilla = { git = "https://github.com/storytold/craft-libs", rev = "c3487320b2d1de657b860b3c8abb44e1f2b32bd8" }
+# Local patch: on macOS an input method's direct punctuation commit (Chinese IMEs pre-edit their
+# words but commit punctuation straight away) was dropped and the raw ASCII key character typed
+# instead — every Chinese punctuation mark typed as its English one (winit #3814). The patch in
+# third_party/winit keeps the inserted text and puts it on the key event. Drop the patch when
+# upstream winit fixes it (watch https://github.com/rust-windowing/winit/issues/3814).
+winit = { path = "third_party/winit" }
