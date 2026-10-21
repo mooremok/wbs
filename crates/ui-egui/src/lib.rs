@@ -957,6 +957,9 @@ impl WordApp {
         self.session = fresh;
         self.settled_after_switch();
         let r = self.execute_user(id, params.clone());
+        if r.is_ok() && id == "file.new" {
+            self.name_new_document();
+        }
         if r.is_err() {
             // Nothing opened: drop the empty tab, go back to the document that was showing and
             // the view it was in (a failed Recent open keeps the File page up to say why).
@@ -1206,6 +1209,9 @@ impl WordApp {
             self.home = false;
             if self.has_document() {
                 self.no_document = None;
+            }
+            if id == "file.new" {
+                self.name_new_document();
             }
         }
         // Check Accessibility shows its findings in the Accessibility pane, kept up to date there.
@@ -1825,6 +1831,13 @@ impl WordApp {
                 }
                 json!({"home": self.home})
             }
+            // The tab bar's file menu (the old File tab), opened in place over the bar.
+            "ui.fileMenu" => {
+                if let Some(ctx) = self.ctx.as_ref() {
+                    egui::Popup::open_id(ctx, egui::Id::new("file_menu_button").with("popup"));
+                }
+                json!({"menu": "file"})
+            }
             "ui.tabs" => self.tab_state(),
             // Activate a document tab by its place in the bar (0 = the first document tab).
             "ui.tabActivate" => {
@@ -2284,6 +2297,24 @@ impl WordApp {
     /// document is named in the interface language, as `Document1` is in English.
     pub fn title_stem(&self) -> String {
         Self::session_title(&self.session)
+    }
+
+    /// Give a just-created unnamed document the next free number in the window — 文档1,
+    /// 文档2… like WPS — unless it already has a name of its own (a template's title, a file).
+    /// The lowest free number is taken, so closing 文档2 and creating anew reuses its number,
+    /// as Word and WPS do.
+    fn name_new_document(&mut self) {
+        if self.session.path.is_some() || self.session.file_name.is_some() || !self.session.doc.core.title.is_empty() {
+            return;
+        }
+        let stem = tl!("Document1");
+        let base = stem.trim_end_matches(|c: char| c.is_ascii_digit());
+        let taken: Vec<String> = self.tabs.iter().map(|tab| Self::session_title(&tab.session)).collect();
+        let mut n = 1u32;
+        while taken.contains(&format!("{base}{n}")) {
+            n = n.saturating_add(1);
+        }
+        self.session.file_name = Some(format!("{base}{n}"));
     }
 
     /// [`WordApp::title_stem`] for any session, also the background tabs'.
@@ -2977,6 +3008,7 @@ pub(crate) fn works_without_document(id: &str) -> bool {
             | "view.numeral"
             | "ui.tab"
             | "ui.home"
+            | "ui.fileMenu"
             | "ui.tabs"
             | "ui.tabActivate"
             | "ui.tabNew"
@@ -3412,22 +3444,27 @@ mod tests {
     /// out, but the tab strip works: File reaches the Start screen again, where a document can
     /// be made. Disabling the Share / Editing / Comments row disabled the whole line, the tab
     /// strip with it: the tabs took clicks that did nothing.
+    /// #3045: on the Home tab (the empty window's successor) the bar stays live: the file menu
+    /// button opens its menu in place, and New there reaches a page where a document can be made.
     #[test]
-    fn empty_window_ribbon_tabs_reach_the_start_screen() {
+    fn the_file_menu_reaches_the_start_screen_from_home() {
         use egui_kittest::kittest::Queryable;
         let mut a = app();
         a.start_screen();
         let mut h = harness(a);
         h.run_steps(4);
-        // Esc (or the back arrow) leaves the Start screen for the empty window, as #1129 has it.
-        h.key_press(egui::Key::Escape);
-        h.run_steps(4);
-        assert!(!h.state().ui.backstage, "the empty window");
-        assert!(!h.state().has_document(), "with no document");
-        // File, the first tab, is live and reaches the Start screen.
+        // 文件 opens its menu in place, not a page of its own.
         h.get_by_label("File").click();
+        h.run_steps(3);
+        assert!(egui::Popup::is_any_open(&h.ctx), "the menu is open");
+        assert!(!h.state().ui.backstage, "not the File page");
+        // New in the menu reaches the templates, where a document can be made.
+        // Two controls say "New": the bar's + button and the menu's entry; the menu's is the
+        // lower one.
+        let news = h.get_all_by_label("New").max_by(|a, b| a.rect().min.y.total_cmp(&b.rect().min.y)).expect("the menu's New");
+        news.click();
         h.run_steps(4);
-        assert!(h.state().ui.backstage && h.state().ui.backstage_page == "home", "File reaches the Start screen");
+        assert!(h.state().ui.backstage && h.state().ui.backstage_page == "new", "New reaches the templates");
         assert!(h.query_by_label("Blank document").is_some(), "where a document can be made");
     }
 
@@ -5082,6 +5119,34 @@ mod tests {
         assert!(a.session.dirty && body_text(&a).contains(UNSAVED));
         a.execute("edit.undo", json!({})).unwrap();
         assert!(!body_text(&a).contains(UNSAVED), "the undo history travelled with the tab");
+    }
+
+    /// New documents take the next free number in the window (文档1, 文档2…, as WPS numbers
+    /// them); closing one frees its number for the next New.
+    /// New documents take the next free number in the window (文档1, 文档2…, as WPS numbers
+    /// them): the blank first document already shows as 文档1, so the first New is 文档2, and
+    /// closing a document frees its number for the next New.
+    #[test]
+    fn new_documents_are_numbered() {
+        let base = tl!("Document1").trim_end_matches(|c: char| c.is_ascii_digit()).to_string();
+        let mut a = app();
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(a.title_stem(), format!("{base}2"), "the blank showing as {base}1 holds its number");
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(a.title_stem(), format!("{base}3"));
+        // Closing the middle document frees its number for the next New.
+        a.close_tab(1);
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(a.title_stem(), format!("{base}2"), "the freed number is reused");
+        let names: Vec<String> = a.tab_infos().iter().map(|(title, _, _)| title.clone()).collect();
+        assert_eq!(names, vec![format!("{base}1"), format!("{base}3"), format!("{base}2")], "each tab shows its own number");
+        // From the Home tab over nothing, the first document is {base}1 itself.
+        let mut b = app();
+        assert!(b.start_screen());
+        b.run("ui.tabNew", json!({})).unwrap();
+        assert_eq!(b.title_stem(), format!("{base}1"));
+        b.run("ui.tabNew", json!({})).unwrap();
+        assert_eq!(b.title_stem(), format!("{base}2"));
     }
 
     /// With no document open (the Home tab over the Start-screen placeholder) the bar shows no

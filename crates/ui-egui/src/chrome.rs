@@ -5,7 +5,7 @@ use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
 use serde_json::json;
 use wordcraft_doc::StoryRef;
 
-use crate::theme::{Tokens, TypeRung, paint_text, regular, semibold, text_width};
+use crate::theme::{Tokens, TypeRung, medium, paint_text, regular, semibold, text_width};
 use crate::{WordApp, icons};
 
 /// The Quick Access Toolbar's button for command `id`.
@@ -283,7 +283,8 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 // Left: the logo (the file menu), Home, the document tabs, +.
-                let logo_w = 30.0;
+                let file_label = tl!("File");
+                let file_w = text_width(ui.painter(), file_label, &TypeRung::Control.medium(), TypeRung::Control.tracking(), t.text) + 24.0;
                 // WPS words the tab bar's Home tab (首页) differently from the ribbon's Home
                 // tab (开始); other languages keep the one word they have.
                 let home_label = crate::i18n::tc("homeTab", "Home");
@@ -300,7 +301,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 let autosave_w = text_width(ui.painter(), tl!("AutoSave"), &regular(11.5), 0.0, t.text_dim) + 42.0;
                 let qat_w = if app.ui.quick_access_toolbar { qat_width(app) } else { 0.0 };
                 let right_w = 26.0 + 268.0 + autosave_w + qat_w + 20.0;
-                let budget = (full.width() - f32::from(left) - 10.0 - logo_w - home_w - 30.0 - right_w).max(0.0);
+                let budget = (full.width() - f32::from(left) - 10.0 - file_w - home_w - 30.0 - right_w).max(0.0);
                 // Tabs that don't fit share the room equally and are cut with …; when even a
                 // narrow tab doesn't fit, the last ones wait in the » menu.
                 let (shown, widths): (usize, Vec<f32>) = {
@@ -326,19 +327,86 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         }
                     }
                 };
-                // The logo opens the file menu, as WPS's logo button does.
-                let (r, resp) = ui.allocate_exact_size(vec2(logo_w, control_h), Sense::click());
-                ui.painter().rect_filled(r, 6.0, t.accent);
-                ui.painter().text(r.center(), Align2::CENTER_CENTER, "W", semibold(13.0), t.on_accent);
-                let file = tl!("File");
-                resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, file));
+                // The file menu: plain text, as WPS's, opening its menu in place (not a page).
+                let (r, _) = ui.allocate_exact_size(vec2(file_w, control_h), Sense::hover());
+                let resp = ui.interact(r, egui::Id::new("file_menu_button"), Sense::click());
+                let menu_open = egui::Popup::is_id_open(ui.ctx(), egui::Id::new("file_menu_button").with("popup"));
+                if resp.hovered() || menu_open {
+                    ui.painter().rect_filled(r, 4.0, t.hover);
+                }
+                paint_text(
+                    ui.painter(),
+                    pos2(r.min.x, r.center().y - TypeRung::Control.line_height() / 2.0),
+                    Align2::LEFT_TOP,
+                    file_label,
+                    &TypeRung::Control.medium(),
+                    TypeRung::Control.tracking(),
+                    t.text,
+                );
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, file_label));
                 if app.ui.keytips == crate::keytips::Phase::Tabs && "F".starts_with(&app.ui.keytip_prefix) {
                     app.keytip_rects.push((r, "F".to_string()));
                 }
-                if resp.on_hover_text(file).clicked() {
-                    let _ = app.run("ui.backstage", json!({"value": true, "page": "home"}));
-                }
-                ui.add_space(4.0);
+                let doc = app.has_document();
+                egui::Popup::menu(&resp).show(|ui| {
+                    ui.set_min_width(210.0);
+                    let item = |ui: &mut Ui, label: &str, on: bool| {
+                        let text = egui::RichText::new(label).font(regular(13.0)).color(if on { t.text } else { t.text_dim });
+                        ui.add_enabled(on, egui::Label::new(text).sense(Sense::click())).clicked() && on
+                    };
+                    if item(ui, tl!("New"), true) {
+                        let _ = app.run("ui.backstage", json!({"value": true, "page": "new"}));
+                        ui.close();
+                    }
+                    if item(ui, tl!("Open"), true) {
+                        let _ = app.run("file.open", json!({}));
+                        ui.close();
+                    }
+                    ui.separator();
+                    if item(ui, tl!("Save"), doc) {
+                        let _ = app.run("file.save", json!({}));
+                        ui.close();
+                    }
+                    if item(ui, tl!("Save As"), doc) {
+                        let _ = app.run("file.saveAs", json!({}));
+                        ui.close();
+                    }
+                    ui.separator();
+                    if item(ui, tl!("Print"), doc) {
+                        let _ = app.run("ui.backstage", json!({"value": true, "page": "print"}));
+                        ui.close();
+                    }
+                    if item(ui, tl!("Export"), doc) {
+                        let _ = app.run("ui.backstage", json!({"value": true, "page": "export"}));
+                        ui.close();
+                    }
+                    if item(ui, tl!("Info"), doc) {
+                        let _ = app.run("ui.backstage", json!({"value": true, "page": "info"}));
+                        ui.close();
+                    }
+                    ui.separator();
+                    if item(ui, tl!("Close"), doc) {
+                        let _ = app.run("file.close", json!({}));
+                        ui.close();
+                    }
+                    if item(ui, tl!("Options"), true) {
+                        let _ = app.run("ui.backstage", json!({"value": true, "page": "options"}));
+                        ui.close();
+                    }
+                    // The recent files, as WPS lists them under its file menu.
+                    let recents: Vec<String> = app.ui.recent.iter().take(app.ui.recent_shown()).cloned().collect();
+                    if !recents.is_empty() {
+                        ui.separator();
+                        ui.label(egui::RichText::new(tl!("Recent")).font(medium(11.5)).color(t.text_dim));
+                        for path in recents {
+                            let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(path.clone());
+                            if ui.selectable_label(false, egui::RichText::new(name).font(regular(13.0))).clicked() {
+                                let _ = app.run("file.open", json!({"path": path}));
+                                ui.close();
+                            }
+                        }
+                    }
+                });
                 // The Home tab (首页).
                 let (r, resp) = ui.allocate_exact_size(vec2(home_w, control_h), Sense::click());
                 let active = app.home && !app.ui.backstage;

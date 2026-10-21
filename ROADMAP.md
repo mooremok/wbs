@@ -151,6 +151,7 @@ Imported Word 97–2003 `.doc`/`.dot` files now ask for a supported DOCX target 
 - 2026-10-15: Find opens Navigation on Results; editing the query restores Results after manual Headings/Pages navigation. Typed and selected-text searches retain document contents (#2096).
 
 | Date | What landed |
+| 2026-10-21 | The file menu is plain text (文件) opening its menu in place — New, Open, Save, Save As, Print, Export, Info, Close, Options, the recent files — and new documents number themselves 文档1, 文档2…, reusing a closed tab's number |
 | 2026-10-21 | WPS window layout: one window, every document a tab — logo/file-menu button, Home tab (首页), close ✕, +, Ctrl+Tab; New/Open keep the open document in a tab (never ask about its changes); ribbon order 开始/插入/页面布局/引用/审阅/视图, no File tab on the strip; the Home tab shows Blank document, templates and Recent |
 | 2026-10-19 | Save As, Export and Open no longer do nothing on Linux desktops whose file chooser portal fails to show its dialog (#2999): a "cancel" quicker than anyone could make one asks again without the parent window, then opens the built-in file browser. |
 | 2026-10-18 | Long navigation headings wrap onto further lines inside the resizable pane instead of ending in an ellipsis: the row grows with the text and the pane keeps its width (#759, #3015). |

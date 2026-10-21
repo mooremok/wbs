@@ -64,6 +64,7 @@ and set `WORDCRAFT_CONTROL_KEY` to that app's key.
 | `ui.wheel` | `x`, `y`, `dy`, `dx?`, `unit?` (`point`/`line`/`page`), `phase?` (`start`/`move`/`end`), modifiers | mouse-wheel or trackpad scroll at window coordinates (`dy` < 0 scrolls down) |
 | `ui.key` | `key` (`B`, `Enter`, `Left`…), `shift?`, `alt?`, `cmd?` | key press through egui (shortcuts apply) |
 | `ui.text` | `text` | typed text through egui |
+| `ui.fileMenu` | — | opens the tab bar's file menu (文件) in place over the bar |
 | `ui.tabs` | — | the document tabs: `home` (whether the Home tab shows), `active` (the active tab's place) and `tabs`: `index`, `title`, `dirty`, `active` per document, left to right |
 | `ui.home` | `value?` | show the Home tab (WPS's 首页); `{"value": false}` returns to the active document |
 | `ui.tabActivate` | `index` | activate the document tab at that place in the bar (0 = the first, right of Home) |

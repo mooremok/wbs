@@ -797,12 +797,14 @@ mod tests {
             click_at(&mut h, chevron);
             assert!(!h.state().ui.backstage, "the chevron closes the File page");
             assert!(h.state().canvas.focused, "and the page has the keyboard");
-            // The same spot in the editor is the tab bar's logo button, which opens the File
-            // page again (the old File tab's job); its chevron closes it once more.
+            // The same spot in the editor is the tab bar's file menu button, which opens its
+            // menu in place (not the File page); a click beside it closes the menu again.
             click_at(&mut h, chevron);
-            assert!(h.state().ui.backstage, "the logo opens the File page");
+            assert!(!h.state().ui.backstage, "the menu is not the File page");
+            assert!(egui::Popup::is_any_open(&h.ctx), "the file menu opened");
             click_at(&mut h, chevron);
-            assert!(!h.state().ui.backstage);
+            h.run_steps(2);
+            assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed again");
         }
     }
 

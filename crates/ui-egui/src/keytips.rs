@@ -553,10 +553,11 @@ pub fn handle_key(app: &mut WordApp, key: egui::Key) -> bool {
                                 let _ = app.run("ui.tab", serde_json::json!({ "tab": tab }));
                                 app.ui.keytips = Phase::Commands;
                             }
-                            // F is the tab bar's logo button: the file menu (the old File tab).
+                            // F is the tab bar's file menu button (the old File tab): the menu
+                            // opens in place over the bar, as its click does.
                             None if name == "F" => {
                                 app.ui.keytips = Phase::Off;
-                                let _ = app.run("ui.backstage", serde_json::json!({ "value": true, "page": "home" }));
+                                let _ = app.run("ui.fileMenu", serde_json::json!({}));
                             }
                             // Q is the title bar's Search box, as in Word (#819).
                             None if name == SEARCH_LETTER => {
@@ -1002,11 +1003,11 @@ mod tests {
         assert_eq!(a.ui.keytips, Phase::Commands);
         assert!(handle_key(&mut a, egui::Key::F));
         assert_eq!(a.ui.keytips, Phase::Off);
-        // Alt, F: the Backstage, and keytips end.
+        // Alt, F: the file menu opens in place over the tab bar, and keytips end.
         a.ui.backstage = false;
         activate(&mut a);
         assert!(handle_key(&mut a, egui::Key::F));
-        assert!(a.ui.backstage, "Alt, F opens File");
+        assert!(!a.ui.backstage, "the menu is not the File page");
         assert_eq!(a.ui.keytips, Phase::Off);
         // Alt, W: View; Alt, R: Review (Word's letters, not V and S).
         a.ui.backstage = false;
