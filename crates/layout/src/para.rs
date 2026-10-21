@@ -774,6 +774,18 @@ fn east_asian(c: char) -> bool {
     crate::kinsoku::is_east_asian(c) || matches!(u32::from(c), 0x1100..=0x11FF | 0x3130..=0x318F | 0xAC00..=0xD7AF)
 }
 
+/// Punctuation Chinese, Japanese and Korean input methods type whose East Asian width is
+/// "ambiguous" in Unicode: Word draws it in the East Asian font (full width) when it stands in
+/// East Asian text, and in the Western font (half width) in Western text. Chinese quotes “”‘’,
+/// the ellipsis …, the dash — and the middle dot · are these: the fullwidth ，。？！ arrive as
+/// fullwidth forms either way ([`crate::kinsoku::is_east_asian`]).
+const AMBIGUOUS_EA: &str = "\u{2018}\u{2019}\u{201C}\u{201D}\u{2026}\u{2014}\u{00B7}";
+
+/// Whether a language tag is Chinese, Japanese or Korean.
+fn lang_east_asian(tag: Option<&str>) -> bool {
+    tag.is_some_and(|t| ["zh", "ja", "ko"].iter().any(|l| t.get(..2).is_some_and(|p| p.eq_ignore_ascii_case(l))))
+}
+
 /// Word draws a font that isn't installed in Cambria when the document's font table classes it
 /// as roman (measured in Word; Calibri otherwise, which our own substitutes already match).
 const MISSING_ROMAN_FONT: &str = "Cambria";
@@ -901,11 +913,15 @@ impl<'a> Builder<'a> {
         let show = |c: char| sym.map_or(c, |m| m.show(c));
         let primary_cs = rc_cs.as_ref().map(|r| wordcraft_fonts::word::resolve(lookup_family(self.env.doc, &r.font), r.bold, r.italic).face);
         // Chinese, Japanese and Korean characters use the run's East Asian font (`w:eastAsia`) when
-        // it is installed and has them.
+        // it is installed and has them; so does ambiguous-width CJK punctuation in a CJK-language
+        // run, which may hold nothing else (a paragraph opening with a quote).
+        let lang_ea = lang_east_asian(rc.lang.as_deref());
         let primary_ea = rc
             .font_ea
             .as_ref()
-            .filter(|f| !f.eq_ignore_ascii_case(&rc.font) && text.chars().any(east_asian))
+            .filter(|f| {
+                !f.eq_ignore_ascii_case(&rc.font) && (text.chars().any(east_asian) || (lang_ea && text.chars().any(|c| AMBIGUOUS_EA.contains(c))))
+            })
             .map(|f| wordcraft_fonts::word::resolve(f, rc.bold, rc.italic))
             .filter(|r| !r.substituted)
             .map(|r| r.face);
@@ -928,11 +944,19 @@ impl<'a> Builder<'a> {
         // covering every character the primary font lacks, so the run draws in a single CJK face
         // instead of mixing faces per character (e.g. a bundled Japanese Mincho for JIS-covered
         // ideographs beside a Simplified-Chinese sans for the rest). Whitespace and characters the
-        // primary covers don't constrain the choice. `None` keeps the per-character fallback.
+        // primary covers don't constrain the choice, except ambiguous-width CJK punctuation in a
+        // CJK context, which the primary font's half-width glyphs would otherwise keep. `None`
+        // keeps the per-character fallback.
         let ea_face: Option<FaceRef> = {
             let ea: Vec<char> = text
                 .chars()
-                .filter(|c| crate::kinsoku::is_east_asian(*c) && !primary.covers(*c) && !c.is_whitespace() && !c.is_control() && *c != SOFT_HYPHEN)
+                .filter(|c| {
+                    (crate::kinsoku::is_east_asian(*c) || (lang_ea && AMBIGUOUS_EA.contains(*c)))
+                        && !primary.covers(*c)
+                        && !c.is_whitespace()
+                        && !c.is_control()
+                        && *c != SOFT_HYPHEN
+                })
                 .collect();
             if ea.is_empty() {
                 None
@@ -944,15 +968,22 @@ impl<'a> Builder<'a> {
         let mut seg_start = 0;
         let mut cur: Option<SegKey> = None;
         let mut segs: Vec<(usize, usize, SegKey)> = Vec::new();
-        for (i, c) in text.char_indices() {
+        // Symbol-font codes become their Unicode symbols (#776) here, so an ambiguous-width
+        // punctuation mark can look at the character after it as it is drawn.
+        let shown: Vec<(usize, char)> = text.char_indices().map(|(i, c)| (i, show(c))).collect();
+        // Whether the previous character was classed East Asian (`None` before the first): an
+        // ambiguous-width mark follows its neighbours' script, as Word sets it. Whitespace and
+        // combining marks are transparent.
+        let mut prev_ea: Option<bool> = None;
+        for (pos, &(i, c)) in shown.iter().enumerate() {
             let rtl = use_levels && levels.get(lbase + i).is_some_and(|l| l % 2 == 1);
-            // A symbol-font character becomes its Unicode symbol (#776).
-            let c = show(c);
             // Displayed form (Word › Numeral): one char in, one char out. Coverage and the
             // fallback face are picked for the displayed char, so Hindi digits land in an
             // Arabic-capable face and Western digits in a Latin one.
             let dc = self.numeral_char(&context, i, c, rtl);
             let mark = is_mark(c);
+            let next_ea = shown.get(pos + 1).is_some_and(|&(_, n)| crate::kinsoku::is_east_asian(n));
+            let ea = east_asian(c) || (AMBIGUOUS_EA.contains(c) && (prev_ea.unwrap_or(lang_ea) || next_ea));
             let complex = match cur {
                 Some(k) if mark => k.complex,
                 _ => rc_cs.is_some() && rc.uses_complex(dc),
@@ -961,6 +992,9 @@ impl<'a> Builder<'a> {
             let face = match cur {
                 Some(k) if mark => k.face,
                 _ if !complex && east_asian(c) && primary_ea.is_some_and(|f| f.covers(c)) => primary_ea,
+                // Ambiguous-width CJK punctuation in East Asian context takes the East Asian
+                // font's full-width glyphs even though the primary font has half-width ones.
+                _ if !complex && !east_asian(c) && ea => primary_ea.filter(|f| f.covers(c)).or(ea_face),
                 // The run's one substitute face for a missing Thai font (#1549).
                 _ if !c.is_control() && c != SOFT_HYPHEN && run_face.is_some_and(|f| f.covers(dc)) => run_face,
                 _ if prim.covers(dc) || c.is_whitespace() || c.is_control() || c == SOFT_HYPHEN => None,
@@ -974,6 +1008,9 @@ impl<'a> Builder<'a> {
                 }
             };
             let small = rc.small_caps && !rc.caps && c.is_lowercase();
+            if !c.is_whitespace() && !mark {
+                prev_ea = Some(ea);
+            }
             let k = SegKey { face, small, complex, rtl };
             match cur {
                 Some(p) if p.same(&k) => {}

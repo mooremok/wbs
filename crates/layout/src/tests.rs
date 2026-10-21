@@ -1135,7 +1135,7 @@ fn russian_letter_list_labels_draw_cyrillic() {
     let labels: Vec<(String, bool)> = l.pages[0]
         .items
         .iter()
-        .filter_map(|it| if let Placed::Lines { para, .. } = it { Some(para) } else { None })
+        .filter_map(|it| if let Placed::Lines { para, .. } = it { Some(para.clone()) } else { None })
         .filter_map(|pl| {
             let lab = pl.label.as_ref()?;
             let drawn = lab.runs.iter().all(|r| {
@@ -6414,6 +6414,77 @@ fn table_cell_footnotes_are_placed() {
     assert_eq!(c.page, 0);
     let body = l.caret(&Pos::body(1, 0)).unwrap();
     assert!(c.top > body.top + 100.0, "at the page bottom: {c:?} {body:?}");
+}
+
+/// Ambiguous-width CJK punctuation (Chinese quotes “”‘’, the ellipsis …, the dash —, the middle
+/// dot ·) takes the East Asian font beside Chinese text and in a Chinese-language run, and the
+/// Western font in Western text, as Word sets it — the punctuation a Chinese input method types
+/// keeps its full width.
+#[test]
+fn ambiguous_cjk_punctuation_takes_the_asian_font_with_chinese_text() {
+    let resolve = |f: &str| wordcraft_fonts::word::resolve(f, false, false);
+    let mut fonts: Vec<String> = wordcraft_fonts::FontDb::global()
+        .east_asian_families()
+        .into_iter()
+        .filter(|f| {
+            let r = resolve(f);
+            !r.substituted && r.face.covers('你') && r.face.covers('好') && r.face.covers('“') && r.face.covers('”')
+        })
+        .collect();
+    fonts.sort();
+    let Some(asian) = fonts.first().cloned() else {
+        eprintln!("skipped: no Chinese font installed");
+        return;
+    };
+    let latin = wordcraft_doc::styles::BODY_FONT;
+    let (latin_face, asian_face) = (resolve(latin).face.id(), resolve(&asian).face.id());
+
+    // Paragraph 1 has no language: each mark follows its neighbours (East Asian beside Chinese,
+    // Western beside Latin). Paragraph 2 is Chinese: even a paragraph-opening quote is East
+    // Asian. Paragraph 3 sets no East Asian font at all: the quotes share the fallback face of
+    // the Chinese characters beside them.
+    let p1 = "他说“好” then “q”";
+    let p2 = "“你好”";
+    let p3 = "说“好”";
+    let mut d = Document::from_text(&format!("{p1}\n{p2}\n{p3}"));
+    d.format_range(&Pos::body(0, 0), &Pos::body(0, p1.len()), &|c| {
+        c.font = Some(latin.into());
+        c.font_ea = Some(asian.clone());
+    })
+    .unwrap();
+    d.format_range(&Pos::body(1, 0), &Pos::body(1, p2.len()), &|c| {
+        c.font = Some(latin.into());
+        c.font_ea = Some(asian.clone());
+        c.lang = Some("zh-CN".into());
+    })
+    .unwrap();
+    let l = lay(&d);
+    let paras: Vec<std::sync::Arc<crate::ParaLayout>> = l
+        .pages
+        .iter()
+        .flat_map(|p| p.items.iter())
+        .filter_map(|it| if let Placed::Lines { para, .. } = it { Some(para.clone()) } else { None })
+        .collect();
+    assert_eq!(paras.len(), 3, "one paragraph of lines each");
+    let face_of = |para: &crate::ParaLayout, off: usize| {
+        para.clusters.iter().find(|c| c.start <= off && off < c.end).map(|c| para.styles[c.style as usize].face.id()).unwrap_or(u32::MAX)
+    };
+    // “好” beside Chinese text are East Asian; “q” in the English tail stays Western.
+    for (off, east_asian) in
+        [(p1.find('“').unwrap(), true), (p1.find('”').unwrap(), true), (p1.rfind('“').unwrap(), false), (p1.rfind('”').unwrap(), false)]
+    {
+        let want = if east_asian { asian_face } else { latin_face };
+        assert_eq!(face_of(&paras[0], off), want, "quote at byte {off} of {p1:?}");
+    }
+    // A Chinese-language run: the paragraph's opening quote is East Asian without a Chinese
+    // character before it.
+    assert_eq!(face_of(&paras[1], 0), asian_face, "the opening quote of {p2:?}");
+    // No East Asian font set: the quote and the characters share one East Asian fallback face,
+    // not the Latin font's half-width quote.
+    let quote = face_of(&paras[2], p3.find('“').unwrap());
+    let han = face_of(&paras[2], 0);
+    assert_eq!(quote, han, "the quote shares the Chinese characters' fallback face");
+    assert_ne!(quote, latin_face, "not the Latin font's quote");
 }
 
 #[test]
