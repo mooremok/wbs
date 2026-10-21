@@ -29,7 +29,8 @@ pub fn save(ext: &str, doc: &Document, opts: &crate::io::ExportOptions) -> Optio
     match ext {
         "xml" if opts.word2003 => Some(wordcraft_docx::write_wordml2003(doc).map_err(|e| e.to_string())),
         "xml" => Some(wordcraft_docx::write_flat(doc).map_err(|e| e.to_string())),
-        "png" => Some(render_png(doc, 0, 2.0, opts)),
+        "png" => Some(render_img(doc, 0, 2.0, opts, ImgFormat::Png, 90)),
+        "jpg" | "jpeg" => Some(render_img(doc, 0, 2.0, opts, ImgFormat::Jpeg, 90)),
         "pdf" => {
             let pdf = wordcraft_pdf::PdfOptions { include_markup: opts.markup, comments: opts.markup && opts.comments, ..Default::default() };
             Some(wordcraft_pdf::export(doc, &pdf).map_err(|e| e.to_string()))
@@ -38,12 +39,22 @@ pub fn save(ext: &str, doc: &Document, opts: &crate::io::ExportOptions) -> Optio
     }
 }
 
-/// Render page `page` as PNG at `scale` px/pt. With Print Markup's comments the page has its
-/// markup area with the comments in balloons (page images always show tracked changes).
-pub fn render_png(doc: &Document, page: usize, scale: f32, opts: &crate::io::ExportOptions) -> Result<Vec<u8>, String> {
+/// The image formats [`render_img`] writes (`Rendered::to_png` / `to_jpeg`).
+enum ImgFormat {
+    Png,
+    Jpeg,
+}
+
+/// Render page `page` at `scale` px/pt as PNG or JPEG (`quality` 1-100). With Print Markup's
+/// comments the page has its markup area with the comments in balloons (page images always show
+/// tracked changes).
+fn render_img(doc: &Document, page: usize, scale: f32, opts: &crate::io::ExportOptions, format: ImgFormat, quality: u8) -> Result<Vec<u8>, String> {
     let lo = wordcraft_layout::LayoutOptions { comment_balloons: opts.markup && opts.comments, ..Default::default() };
     let l = wordcraft_layout::layout(doc, &mut wordcraft_layout::LayoutCache::new(), &lo);
     let p = l.pages.get(page).ok_or_else(|| format!("no page {}", page + 1))?;
     let img = wordcraft_render::render_page(doc, p, scale, &Default::default());
-    Ok(img.to_png())
+    Ok(match format {
+        ImgFormat::Png => img.to_png(),
+        ImgFormat::Jpeg => img.to_jpeg(quality),
+    })
 }

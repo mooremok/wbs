@@ -742,9 +742,11 @@
 	Expand	Erweitern
 	Expand or Collapse Heading	Überschrift erweitern oder reduzieren
 	Export	Exportieren
+	Export Image	Export Image
 	Export PDF	PDF exportieren
 	Export Page as PNG	Seite als PNG exportieren
 	Export a copy to share (PDF, Word document)	Eine Kopie zum Teilen exportieren (PDF, Word-Dokument)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Exportiert: {path}
 	Expression	Ausdruck
 	Extend Selection	Auswahl erweitern
@@ -1025,6 +1027,7 @@
 	Issue	Ausgabe
 	Italian	Italienisch
 	Italic	Kursiv
+	JPEG quality	JPEG quality
 	Japanese	Japanisch
 	Journal	Fachzeitschrift
 	Justification	Ausrichtung
@@ -1418,7 +1421,8 @@
 	Page X of Y	Seite X von Y
 	Page break before	Seitenumbruch davor
 	Page display	Seitenanzeige
-	Page image (*.png)	Seitenbild (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Seitenzahlformat
 	Page numbers at the right margin	Seitenzahlen am rechten Rand
 	Page on which a bookmarked passage falls	Seite, auf der eine mit Textmarke versehene Passage liegt
@@ -1649,6 +1653,7 @@
 	Reset\nGraphic	Grafik\nzurücksetzen
 	Reset…	Zurücksetzen…
 	Resize Table by Dragging	Tabellengröße durch Ziehen ändern
+	Resolution	Resolution
 	Resolve	Erledigen
 	Resolved	Erledigt
 	Restart Each Page	Auf jeder Seite neu beginnen
@@ -2123,6 +2128,7 @@
 	Type in Equation	In der Formel eingeben
 	Type the categories down the side and a column of values per series.	Geben Sie die Kategorien untereinander ein und je Datenreihe eine Spalte mit Werten.
 	Type the field's name and its switches, for example PAGE \\* roman.	Geben Sie den Namen des Felds und seine Schalter ein, zum Beispiel PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Geben Sie das Kennwort ein, um den Schutz aufzuheben.
 	Type the recipients, or load them from a file.	Geben Sie die Empfänger ein, oder laden Sie sie aus einer Datei.
 	Type:	Typ:

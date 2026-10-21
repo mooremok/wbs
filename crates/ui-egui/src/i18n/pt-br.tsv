@@ -755,9 +755,11 @@
 	Expand	Expandir
 	Expand or Collapse Heading	Expandir ou recolher título
 	Export	Exportar
+	Export Image	Export Image
 	Export PDF	Exportar PDF
 	Export Page as PNG	Exportar página como PNG
 	Export a copy to share (PDF, Word document)	Exporte uma cópia para compartilhar (PDF, documento Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Exportado {path}
 	Expression	Expressão
 	Extend Selection	Expandir seleção
@@ -1038,6 +1040,7 @@
 	Issue	Número
 	Italian	Italiano
 	Italic	Itálico
+	JPEG quality	JPEG quality
 	Japanese	Japonês
 	Journal	Periódico científico
 	Justification	Alinhamento
@@ -1431,7 +1434,8 @@
 	Page X of Y	Página X de Y
 	Page break before	Quebra de página antes
 	Page display	Exibição da página
-	Page image (*.png)	Imagem de página (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Estilo do número de página
 	Page numbers at the right margin	Números de página na margem direita
 	Page on which a bookmarked passage falls	O número da página de um indicador
@@ -1662,6 +1666,7 @@
 	Reset\nGraphic	Redefinir\ngráfico
 	Reset…	Redefinir…
 	Resize Table by Dragging	Redimensionar tabela arrastando
+	Resolution	Resolution
 	Resolve	Resolver
 	Resolved	Resolvido
 	Restart Each Page	Reiniciar a cada página
@@ -2136,6 +2141,7 @@
 	Type in Equation	Digitar na equação
 	Type the categories down the side and a column of values per series.	Digite as categorias na lateral e uma coluna de valores por série.
 	Type the field's name and its switches, for example PAGE \\* roman.	Digite o nome do campo e suas opções, por exemplo PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Digite a senha para parar a proteção.
 	Type the recipients, or load them from a file.	Digite os destinatários ou carregue-os de um arquivo.
 	Type:	Tipo:

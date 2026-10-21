@@ -898,9 +898,11 @@
 	Exponential	Exponentiell
 	Exponential series	Exponentialserie
 	Export	Exportera
+	Export Image	Export Image
 	Export PDF	Exportera PDF
 	Export Page as PNG	Exportera sidan som PNG
 	Export a copy to share (PDF, Word document)	Exportera en kopia att dela (PDF, Word-dokument)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Exporterade {path}
 	Expression	Uttryck
 	Extend Selection	Utöka markeringen
@@ -1249,6 +1251,7 @@
 	Issue	Nummer
 	Italian	Italienska
 	Italic	Kursiv
+	JPEG quality	JPEG quality
 	Japanese	Japanska
 	Journal	Tidskrift
 	Justification	Justering
@@ -1707,7 +1710,8 @@
 	Page X of Y	Sida X av Y
 	Page break before	Sidbrytning före
 	Page display	Sidvisning
-	Page image (*.png)	Sidbild (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Sidnummerformat
 	Page numbers at the right margin	Sidnummer vid högermarginalen
 	Page on which a bookmarked passage falls	Sidan där den bokmärkta texten står
@@ -1958,6 +1962,7 @@
 	Reset\nGraphic	Återställ\ngrafik
 	Reset…	Återställ…
 	Resize Table by Dragging	Ändra tabellens storlek genom att dra
+	Resolution	Resolution
 	Resolve	Lös
 	Resolved	Löst
 	Restart Each Page	Börja om på varje sida
@@ -2511,6 +2516,7 @@
 	Type normal (non-math) text in the equation	Skriv vanlig text (inte matematik) i ekvationen
 	Type the categories down the side and a column of values per series.	Skriv kategorierna nedåt längs sidan och en kolumn med värden per serie.
 	Type the field's name and its switches, for example PAGE \\* roman.	Skriv fältets namn och dess växlar, till exempel PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Skriv lösenordet för att avsluta skyddet.
 	Type the recipients, or load them from a file.	Skriv mottagarna eller läs in dem från en fil.
 	Type:	Typ:

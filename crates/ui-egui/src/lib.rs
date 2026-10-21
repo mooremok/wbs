@@ -225,6 +225,23 @@ fn paste_target(canvas_focused: bool, backstage: bool, dialog: bool) -> bool {
     canvas_focused && !backstage && !dialog
 }
 
+/// File › Export image choices, kept between exports and read by `file.exportPng` calls the
+/// Export dialog makes: `pages` is `all` or a print range like `1-3,5`; `scale` is px per pt;
+/// `quality` is the JPEG quality (1-100).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct ExportImageSettings {
+    pub pages: String,
+    pub scale: f32,
+    pub quality: u8,
+}
+
+impl Default for ExportImageSettings {
+    fn default() -> Self {
+        ExportImageSettings { pages: "all".into(), scale: 2.0, quality: 90 }
+    }
+}
+
 /// UI state that persists between runs (and that agents can read and set).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -277,6 +294,9 @@ pub struct UiState {
     pub window: Option<window_geometry::WindowGeometry>,
     /// Interface language: `auto` (follow the system) or a code from [`i18n::LANGUAGES`].
     pub language: String,
+    /// File › Export image choices (page range, resolution, JPEG quality), kept between exports.
+    #[serde(default)]
+    pub export_image: ExportImageSettings,
     /// Editing preferences; the session owns them while running (see [`WordApp::prefs`]).
     pub editing: wordcraft_engine::Prefs,
     /// Read Aloud speed (1 = normal) and whether it skips citations and bibliographies.
@@ -375,6 +395,7 @@ impl Default for UiState {
             author: String::new(),
             window: None,
             language: i18n::AUTO.into(),
+            export_image: ExportImageSettings::default(),
             editing: wordcraft_engine::Prefs::default(),
             read_aloud_rate: 1.0,
             read_aloud_skip_citations: true,
@@ -1398,7 +1419,16 @@ impl WordApp {
                     self.save_as_dialog();
                 }
                 "exportPdf" => self.export_dialog("pdf"),
-                "exportPng" => self.export_dialog("png"),
+                "exportPng" => {
+                    let set = self.ui.export_image.clone();
+                    self.dialog = Some(crate::dialogs::Dialog::ExportImage {
+                        format: "png".into(),
+                        all: set.pages == "all",
+                        pages: if set.pages == "all" { String::new() } else { set.pages },
+                        scale: set.scale,
+                        quality: set.quality,
+                    });
+                }
                 "insertPicture" => self.pick_picture(),
                 "addFont" => self.pick_font(),
                 "loadSystemFonts" => self.load_system_fonts(),

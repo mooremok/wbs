@@ -755,9 +755,11 @@
 	Expand	Розширити
 	Expand or Collapse Heading	Розгорнути або згорнути заголовок
 	Export	Експорт
+	Export Image	Export Image
 	Export PDF	Експортувати PDF
 	Export Page as PNG	Експортувати сторінку у PNG
 	Export a copy to share (PDF, Word document)	Експортувати копію для спільного доступу (PDF, документ Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Експортовано {path}
 	Expression	Вираз
 	Extend Selection	Розширити виділення
@@ -1038,6 +1040,7 @@
 	Issue	Випуск
 	Italian	Італійська
 	Italic	Курсив
+	JPEG quality	JPEG quality
 	Japanese	Японська
 	Journal	Журнал
 	Justification	Вирівнювання
@@ -1431,7 +1434,8 @@
 	Page X of Y	Сторінка X із Y
 	Page break before	Розрив сторінки перед абзацом
 	Page display	Відображення сторінки
-	Page image (*.png)	Зображення сторінки (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Стиль номера сторінки
 	Page numbers at the right margin	Номери сторінок біля правого поля
 	Page on which a bookmarked passage falls	Номер сторінки закладки
@@ -1662,6 +1666,7 @@
 	Reset\nGraphic	Скинути\nграфіку
 	Reset…	Скинути…
 	Resize Table by Dragging	Змінити розмір таблиці перетягуванням
+	Resolution	Resolution
 	Resolve	Вирішити
 	Resolved	Вирішено
 	Restart Each Page	Починати на кожній сторінці
@@ -2136,6 +2141,7 @@
 	Type in Equation	Введення в рівнянні
 	Type the categories down the side and a column of values per series.	Введіть категорії збоку та стовпець значень для кожного ряду.
 	Type the field's name and its switches, for example PAGE \\* roman.	Введіть назву поля та його ключі, наприклад PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Введіть пароль, щоб вимкнути захист.
 	Type the recipients, or load them from a file.	Введіть одержувачів або завантажте їх із файлу.
 	Type:	Тип:

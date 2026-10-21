@@ -905,9 +905,11 @@
 	Exponential	Экспонента
 	Exponential series	Ряд для экспоненты
 	Export	Экспорт
+	Export Image	Export Image
 	Export PDF	Экспорт в PDF
 	Export Page as PNG	Экспортировать страницу в PNG
 	Export a copy to share (PDF, Word document)	Экспортировать копию, чтобы поделиться (PDF, документ Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Экспортировано: {path}
 	Expression	Выражение
 	Extend Selection	Расширить выделение
@@ -1247,6 +1249,7 @@
 	Issue	Выпуск
 	Italian	Итальянский
 	Italic	Курсив
+	JPEG quality	JPEG quality
 	Japanese	Японский
 	Journal	Журнал
 	Justification	Выравнивание
@@ -1701,7 +1704,8 @@
 	Page X of Y	Страница X из Y
 	Page break before	С новой страницы
 	Page display	Отображение страницы
-	Page image (*.png)	Изображение страницы (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Стиль номеров страниц
 	Page numbers at the right margin	Номера страниц по правому краю
 	Page on which a bookmarked passage falls	Страница, на которой находится закладка
@@ -1950,6 +1954,7 @@
 	Reset\nGraphic	Сбросить\nграфику
 	Reset…	Сбросить…
 	Resize Table by Dragging	Изменение размера таблицы перетаскиванием
+	Resolution	Resolution
 	Resolve	Отметить решённым
 	Resolved	Решён
 	Restart Each Page	На каждой странице заново
@@ -2498,6 +2503,7 @@
 	Type normal (non-math) text in the equation	Вводить в уравнении обычный (не математический) текст
 	Type the categories down the side and a column of values per series.	Введите категории по вертикали и столбец значений для каждого ряда.
 	Type the field's name and its switches, for example PAGE \\* roman.	Введите имя поля и его ключи, например PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Введите пароль, чтобы отключить защиту.
 	Type the recipients, or load them from a file.	Введите получателей или загрузите их из файла.
 	Type:	Тип:

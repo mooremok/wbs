@@ -331,7 +331,8 @@ fn preview(app: &mut WordApp, ui: &mut Ui, lay: &DocLayout, total: usize) {
 /// The export "format" of a Word 2003 XML Document: an `.xml` file saved with `format: "wordml2003"`.
 pub(crate) const EXPORT_WORD_2003: &str = "wordml2003";
 
-/// The "save a copy" formats (File › Export, and below the settings on the Print page).
+/// The "save a copy" formats (File › Export, and below the settings on the Print page). The
+/// image entries open the Export Image dialog (pages, resolution, JPEG quality) first.
 pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
     for (label, ext) in [
         ("PDF document (*.pdf)", "pdf"),
@@ -344,10 +345,22 @@ pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
         ("Markdown (*.md)", "md"),
         ("LaTeX (*.tex)", "tex"),
         ("Plain text (*.txt)", "txt"),
-        ("Page image (*.png)", "png"),
+        ("Page image, PNG (*.png)", "png"),
+        ("Page image, JPEG (*.jpg)", "jpg"),
     ] {
         if ui.add(egui::Button::new(egui::RichText::new(tl!(label)).font(medium(13.5))).min_size(vec2(320.0, 34.0))).clicked() {
-            app.export_dialog(ext);
+            if ext == "png" || ext == "jpg" {
+                let set = app.ui.export_image.clone();
+                app.dialog = Some(crate::dialogs::Dialog::ExportImage {
+                    format: if ext == "jpg" { "jpeg".into() } else { "png".into() },
+                    all: set.pages == "all",
+                    pages: if set.pages == "all" { String::new() } else { set.pages },
+                    scale: set.scale,
+                    quality: set.quality,
+                });
+            } else {
+                app.export_dialog(ext);
+            }
         }
         ui.add_space(4.0);
     }

@@ -93,8 +93,8 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .params(r#"{"path": string, "markup"?: bool (Print Markup: tracked changes marked up and each page scaled down beside the comments in balloons; default file.printMarkup)}"#)
         .pure(),
-        CommandSpec::new("file.exportPng", "Export Page as PNG", "File › Export", export_png)
-            .params(r#"{"path": string, "page"?: n (1-based), "scale"?: px per pt, "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
+        CommandSpec::new("file.exportPng", "Export Image", "File › Export", export_png)
+            .params(r#"{"path": string, "pages"?: "all" | "1-3,5" (any number of pages; several become stem-1.png, stem-2.png…), "page"?: n (1-based, when `pages` is absent), "format"?: "png" (default) | "jpeg", "quality"?: 1-100 (jpeg, default 90), "scale"?: px per pt (default 2), "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
             .pure(),
         // A print setting, like Word's: not part of the document, so no undo step.
         CommandSpec::new("file.printMarkup", "Print Markup", "File › Print", |s, v| {
@@ -344,18 +344,92 @@ fn export_png(s: &mut Session, v: &Value) -> CmdResult {
         s.ui_requests.push(json!({"open": "exportPng"}));
         return Ok(json!({"exported": false}));
     };
-    let page = p::u64(v, "page").unwrap_or(1).max(1) as usize - 1;
+    let format = match p::str(v, "format").unwrap_or("png") {
+        "png" => ImgFormat::Png,
+        "jpeg" | "jpg" => ImgFormat::Jpeg,
+        other => return Err(CmdError::Params(format!("unknown image format `{other}`; use png or jpeg"))),
+    };
+    let quality = p::u64(v, "quality").unwrap_or(90).clamp(1, 100) as u8;
     let scale = p::f32(v, "scale").unwrap_or(2.0).clamp(0.1, 8.0);
     let l = s.export_layout_with(export_options(s, v).markup);
-    let pg = l.pages.get(page).ok_or_else(|| CmdError::Params(format!("no page {}", page + 1)))?;
+    // `pages` ("all" or "1-3,5", the print range syntax) selects any number of pages; without it
+    // the 1-based `page` picks one.
+    let pages: Vec<usize> = match p::str(v, "pages") {
+        Some("all") => (0..l.pages.len()).collect(),
+        Some(spec) => crate::print::parse_page_range(spec, l.pages.len()).map_err(CmdError::Params)?,
+        None => vec![p::u64(v, "page").unwrap_or(1).max(1) as usize - 1],
+    };
+    if pages.is_empty() {
+        return Err(CmdError::Params("the document has no pages to export".into()));
+    }
     // A page image is the printed page: headers and footers at full strength. Dimming them is
     // the on-screen cue while editing the body, not part of the page.
-    let mut opts = wordcraft_render::RenderOptions::default();
-    opts.display.dim_header = false;
-    let img = wordcraft_render::render_page(&s.doc, pg, scale, &opts);
-    let png = img.to_png();
-    crate::io::write_file(path, &png).map_err(CmdError::Failed)?;
-    Ok(json!({"path": path, "width": img.width, "height": img.height, "bytes": png.len()}))
+    let mut render_opts = wordcraft_render::RenderOptions::default();
+    render_opts.display.dim_header = false;
+    // One page keeps the path as given (an image extension, if any, matches the format); several
+    // number the files `stem-1.ext`, `stem-2.ext`… beside it.
+    let ext = match format {
+        ImgFormat::Png => "png",
+        ImgFormat::Jpeg => "jpg",
+    };
+    let out_path = |n: usize| -> String {
+        let fixed = with_image_ext(path, ext);
+        if pages.len() == 1 {
+            return fixed;
+        }
+        let p = std::path::Path::new(&fixed);
+        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("page");
+        let file = format!("{stem}-{n}.{ext}");
+        match p.parent() {
+            Some(dir) if !dir.as_os_str().is_empty() => dir.join(file).to_string_lossy().into_owned(),
+            _ => file,
+        }
+    };
+    let mut paths = Vec::new();
+    let (mut width, mut height, mut bytes) = (0u32, 0u32, 0usize);
+    for (n, &pg) in pages.iter().enumerate() {
+        let page = l.pages.get(pg).ok_or_else(|| CmdError::Params(format!("no page {}", pg + 1)))?;
+        let img = wordcraft_render::render_page(&s.doc, page, scale, &render_opts);
+        let data = match format {
+            ImgFormat::Png => img.to_png(),
+            ImgFormat::Jpeg => img.to_jpeg(quality),
+        };
+        let file = out_path(n + 1);
+        crate::io::write_file(&file, &data).map_err(CmdError::Failed)?;
+        if n == 0 {
+            width = img.width;
+            height = img.height;
+            bytes = data.len();
+        }
+        paths.push(file);
+    }
+    let format_name = match format {
+        ImgFormat::Png => "png",
+        ImgFormat::Jpeg => "jpeg",
+    };
+    let first = paths.first().cloned().unwrap_or_default();
+    Ok(json!({"path": first, "paths": paths, "pages": paths.len(), "format": format_name, "width": width, "height": height, "bytes": bytes}))
+}
+
+/// The image formats a page export writes (`Rendered::to_png` / `to_jpeg`).
+enum ImgFormat {
+    Png,
+    Jpeg,
+}
+
+/// `path` with its extension, when it names an image type, replaced by `ext` (`out.png` →
+/// `out.jpg` for jpeg export); unchanged otherwise.
+fn with_image_ext(path: &str, ext: &str) -> String {
+    let p = std::path::Path::new(path);
+    let Some(old) = p.extension().and_then(|e| e.to_str()) else { return path.to_string() };
+    if !matches!(old.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg") {
+        return path.to_string();
+    }
+    let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+    match p.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(format!("{stem}.{ext}")).to_string_lossy().into_owned(),
+        _ => format!("{stem}.{ext}"),
+    }
 }
 
 fn properties(s: &mut Session, v: &Value) -> CmdResult {

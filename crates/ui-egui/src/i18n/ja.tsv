@@ -743,9 +743,11 @@
 	Expand	拡大
 	Expand or Collapse Heading	見出しの展開/折りたたみ
 	Export	エクスポート
+	Export Image	Export Image
 	Export PDF	PDF にエクスポート
 	Export Page as PNG	ページを PNG としてエクスポート
 	Export a copy to share (PDF, Word document)	共有用にコピーをエクスポート（PDF、Word 文書）
+	Exported {count} files	Exported {count} files
 	Exported {path}	{path} にエクスポートしました
 	Expression	式
 	Extend Selection	選択範囲の拡張
@@ -1026,6 +1028,7 @@
 	Issue	号
 	Italian	イタリア語
 	Italic	斜体
+	JPEG quality	JPEG quality
 	Japanese	日本語
 	Journal	学術誌
 	Justification	配置
@@ -1419,7 +1422,8 @@
 	Page X of Y	X / Y ページ
 	Page break before	段落前で改ページする
 	Page display	ページの表示
-	Page image (*.png)	ページ画像 (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	ページ番号のスタイル
 	Page numbers at the right margin	ページ番号を右端に配置
 	Page on which a bookmarked passage falls	ブックマークのページ番号
@@ -1650,6 +1654,7 @@
 	Reset\nGraphic	グラフィックの\nリセット
 	Reset…	リセット…
 	Resize Table by Dragging	ドラッグで表のサイズを変更
+	Resolution	Resolution
 	Resolve	解決
 	Resolved	解決済み
 	Restart Each Page	ページごとに振り直し
@@ -2124,6 +2129,7 @@
 	Type in Equation	数式に入力
 	Type the categories down the side and a column of values per series.	左端の列にカテゴリを、系列ごとに 1 列ずつ値を入力します。
 	Type the field's name and its switches, for example PAGE \\* roman.	フィールド名とスイッチを入力します (例: PAGE \\* roman)。
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	保護を中止するにはパスワードを入力してください。
 	Type the recipients, or load them from a file.	宛先を入力するか、ファイルから読み込みます。
 	Type:	種類:

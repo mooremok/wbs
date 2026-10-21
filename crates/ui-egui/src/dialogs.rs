@@ -305,6 +305,18 @@ pub enum Dialog {
         text: String,
         diagonal: bool,
     },
+    /// File › Export image: pages, resolution and JPEG quality, then the file picker.
+    ExportImage {
+        /// `png` or `jpeg`.
+        format: String,
+        /// Every page, or the custom range in `pages`.
+        all: bool,
+        pages: String,
+        /// px per pt: 1, 2 or 4.
+        scale: f32,
+        /// JPEG quality 1-100.
+        quality: u8,
+    },
     /// Home › Font › Phonetic Guide: ruby text over the selected text (`format.phonetic`).
     Phonetic {
         base: String,
@@ -980,6 +992,7 @@ impl Dialog {
             Dialog::Insert(d) => d.name(),
             Dialog::Refs(d) => d.name(),
             Dialog::Icons { .. } => "icons",
+            Dialog::ExportImage { .. } => "exportImage",
             Dialog::PasteSpecial { .. } => "pasteSpecial",
             Dialog::About { .. } => "about",
             Dialog::SaveChanges { .. } => "saveChanges",
@@ -1203,6 +1216,18 @@ impl Dialog {
             "manageStyles" => Dialog::ManageStyles { alphabetical: false, selected: s("style") },
             "newTableStyle" | "modifyTableStyle" => crate::dialogs_table_style::open(app, name)?,
             "commands" => Dialog::Commands { query: String::new(), swallow: true },
+            "exportImage" => {
+                // Starts from the last export's choices; the entries in File › Export set the
+                // format when they open this dialog directly.
+                let set = app.ui.export_image.clone();
+                Dialog::ExportImage {
+                    format: "png".into(),
+                    all: set.pages == "all",
+                    pages: if set.pages == "all" { String::new() } else { set.pages },
+                    scale: set.scale,
+                    quality: set.quality,
+                }
+            }
             "icons" => Dialog::Icons { query: String::new(), category: String::new(), selected: String::new() },
             "tableProperties" => {
                 let form = Box::new(TableForm::read(app)?);
@@ -1438,6 +1463,7 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
         Dialog::Insert(d) => d.title(),
         Dialog::Refs(d) => d.title(),
         Dialog::Icons { .. } => "Icons",
+        Dialog::ExportImage { .. } => "Export Image",
         Dialog::PasteSpecial { .. } => "Paste Special",
         Dialog::About { .. } => "About WBS",
         Dialog::SaveChanges { .. } => "WBS",
@@ -2465,6 +2491,46 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 let _ = app.run("design.watermark", json!({"text": text, "diagonal": *diagonal}));
             }
             ok || cancel
+        }
+        Dialog::ExportImage { format, all, pages, scale, quality } => {
+            ui.label(egui::RichText::new(tl!("Pages")).font(crate::theme::medium(13.0)));
+            ui.horizontal(|ui| {
+                ui.radio_value(all, true, tl!("All"));
+                ui.radio_value(all, false, tl!("Custom range"));
+            });
+            if !*all {
+                ui.add(
+                    egui::TextEdit::singleline(pages)
+                        .hint_text(tl!("Pages like 1-3, 5"))
+                        .desired_width(260.0)
+                        .char_limit(wordcraft_engine::print::MAX_SPEC_CHARS),
+                );
+            }
+            ui.label(egui::RichText::new(tl!("Resolution")).font(crate::theme::medium(13.0)));
+            ui.horizontal(|ui| {
+                for s in [1.0, 2.0, 4.0] {
+                    ui.radio_value(scale, s, format!("{}×", s as i32));
+                }
+            });
+            if format == "jpeg" {
+                ui.label(egui::RichText::new(tl!("JPEG quality")).font(crate::theme::medium(13.0)));
+                ui.add(egui::Slider::new(quality, 1..=100));
+            }
+            // The engine's print-range parser validates a custom range against the page count.
+            let total = app.session.export_layout().pages.len();
+            let spec = if *all { "all".to_string() } else { pages.trim().to_string() };
+            let valid = *all || wordcraft_engine::print::parse_page_range(&spec, total).is_ok();
+            if !valid {
+                ui.label(egui::RichText::new(tl!("Type the pages to export, like 1-3, 5")).color(Tokens::get(ui.ctx()).red));
+            }
+            let (ok, cancel) = buttons(ui, tl!("OK"));
+            if ok && valid {
+                app.ui.export_image.pages = spec;
+                app.ui.export_image.scale = *scale;
+                app.ui.export_image.quality = *quality;
+                app.export_dialog(if format == "jpeg" { "jpg" } else { "png" });
+            }
+            ok && valid || cancel
         }
         Dialog::Phonetic { base, ruby, align, size, offset, existing } => {
             // Base and ruby text are usually Chinese or Japanese: fonts for them load from the next frame.

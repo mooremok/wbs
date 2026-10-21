@@ -893,9 +893,11 @@
 	Exponential	Esponenziale
 	Exponential series	Serie esponenziale
 	Export	Esporta
+	Export Image	Export Image
 	Export PDF	Esporta PDF
 	Export Page as PNG	Esporta pagina come PNG
 	Export a copy to share (PDF, Word document)	Esporta una copia da condividere (PDF, documento Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Esportato {path}
 	Expression	Espressione
 	Extend Selection	Estendi selezione
@@ -1243,6 +1245,7 @@
 	Issue	Fascicolo
 	Italian	Italiano
 	Italic	Corsivo
+	JPEG quality	JPEG quality
 	Japanese	Giapponese
 	Journal	Rivista scientifica
 	Justification	Allineamento
@@ -1701,7 +1704,8 @@
 	Page X of Y	Pagina X di Y
 	Page break before	Interruzione di pagina prima
 	Page display	Visualizzazione pagina
-	Page image (*.png)	Immagine della pagina (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Stile numero di pagina
 	Page numbers at the right margin	Numeri di pagina al margine destro
 	Page on which a bookmarked passage falls	Pagina in cui cade un passaggio con segnalibro
@@ -1952,6 +1956,7 @@
 	Reset\nGraphic	Reimposta\nelemento grafico
 	Reset…	Reimposta…
 	Resize Table by Dragging	Ridimensiona la tabella trascinando
+	Resolution	Resolution
 	Resolve	Risolvi
 	Resolved	Risolto
 	Restart Each Page	Ricomincia a ogni pagina
@@ -2504,6 +2509,7 @@
 	Type normal (non-math) text in the equation	Scrivi testo normale (non matematico) nell'equazione
 	Type the categories down the side and a column of values per series.	Digita le categorie nella colonna laterale e una colonna di valori per ogni serie.
 	Type the field's name and its switches, for example PAGE \\* roman.	Digita il nome del campo e le sue opzioni, ad esempio PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Digita la password per interrompere la protezione.
 	Type the recipients, or load them from a file.	Digita i destinatari o caricali da un file.
 	Type:	Tipo:

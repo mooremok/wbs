@@ -757,9 +757,11 @@
 	Expand	Прошири
 	Expand or Collapse Heading	Прошири или скупи наслов
 	Export	Извоз
+	Export Image	Export Image
 	Export PDF	Извези PDF
 	Export Page as PNG	Извези страну као PNG
 	Export a copy to share (PDF, Word document)	Извези копију за дељење (PDF, Word документ)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Извезено: {path}
 	Expression	Израз
 	Extend Selection	Прошири избор
@@ -1040,6 +1042,7 @@
 	Issue	Број
 	Italian	Италијански
 	Italic	Курзив
+	JPEG quality	JPEG quality
 	Japanese	Јапански
 	Journal	Часопис
 	Justification	Поравнање
@@ -1433,7 +1436,8 @@
 	Page X of Y	Страна X од Y
 	Page break before	Прекид стране пре
 	Page display	Приказ стране
-	Page image (*.png)	Слика стране (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Стил броја странице
 	Page numbers at the right margin	Бројеви страница уз десну маргину
 	Page on which a bookmarked passage falls	Број странице обележивача
@@ -1664,6 +1668,7 @@
 	Reset\nGraphic	Ресетуј\nграфику
 	Reset…	Ресетуј…
 	Resize Table by Dragging	Промена величине табеле превлачењем
+	Resolution	Resolution
 	Resolve	Реши
 	Resolved	Решено
 	Restart Each Page	Поново почни на свакој страни
@@ -2138,6 +2143,7 @@
 	Type in Equation	Унос у формули
 	Type the categories down the side and a column of values per series.	Унесите категорије са стране и по једну колону вредности за сваку серију.
 	Type the field's name and its switches, for example PAGE \\* roman.	Унесите назив поља и његове прекидаче, на пример PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Унесите лозинку да бисте зауставили заштиту.
 	Type the recipients, or load them from a file.	Унесите примаоце или их учитајте из фајла.
 	Type:	Врста:

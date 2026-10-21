@@ -757,9 +757,11 @@
 	Expand	Laienda
 	Expand or Collapse Heading	Laienda või ahenda pealkiri
 	Export	Ekspordi
+	Export Image	Export Image
 	Export PDF	Ekspordi PDF
 	Export Page as PNG	Ekspordi leht PNG-na
 	Export a copy to share (PDF, Word document)	Ekspordi koopia jagamiseks (PDF, Wordi dokument)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Eksporditud: {path}
 	Expression	Avaldis
 	Extend Selection	Laienda valikut
@@ -1046,6 +1048,7 @@
 	Issue	Number
 	Italian	Itaalia
 	Italic	Kaldkiri
+	JPEG quality	JPEG quality
 	Japanese	Jaapani
 	Journal	Ajakiri
 	Justification	Joondus
@@ -1443,7 +1446,8 @@
 	Page X of Y	Leht X / Y
 	Page break before	Lehepiir enne
 	Page display	Lehe kuvamine
-	Page image (*.png)	Lehe pilt (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Leheküljenumbri laad
 	Page numbers at the right margin	Leheküljenumbrid paremas servas
 	Page on which a bookmarked passage falls	Lehekülg, kus järjehoidjaga lõik asub
@@ -1675,6 +1679,7 @@
 	Reset\nGraphic	Lähtesta\ngraafika
 	Reset…	Lähtesta…
 	Resize Table by Dragging	Tabeli suuruse muutmine lohistades
+	Resolution	Resolution
 	Resolve	Lahenda
 	Resolved	Lahendatud
 	Restart Each Page	Alusta igal lehel uuesti
@@ -2158,6 +2163,7 @@
 	Type in Equation	Kirjuta võrrandisse
 	Type the categories down the side and a column of values per series.	Sisesta kategooriad külje peale ja iga sarja jaoks väärtuste veerg.
 	Type the field's name and its switches, for example PAGE \\* roman.	Sisesta välja nimi ja lülitid, näiteks PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Kaitse lõpetamiseks sisesta parool.
 	Type the recipients, or load them from a file.	Sisesta adressaadid või laadi need failist.
 	Type:	Tüüp:

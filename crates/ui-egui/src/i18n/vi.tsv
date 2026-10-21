@@ -916,9 +916,11 @@
 	Exponential	Hàm mũ
 	Exponential series	Chuỗi hàm mũ
 	Export	Xuất
+	Export Image	Export Image
 	Export PDF	Xuất PDF
 	Export Page as PNG	Xuất trang dưới dạng PNG
 	Export a copy to share (PDF, Word document)	Xuất bản sao để chia sẻ (PDF, tài liệu Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Đã xuất {path}
 	Expression	Biểu thức
 	Extend Selection	Mở rộng vùng chọn
@@ -1267,6 +1269,7 @@
 	Issue	Số
 	Italian	Tiếng Ý
 	Italic	In nghiêng
+	JPEG quality	JPEG quality
 	Japanese	Tiếng Nhật
 	Journal	Tạp chí
 	Justification	Căn chỉnh
@@ -1727,7 +1730,8 @@
 	Page X of Y	Trang X trên Y
 	Page break before	Ngắt trang trước đoạn
 	Page display	Hiển thị trang
-	Page image (*.png)	Ảnh trang (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Định dạng số trang
 	Page numbers at the right margin	Số trang ở lề phải
 	Page on which a bookmarked passage falls	Trang chứa đoạn được gắn dấu trang
@@ -1978,6 +1982,7 @@
 	Reset\nGraphic	Đặt lại\nđồ họa
 	Reset…	Đặt lại…
 	Resize Table by Dragging	Đổi cỡ bảng bằng cách kéo
+	Resolution	Resolution
 	Resolve	Giải quyết
 	Resolved	Đã giải quyết
 	Restart Each Page	Đánh số lại từ đầu mỗi trang
@@ -2534,6 +2539,7 @@
 	Type normal (non-math) text in the equation	Gõ văn bản thường (không phải toán) trong phương trình
 	Type the categories down the side and a column of values per series.	Nhập các hạng mục dọc theo cột bên, mỗi chuỗi một cột số liệu.
 	Type the field's name and its switches, for example PAGE \\* roman.	Nhập tên trường và tham số, ví dụ PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Nhập mật khẩu để ngừng bảo vệ.
 	Type the recipients, or load them from a file.	Nhập người nhận, hoặc tải từ tệp.
 	Type:	Loại:

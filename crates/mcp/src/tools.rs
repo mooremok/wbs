@@ -95,7 +95,7 @@ pub fn tool_definitions() -> Value {
         tool(
             "save_document",
             "Save",
-            "Save (format from the extension: docx, pdf, odt, rtf, html, md, tex, txt, png).",
+            "Save (format from the extension: docx, pdf, odt, rtf, html, md, tex, txt, png, jpg; an image writes every page, numbered files).",
             obj(json!({"path": s("File path; omit to save in place")}), &[]),
             false
         ),
@@ -213,8 +213,13 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, a: &Value) -> ToolResult {
         "save_document" => {
             let p = st("path");
             let ext = p.and_then(|x| x.rsplit('.').next()).unwrap_or("").to_ascii_lowercase();
-            if ext == "png" {
-                wrap(exec(b, "file.exportPng", json!({"path": p})))
+            if matches!(ext.as_str(), "png" | "jpg" | "jpeg") {
+                // A page image: every page by default (numbered files), JPEG for .jpg/.jpeg.
+                let mut params = json!({"path": p, "pages": "all"});
+                if ext != "png" {
+                    params["format"] = json!("jpeg");
+                }
+                wrap(exec(b, "file.exportPng", params))
             } else {
                 wrap(exec(
                     b,

@@ -19,15 +19,18 @@ wbs-cli — WBS from the command line
 USAGE:
   wbs-cli convert <in> <out> [--markup] [--update-fields] [--format wordml2003|flatopc]
                                               convert between formats (docx, doc [read], pdf, odt, rtf, html, md, tex, txt, json, png,
-                                              xml); --update-fields refreshes unlocked fields before saving;
+                                              jpg, xml); --update-fields refreshes unlocked fields before saving;
                                               an .xml file is a Word XML Document (Flat OPC), or with
                                               --format wordml2003 a Word 2003 XML Document;
                                               --markup (Print Markup): comments beside each page and
                                               tracked changes in pdf/png, a comment list in html/md/txt
+                                              an image out (.png/.jpg) takes --pages all|1-3,5 (default
+                                              all, several files numbered out-1.png, out-2.png…),
+                                              --format png|jpeg, --quality 1-100 (jpeg) and --scale S
   wbs-cli info <file>                   pages, words, paragraphs, properties (JSON)
   wbs-cli text <file>                   plain text
   wbs-cli inspect <file>                document structure (JSON)
-  wbs-cli render <file> <out.png> [--page N] [--scale S]
+  wbs-cli render <file> <out.png> [--page N | --pages all|1-3,5] [--scale S] [--format png|jpeg] [--quality 1-100]
   wbs-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
@@ -240,6 +243,40 @@ fn parse_scale_arg(command: &str, args: &[String]) -> Result<Option<f64>, String
     }
 }
 
+/// `--quality 1-100` for JPEG page images (the engine clamps the value; the CLI checks it is a
+/// number so typos fail before a document is opened).
+fn parse_quality_arg(command: &str, args: &[String]) -> Result<Option<i64>, String> {
+    match find_option_arg(args, "--quality") {
+        OptionArg::Absent => Ok(None),
+        OptionArg::Duplicate => Err(format!("{command}: duplicate --quality option")),
+        OptionArg::MissingValue => Err(format!("{command}: --quality requires a value")),
+        OptionArg::Value(val) => {
+            let q = val.parse::<i64>().map_err(|_| format!("{command}: invalid --quality `{val}`: not a number"))?;
+            if !(1..=100).contains(&q) {
+                return Err(format!("{command}: invalid --quality `{val}`: quality is 1 to 100"));
+            }
+            Ok(Some(q))
+        }
+    }
+}
+
+/// `--pages all|1-3,5`: `all` or a page list, handed to the engine's range parser as is (empty
+/// and option-like values are rejected here).
+fn parse_pages_arg(command: &str, args: &[String]) -> Result<Option<String>, String> {
+    match find_option_arg(args, "--pages") {
+        OptionArg::Absent => Ok(None),
+        OptionArg::Duplicate => Err(format!("{command}: duplicate --pages option")),
+        OptionArg::MissingValue => Err(format!("{command}: --pages requires a value")),
+        OptionArg::Value(val) => {
+            let ok = val == "all" || val.chars().all(|c| c.is_ascii_digit() || matches!(c, ',' | '-' | ' '));
+            if val.is_empty() || !ok {
+                return Err(format!("{command}: invalid --pages `{val}`: use all or a list like 1-3,5"));
+            }
+            Ok(Some(val.to_string()))
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct OptionSpec {
     name: &'static str,
@@ -293,12 +330,18 @@ const CONVERT_OPTIONS: &[OptionSpec] = &[
     OptionSpec { name: "--markup", takes_value: false },
     OptionSpec { name: "--format", takes_value: true },
     OptionSpec { name: "--update-fields", takes_value: false },
+    OptionSpec { name: "--pages", takes_value: true },
+    OptionSpec { name: "--scale", takes_value: true },
+    OptionSpec { name: "--quality", takes_value: true },
     OptionSpec { name: "--password", takes_value: true },
     OptionSpec { name: "--password-file", takes_value: true },
 ];
 const RENDER_OPTIONS: &[OptionSpec] = &[
     OptionSpec { name: "--page", takes_value: true },
+    OptionSpec { name: "--pages", takes_value: true },
     OptionSpec { name: "--scale", takes_value: true },
+    OptionSpec { name: "--format", takes_value: true },
+    OptionSpec { name: "--quality", takes_value: true },
     OptionSpec { name: "--password", takes_value: true },
     OptionSpec { name: "--password-file", takes_value: true },
 ];
@@ -402,8 +445,21 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             if rest.iter().any(|a| a == "--update-fields") {
                 s.run("references.updateFields", &json!({})).map_err(|e| e.to_string())?;
             }
-            let r = if o.to_ascii_lowercase().ends_with(".png") {
-                s.run("file.exportPng", &json!({"path": o, "page": 1, "markup": markup}))
+            let lower = o.to_ascii_lowercase();
+            let is_image = [".png", ".jpg", ".jpeg"].iter().any(|e| lower.ends_with(e));
+            let r = if is_image {
+                // Converting to images writes every page by default (numbered files); the format
+                // follows the extension (.jpg/.jpeg → JPEG) unless --format says otherwise.
+                let mut params = json!({"path": o, "pages": parse_pages_arg("convert", &rest)?.unwrap_or_else(|| "all".into()), "markup": markup});
+                if let Some(scale) = parse_scale_arg("convert", &rest)? {
+                    params["scale"] = json!(scale);
+                }
+                if let Some(quality) = parse_quality_arg("convert", &rest)? {
+                    params["quality"] = json!(quality);
+                }
+                let by_ext = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { "jpeg" } else { "png" };
+                params["format"] = json!(format.as_deref().map(|f| if f == "jpg" { "jpeg" } else { f }).unwrap_or(by_ext));
+                s.run("file.exportPng", &params)
             } else {
                 let mut params = json!({"path": o, "markup": markup});
                 if let Some(f) = format {
@@ -411,8 +467,15 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
                 }
                 s.run("file.save", &params)
             };
-            r.map_err(|e| e.to_string())?;
-            eprintln!("wrote {o}");
+            let r = r.map_err(|e| e.to_string())?;
+            match r["paths"].as_array() {
+                Some(paths) if paths.len() > 1 => {
+                    for p in paths {
+                        eprintln!("wrote {}", p.as_str().unwrap_or(&o));
+                    }
+                }
+                _ => eprintln!("wrote {o}"),
+            }
             Ok(())
         }
         "info" => {
@@ -450,7 +513,18 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             let page = parse_page_arg("render", &rest)?.unwrap_or(1);
             let scale = parse_scale_arg("render", &rest)?.unwrap_or(2.0);
             let mut s = open(&i, password.as_deref())?;
-            let r = s.run("file.exportPng", &json!({"path": o, "page": page, "scale": scale})).map_err(|e| e.to_string())?;
+            let mut params = json!({"path": o, "scale": scale});
+            match parse_pages_arg("render", &rest)? {
+                Some(pages) => params["pages"] = json!(pages),
+                None => params["page"] = json!(page),
+            }
+            if let Some(f) = arg_value(&rest, "--format") {
+                params["format"] = json!(f);
+            }
+            if let Some(q) = parse_quality_arg("render", &rest)? {
+                params["quality"] = json!(q);
+            }
+            let r = s.run("file.exportPng", &params).map_err(|e| e.to_string())?;
             write_stdout(|o| writeln!(o, "{r}"))
         }
         "run" => {
@@ -1057,6 +1131,53 @@ mod tests {
         let run_invalid = dir.join("run_invalid.png");
         assert!(run(&args(&["run", "--file", &docx_str, "--save", &run_invalid.to_string_lossy(), "--scale", "banana"])).is_err());
         assert!(!run_invalid.exists());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn convert_and_render_write_every_page_and_jpeg() {
+        let dir = std::env::temp_dir().join(format!("wc-cli-images-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // A multi-page document: 300 paragraphs span several pages.
+        let script = dir.join("make.json");
+        std::fs::write(
+            &script,
+            format!(
+                "{{\"commands\":[{{\"command\":\"document.setText\",\"params\":{{\"text\":{}}}}}],\"save\":[\"doc.docx\"]}}",
+                serde_json::to_string(&"line.\n".repeat(300)).unwrap()
+            ),
+        )
+        .unwrap();
+        assert!(run(&args(&["run", "--script", &script.to_string_lossy()])).is_ok(), "script in {}", dir.display());
+        let docx = dir.join("doc.docx").to_string_lossy().into_owned();
+        let pages = std::fs::read(&docx).unwrap().len();
+        assert!(pages > 0);
+
+        // convert to png writes every page, numbered; a single chosen page keeps its name.
+        let all = dir.join("all.png").to_string_lossy().into_owned();
+        assert!(run(&args(&["convert", &docx, &all, "--scale", "1"])).is_ok());
+        let first = dir.join("all-1.png");
+        assert!(first.exists() && std::fs::read(&first).unwrap().starts_with(b"\x89PNG"), "numbered pages beside {all}");
+        assert!(!dir.join("all.png").exists(), "several pages never use the bare path");
+
+        let one = dir.join("one.png").to_string_lossy().into_owned();
+        assert!(run(&args(&["convert", &docx, &one, "--pages", "2", "--scale", "1"])).is_ok());
+        assert!(dir.join("one.png").exists(), "one page keeps the path as given");
+
+        // convert to jpg via --format writes JPEG.
+        let jpg = dir.join("j.png").to_string_lossy().into_owned();
+        assert!(run(&args(&["convert", &docx, &jpg, "--pages", "1", "--format", "jpeg", "--quality", "80", "--scale", "1"])).is_ok());
+        assert!(dir.join("j.jpg").exists() && std::fs::read(dir.join("j.jpg")).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]));
+
+        // render --format jpeg --pages all; a bad page spec is an error.
+        let rjpg = dir.join("r.png").to_string_lossy().into_owned();
+        assert!(run(&args(&["render", &docx, &rjpg, "--pages", "all", "--format", "jpeg", "--scale", "1"])).is_ok());
+        assert!(dir.join("r-1.jpg").exists(), "numbered jpeg pages beside {rjpg}");
+        assert!(run(&args(&["render", &docx, &dir.join("bad.png").to_string_lossy(), "--pages", "banana"])).is_err());
+        assert!(run(&args(&["render", &docx, &dir.join("bad.png").to_string_lossy(), "--quality", "101"])).is_err());
 
         let _ = std::fs::remove_dir_all(dir);
     }

@@ -904,9 +904,11 @@
 	Exponential	Üstel
 	Exponential series	Üstel Seri
 	Export	Dışa Aktar
+	Export Image	Export Image
 	Export PDF	PDF Olarak Dışa Aktar
 	Export Page as PNG	Sayfayı PNG Olarak Dışa Aktar
 	Export a copy to share (PDF, Word document)	Paylaşmak için bir kopya dışa aktarın (PDF, Word belgesi)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Dışa aktarıldı: {path}
 	Expression	İfade
 	Extend Selection	Seçimi Genişlet
@@ -1246,6 +1248,7 @@
 	Issue	Sayı
 	Italian	İtalyanca
 	Italic	İtalik
+	JPEG quality	JPEG quality
 	Japanese	Japonca
 	Journal	Dergi
 	Justification	Hizalama
@@ -1700,7 +1703,8 @@
 	Page X of Y	Sayfa X / Y
 	Page break before	Öncesinde sayfa sonu
 	Page display	Sayfa görünümü
-	Page image (*.png)	Sayfa görüntüsü (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Sayfa numarası stili
 	Page numbers at the right margin	Sayfa numaraları sağ kenar boşluğunda
 	Page on which a bookmarked passage falls	Yer işaretli metnin bulunduğu sayfa
@@ -1949,6 +1953,7 @@
 	Reset\nGraphic	Grafiği\nSıfırla
 	Reset…	Sıfırla…
 	Resize Table by Dragging	Tabloyu Sürükleyerek Yeniden Boyutlandır
+	Resolution	Resolution
 	Resolve	Çöz
 	Resolved	Çözüldü
 	Restart Each Page	Her Sayfada Yeniden Başlat
@@ -2497,6 +2502,7 @@
 	Type normal (non-math) text in the equation	Denklem içinde normal (matematik dışı) metin yazın
 	Type the categories down the side and a column of values per series.	Kategorileri yan tarafa, her seri için bir değer sütunu yazın.
 	Type the field's name and its switches, for example PAGE \\* roman.	Alanın adını ve anahtarlarını yazın, örneğin PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Korumayı durdurmak için parolayı yazın.
 	Type the recipients, or load them from a file.	Alıcıları yazın veya dosyadan yükleyin.
 	Type:	Tür:

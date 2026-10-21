@@ -8091,6 +8091,55 @@ fn exported_page_images_draw_headers_at_full_strength() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn export_png_writes_every_page_as_png_or_jpeg() {
+    // `pages` exports any number of pages (numbered files when more than one); `format`/`quality`
+    // write JPEG, with the path's image extension replaced to match.
+    let mut s = s();
+    run(&mut s, "document.setText", json!({"text": &"line.\n".repeat(300)}));
+    let total = s.export_layout().pages.len();
+    assert!(total >= 2, "the text spans {total} pages");
+    let dir = std::env::temp_dir().join(format!("wordcraft-export-img-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let all = dir.join("all.png");
+    let r = s.run("file.exportPng", &json!({"path": all.to_string_lossy(), "pages": "all", "scale": 1.0})).unwrap();
+    let paths: Vec<&str> = r["paths"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
+    assert_eq!(paths.len(), total, "{paths:?}");
+    for (i, p) in paths.iter().enumerate() {
+        assert!(p.ends_with(&format!("all-{}.png", i + 1)), "{p}");
+        assert!(std::fs::read(p).unwrap().starts_with(b"\x89PNG"), "{p}");
+    }
+
+    // A single page keeps the path as given.
+    let one = dir.join("one.png");
+    let r = s.run("file.exportPng", &json!({"path": one.to_string_lossy(), "page": 2, "scale": 1.0})).unwrap();
+    assert_eq!(r["paths"].as_array().unwrap().len(), 1);
+    assert_eq!(r["path"], one.to_string_lossy().to_string());
+    assert!(std::fs::read(&one).unwrap().starts_with(b"\x89PNG"));
+
+    // A range picks those pages only.
+    let sub = dir.join("sub.png");
+    let r = s.run("file.exportPng", &json!({"path": sub.to_string_lossy(), "pages": "2-3", "scale": 1.0})).unwrap();
+    assert_eq!(r["pages"], 2);
+    assert_eq!(r["paths"].as_array().unwrap().len(), 2);
+
+    // JPEG: SOI magic, and a `.png` path is written as `.jpg` to match the format.
+    let jpg = dir.join("pic.png");
+    let r = s.run("file.exportPng", &json!({"path": jpg.to_string_lossy(), "page": 1, "format": "jpeg", "quality": 80, "scale": 1.0})).unwrap();
+    assert_eq!(r["format"], "jpeg");
+    let written = r["path"].as_str().unwrap();
+    assert!(written.ends_with("pic.jpg"), "{written}");
+    assert!(std::fs::read(written).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]));
+
+    // Hostile params stay errors, never panics.
+    let x = dir.join("x.png");
+    assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "format": "bmp"})).is_err());
+    assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "pages": "9999"})).is_err());
+    assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "quality": -3, "page": 1})).is_ok(), "quality is clamped, not an error");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Text typed right after a footnote or endnote number is plain body text, not another raised number.
 #[test]
 fn typing_after_a_note_number_is_not_superscript() {

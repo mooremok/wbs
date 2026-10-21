@@ -886,9 +886,11 @@
 	Exponential	Exponencial
 	Exponential series	Serie exponencial
 	Export	Exportar
+	Export Image	Export Image
 	Export PDF	Exportar PDF
 	Export Page as PNG	Exportar página como PNG
 	Export a copy to share (PDF, Word document)	Exporta una copia para compartir (PDF, documento de Word)
+	Exported {count} files	Exported {count} files
 	Exported {path}	Exportado: {path}
 	Expression	Expresión
 	Extend Selection	Ampliar selección
@@ -1219,6 +1221,7 @@
 	Issue	Número
 	Italian	Italiano
 	Italic	Cursiva
+	JPEG quality	JPEG quality
 	Japanese	Japonés
 	Journal	Revista
 	Justification	Alineación
@@ -1668,7 +1671,8 @@
 	Page X of Y	Página X de Y
 	Page break before	Salto de página antes
 	Page display	Visualización de página
-	Page image (*.png)	Imagen de página (*.png)
+	Page image, JPEG (*.jpg)	Page image, JPEG (*.jpg)
+	Page image, PNG (*.png)	Page image, PNG (*.png)
 	Page number style	Estilo del número de página
 	Page numbers at the right margin	Números de página en el margen derecho
 	Page on which a bookmarked passage falls	El número de página de un marcador
@@ -1916,6 +1920,7 @@
 	Reset\nGraphic	Restablecer\ngráfico
 	Reset…	Restablecer…
 	Resize Table by Dragging	Cambiar tamaño de tabla arrastrando
+	Resolution	Resolution
 	Resolve	Resolver
 	Resolved	Resuelto
 	Restart Each Page	Reiniciar en cada página
@@ -2464,6 +2469,7 @@
 	Type normal (non-math) text in the equation	Escribir texto normal (no matemático) en la ecuación
 	Type the categories down the side and a column of values per series.	Escribe las categorías en el lateral y una columna de valores por serie.
 	Type the field's name and its switches, for example PAGE \\* roman.	Escribe el nombre del campo y sus modificadores, por ejemplo PAGE \\* roman.
+	Type the pages to export, like 1-3, 5	Type the pages to export, like 1-3, 5
 	Type the password to stop the protection.	Escribe la contraseña para detener la protección.
 	Type the recipients, or load them from a file.	Escribe los destinatarios o cárgalos desde un archivo.
 	Type:	Tipo:

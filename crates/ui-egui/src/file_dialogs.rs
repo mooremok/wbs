@@ -291,15 +291,28 @@ impl WordApp {
             }
             AfterPick::Export { ext } => {
                 let Some(path) = picked else { return Ok(json!({"cancelled": true})) };
-                let r = if ext == "png" {
-                    self.run("file.exportPng", json!({"path": path}))
+                let r = if ext == "png" || ext == "jpg" {
+                    // The Export Image dialog's choices: pages, resolution, JPEG quality.
+                    let set = self.ui.export_image.clone();
+                    let mut params = json!({"path": path, "pages": set.pages, "scale": set.scale});
+                    if ext == "jpg" {
+                        params["format"] = json!("jpeg");
+                        params["quality"] = json!(set.quality);
+                    }
+                    self.run("file.exportPng", params)
                 } else if ext == crate::print_page::EXPORT_WORD_2003 {
                     self.run("file.saveAs", json!({"path": path, "format": ext}))
                 } else {
                     self.run("file.saveAs", json!({"path": path}))
                 };
                 if r.is_ok() {
-                    self.status(crate::i18n::fmt(tl!("Exported {path}"), &[("path", &path)]));
+                    // Several pages export to numbered files; name them all.
+                    let count = r.as_ref().ok().and_then(|v| v.get("paths")).and_then(|p| p.as_array()).map_or(1, |a| a.len());
+                    if count > 1 {
+                        self.status(crate::i18n::fmt(tl!("Exported {count} files"), &[("count", &count.to_string())]));
+                    } else {
+                        self.status(crate::i18n::fmt(tl!("Exported {path}"), &[("path", &path)]));
+                    }
                 }
                 r
             }
@@ -784,7 +797,28 @@ mod tests {
         answer(&shown, None);
         a.poll_file_dialog();
         a.run("file.exportPng", json!({})).unwrap();
-        assert!(matches!(shown.borrow()[0].0, FileDialogRequest::Save { ref name } if name.ends_with(".png")));
+        assert!(
+            matches!(a.dialog, Some(crate::dialogs::Dialog::ExportImage { .. })),
+            "the image options dialog (pages, resolution, quality) opens before the file picker"
+        );
+    }
+
+    /// Export image with the dialog's choices: every page, JPEG with quality, at the chosen
+    /// resolution, written where the file picker said.
+    #[test]
+    fn export_image_writes_the_chosen_pages_and_format() {
+        let (mut a, shown) = async_app();
+        a.ui.export_image.pages = "all".into();
+        a.ui.export_image.scale = 1.0;
+        a.ui.export_image.quality = 85;
+        a.export_dialog("jpg");
+        let dir = scratch("export-img");
+        let picked = dir.join("out.jpg");
+        answer(&shown, Some(&picked.to_string_lossy()));
+        let r = a.poll_file_dialog().unwrap().unwrap();
+        assert_eq!(r["format"], "jpeg", "{r}");
+        assert!(std::fs::read(&picked).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]), "JPEG magic at {}", picked.display());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// #1445: "Save changes?" → Save on a new document while another file dialog is still open:

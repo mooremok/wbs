@@ -755,9 +755,11 @@
 	Expand	扩展
 	Expand or Collapse Heading	展开或折叠标题
 	Export	导出
+	Export Image	导出图片
 	Export PDF	导出 PDF
 	Export Page as PNG	将页面导出为 PNG
 	Export a copy to share (PDF, Word document)	导出副本以共享（PDF、Word 文档）
+	Exported {count} files	已导出 {count} 个文件
 	Exported {path}	已导出 {path}
 	Expression	表达式
 	Extend Selection	扩展选定范围
@@ -1038,6 +1040,7 @@
 	Issue	期号
 	Italian	意大利语
 	Italic	倾斜
+	JPEG quality	JPEG 质量
 	Japanese	日语
 	Journal	期刊
 	Justification	对齐方式
@@ -1431,7 +1434,8 @@
 	Page X of Y	第 X 页，共 Y 页
 	Page break before	段前分页
 	Page display	页面显示
-	Page image (*.png)	页面图像 (*.png)
+	Page image, JPEG (*.jpg)	页面图片，JPEG (*.jpg)
+	Page image, PNG (*.png)	页面图片，PNG (*.png)
 	Page number style	页码样式
 	Page numbers at the right margin	页码靠右边距
 	Page on which a bookmarked passage falls	书签所在的页码
@@ -1662,6 +1666,7 @@
 	Reset\nGraphic	重设\n图形
 	Reset…	重置…
 	Resize Table by Dragging	拖动调整表格大小
+	Resolution	分辨率
 	Resolve	解决
 	Resolved	已解决
 	Restart Each Page	每页重新编号
@@ -2136,6 +2141,7 @@
 	Type in Equation	在公式中输入
 	Type the categories down the side and a column of values per series.	在左侧输入类别，每个系列输入一列数值。
 	Type the field's name and its switches, for example PAGE \\* roman.	键入域名及其开关，例如 PAGE \\* roman。
+	Type the pages to export, like 1-3, 5	请输入要导出的页码，如 1-3, 5
 	Type the password to stop the protection.	键入密码以停止保护。
 	Type the recipients, or load them from a file.	键入收件人，或从文件加载。
 	Type:	类型：
