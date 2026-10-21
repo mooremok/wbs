@@ -7123,6 +7123,36 @@ fn the_chinese_and_latin_fonts_are_set_apart_in_either_order() {
     assert_eq!((back.font, back.font_ea), (Some("Times New Roman".into()), Some("宋体".into())));
 }
 
+#[test]
+fn the_font_box_shows_the_font_of_the_text_at_the_selection() {
+    // The font box follows the text: Chinese text shows its East Asian font, Latin text the
+    // Latin one, whichever slot a `format.font` call filled last. `font` stays the Latin slot.
+    let mut s = s();
+    run(&mut s, "document.setText", json!({"text": "中文 Abc"}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "format.font", json!({"name": "宋体"}));
+    run(&mut s, "format.font", json!({"name": "Times New Roman"}));
+
+    run(&mut s, "select.text", json!({"text": "中文"}));
+    let st = run(&mut s, "format.state", json!({}));
+    assert_eq!(st["fontShown"], "宋体");
+    assert_eq!(st["font"], "Times New Roman");
+
+    run(&mut s, "select.text", json!({"text": "Abc"}));
+    assert_eq!(run(&mut s, "format.state", json!({}))["fontShown"], "Times New Roman");
+
+    // The caret shows the font of the character to come, and at the paragraph's end the last
+    // one before it.
+    run(&mut s, "select.range", json!({"anchor": {"block": 0, "off": 0}, "focus": {"block": 0, "off": 0}}));
+    assert_eq!(run(&mut s, "format.state", json!({}))["fontShown"], "宋体");
+    run(&mut s, "select.range", json!({"anchor": {"block": 0, "off": 7}, "focus": {"block": 0, "off": 7}}));
+    assert_eq!(run(&mut s, "format.state", json!({}))["fontShown"], "Times New Roman");
+
+    // Selecting everything starts at the Chinese text, so the box shows its font.
+    run(&mut s, "select.all", json!({}));
+    assert_eq!(run(&mut s, "format.state", json!({}))["fontShown"], "宋体");
+}
+
 /// The result of the formula field in cell `c` of row `r` of the first table, if there is one.
 fn formula_result(s: &Session, r: usize, c: usize) -> Option<String> {
     let t = s.doc.body.iter().find_map(|b| b.as_table())?;

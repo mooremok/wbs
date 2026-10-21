@@ -670,6 +670,18 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     apply(s, &|c| c.overlay(&props))
 }
 
+/// The character the font box reads: the first character of the selection, or, at the caret, the
+/// character to come (at a paragraph's end, the last one before it). Whichever script it is in
+/// decides which font slot the box shows.
+fn ref_char(s: &Session) -> Option<char> {
+    let (a, b) = s.sel.ordered();
+    let p = s.doc.para_at(&a)?;
+    if a != b {
+        return p.text.get(a.off..).and_then(|t| t.chars().next());
+    }
+    p.text.get(a.off..).and_then(|t| t.chars().next()).or_else(|| p.text.get(..a.off).and_then(|t| t.chars().next_back()))
+}
+
 /// What the ribbon shows: the formatting at the selection (mixed values are null).
 pub fn state(s: &Session) -> Value {
     let all = resolved(s);
@@ -681,8 +693,18 @@ pub fn state(s: &Session) -> Value {
     };
     let style = s.doc.para_at(&s.sel.focus).and_then(|p| p.props.style.clone()).unwrap_or_else(|| "Normal".into());
     let style_name = s.doc.styles.get(&style).map(|st| st.name.clone()).unwrap_or(style.clone());
+    // The font box shows the font of the text the selection starts at: Chinese, Japanese or
+    // Korean text shows its East Asian font, other text the Latin one, as Word's font box does
+    // (a run without an East Asian font falls back to the Latin one). `font` stays the Latin slot
+    // (the complex-script font of Persian and Arabic text is set from it).
+    let font_shown = if ref_char(s).is_some_and(wordcraft_layout::para::is_east_asian) {
+        same(&|r| json!(r.font_ea.clone().unwrap_or_else(|| r.font.clone())))
+    } else {
+        same(&|r| json!(r.font))
+    };
     json!({
         "font": same(&|r| json!(r.font)),
+        "fontShown": font_shown,
         "fontEastAsia": same(&|r| json!(r.font_ea)),
         "size": same(&|r| json!(r.size)),
         "bold": all.iter().all(|r| r.bold),

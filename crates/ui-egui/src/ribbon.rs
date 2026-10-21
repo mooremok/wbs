@@ -964,7 +964,9 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Font", Some("format.fontDialog"), app, |ui, app| {
         stack(ui, |ui| {
             crate::widgets::row(ui, |ui| {
-                let font = st.get("font").and_then(Value::as_str).unwrap_or("").to_string();
+                // The engine picks the slot by the text at the selection's start (Chinese text
+                // shows its East Asian font, other text the Latin one); blank when mixed.
+                let font = st.get("fontShown").and_then(Value::as_str).unwrap_or("").to_string();
                 let font = app.previews.font_shown(&font);
                 let fams = app.previews.families();
                 let recent: Vec<String> = app.ui.recent_fonts.iter().map(|f| app.previews.font_shown(f)).collect();

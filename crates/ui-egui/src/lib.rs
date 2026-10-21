@@ -8228,6 +8228,40 @@ mod tests {
         assert!(a.canvas.scroll_to_caret, "typing still brings the caret into view");
     }
 
+    /// The font box follows the selected text's script: Chinese text shows its East Asian font,
+    /// Latin text the Latin one (the paper workflow's two slots, whichever was set last).
+    #[test]
+    fn the_font_box_follows_the_script_of_the_selected_text() {
+        use egui_kittest::kittest::{By, Queryable};
+        let make = |pick: &str| {
+            let mut a = app();
+            a.run("document.setText", json!({"text": "中文 Abc"})).unwrap();
+            a.run("select.all", json!({})).unwrap();
+            a.run("format.font", json!({"name": "SimSun"})).unwrap();
+            a.run("format.font", json!({"name": "Times New Roman"})).unwrap();
+            a.run("select.text", json!({"text": pick})).unwrap();
+            a
+        };
+        for (pick, shown) in [("中文", "SimSun"), ("Abc", "Times New Roman")] {
+            let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                make(pick),
+            );
+            for _ in 0..6 {
+                h.step();
+            }
+            // The ribbon and the selection's mini toolbar each carry a font box; both follow.
+            assert!(
+                h.query_all(By::new().role(egui::accesskit::Role::TextInput).value(shown)).next().is_some(),
+                "selecting {pick} shows {shown} in the font box"
+            );
+        }
+    }
+
     /// #1129: with no document open (the Start screen's empty window), `document.inspect` and
     /// `ui.render` on the control channel say so instead of reading the hidden placeholder.
     #[test]
