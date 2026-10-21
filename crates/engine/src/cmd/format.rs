@@ -300,26 +300,32 @@ fn font(s: &mut Session, v: &Value) -> CmdResult {
     if name.is_none() && east_asia.is_none() {
         return Err(CmdError::Params("`name` or `eastAsia` (string) is required".into()));
     }
-    // The font applies to Persian/Arabic text in the selection too (its complex-script font). A
-    // Chinese, Japanese or Korean font is the East Asian text's font as well (`w:eastAsia`), as in
-    // Word; choosing a Latin font leaves that text's font as it was. The name decides, not the
-    // machine's fonts: 宋体 picked where it isn't installed (it renders through its substitute,
-    // #505's chains) is still the East Asian text's font — the paper workflow of setting the
-    // Chinese font first and the Latin font second must not have the second eat the first.
-    let ea = east_asia.or_else(|| {
-        name.clone().filter(|n| {
-            wordcraft_fonts::word::is_east_asian_family(n) || {
+    // The font applies to Persian/Arabic text in the selection too (its complex-script font).
+    // The Chinese text's font (`w:eastAsia`) and the Latin one are set apart, and neither order
+    // wins: a Chinese, Japanese or Korean font name fills the East Asian slot only and a Latin
+    // name the Latin slot, so setting the Chinese font and then the Latin one (the paper
+    // workflow) ends exactly where setting them the other way round does. The name decides, not
+    // the machine's fonts: 宋体 picked where it isn't installed (it renders through its
+    // substitute, #505's chains) is still the East Asian text's font. An explicit `eastAsia`
+    // takes that slot over, and `name` then always means the Latin slot (the Font dialog's two
+    // boxes, #505).
+    let cjk_name = |n: &str| {
+        east_asia.is_none()
+            && (wordcraft_fonts::word::is_east_asian_family(n) || {
                 let r = wordcraft_fonts::word::resolve(n, false, false);
                 r.face.is_east_asian()
-            }
-        })
-    });
+            })
+    };
     apply(s, &|c| {
         if let Some(n) = &name {
-            c.font = Some(n.clone());
-            c.font_cs = Some(n.clone());
+            if cjk_name(n) {
+                c.font_ea = Some(n.clone());
+            } else {
+                c.font = Some(n.clone());
+                c.font_cs = Some(n.clone());
+            }
         }
-        if let Some(n) = &ea {
+        if let Some(n) = &east_asia {
             c.font_ea = Some(n.clone());
         }
     })

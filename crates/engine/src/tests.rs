@@ -7091,11 +7091,11 @@ fn format_font_sets_the_asian_and_latin_fonts_separately() {
 }
 
 #[test]
-fn the_font_box_sets_the_chinese_font_by_name_without_needing_it_installed() {
-    // The paper workflow: set the Chinese font over everything, then the Latin font over
-    // everything; the second must not eat the first. 宋体 isn't installed on this machine (it
-    // renders through its substitute chain), and its name still routes it to the East Asian
-    // text's slot, as in Word.
+fn the_chinese_and_latin_fonts_are_set_apart_in_either_order() {
+    // The paper workflow: set the Chinese font over everything and the Latin font over
+    // everything, in either order — both orders land on the same two slots. 宋体 isn't installed
+    // on this machine (it renders through its substitute chain), and its name still routes it to
+    // the East Asian text's slot.
     let mut s = s();
     run(&mut s, "document.setText", json!({"text": "中文 Abc 123"}));
     run(&mut s, "select.all", json!({}));
@@ -7104,9 +7104,18 @@ fn the_font_box_sets_the_chinese_font_by_name_without_needing_it_installed() {
         (c.font, c.font_ea)
     };
     run(&mut s, "format.font", json!({"name": "宋体"}));
-    assert_eq!(fonts(&s), (Some("宋体".into()), Some("宋体".into())), "a Chinese font name is the East Asian text's font too");
+    assert_eq!(fonts(&s).1, Some("宋体".into()), "a Chinese font name fills the East Asian slot alone");
     run(&mut s, "format.font", json!({"name": "Times New Roman"}));
-    assert_eq!(fonts(&s), (Some("Times New Roman".into()), Some("宋体".into())), "the Latin font leaves the Chinese one alone");
+    let chinese_first = fonts(&s);
+    assert_eq!(chinese_first, (Some("Times New Roman".into()), Some("宋体".into())));
+
+    // The other way round lands on the same two slots.
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "format.font", json!({"name": "Times New Roman"}));
+    run(&mut s, "format.font", json!({"name": "宋体"}));
+    assert_eq!(fonts(&s), chinese_first, "whichever is set second, both survive");
+
     // And the saved file carries both slots.
     let bytes = crate::io::save_bytes("slots.docx", &s.doc).unwrap();
     let back =
