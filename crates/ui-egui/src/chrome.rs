@@ -284,7 +284,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 // Left: the logo (the file menu), Home, the document tabs, +.
                 let file_label = tl!("File");
-                let file_w = text_width(ui.painter(), file_label, &TypeRung::Control.medium(), TypeRung::Control.tracking(), t.text) + 24.0;
+                let file_w = text_width(ui.painter(), file_label, &TypeRung::Control.medium(), 0.0, t.text) + 18.0;
                 // WPS words the tab bar's Home tab (首页) differently from the ribbon's Home
                 // tab (开始); other languages keep the one word they have.
                 let home_label = crate::i18n::tc("homeTab", "Home");
@@ -334,62 +334,78 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 if resp.hovered() || menu_open {
                     ui.painter().rect_filled(r, 4.0, t.hover);
                 }
-                paint_text(
-                    ui.painter(),
-                    pos2(r.min.x, r.center().y - TypeRung::Control.line_height() / 2.0),
-                    Align2::LEFT_TOP,
-                    file_label,
-                    &TypeRung::Control.medium(),
-                    TypeRung::Control.tracking(),
-                    t.text,
-                );
+                // Centered on the galley itself, like the Home tab: a nominal line height
+                // sits low with a CJK interface font's taller line box.
+                ui.painter().text(r.center(), Align2::CENTER_CENTER, file_label, TypeRung::Control.medium(), t.text);
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, file_label));
                 if app.ui.keytips == crate::keytips::Phase::Tabs && "F".starts_with(&app.ui.keytip_prefix) {
                     app.keytip_rects.push((r, "F".to_string()));
                 }
                 let doc = app.has_document();
                 egui::Popup::menu(&resp).show(|ui| {
-                    ui.set_min_width(210.0);
-                    let item = |ui: &mut Ui, label: &str, on: bool| {
-                        let text = egui::RichText::new(label).font(regular(13.0)).color(if on { t.text } else { t.text_dim });
-                        ui.add_enabled(on, egui::Label::new(text).sense(Sense::click())).clicked() && on
+                    ui.set_min_width(216.0);
+                    // A drawn row: its own icon, its label, an arrow cursor (a plain label
+                    // leaves the page's text-edit cursor showing through the popup).
+                    let item = |ui: &mut Ui, label: &str, icon: &str, on: bool| {
+                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), if on { Sense::click() } else { Sense::hover() });
+                        if on && resp.hovered() {
+                            ui.painter().rect_filled(r, 4.0, t.hover);
+                        }
+                        let ink = if on { t.icon } else { t.text_dim };
+                        icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 16.0, r.center().y), vec2(17.0, 17.0)), icon, ink, t.accent);
+                        paint_text(
+                            ui.painter(),
+                            pos2(r.min.x + 34.0, r.center().y),
+                            Align2::LEFT_CENTER,
+                            label,
+                            &regular(13.0),
+                            0.0,
+                            if on { t.text } else { t.text_dim },
+                        );
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, label));
+                        if on {
+                            let resp = resp.on_hover_cursor(egui::CursorIcon::Default);
+                            resp.clicked()
+                        } else {
+                            false
+                        }
                     };
-                    if item(ui, tl!("New"), true) {
+                    if item(ui, tl!("New"), "blankPage", true) {
                         let _ = app.run("ui.home", json!({}));
                         ui.close();
                     }
-                    if item(ui, tl!("Open"), true) {
+                    if item(ui, tl!("Open"), "open", true) {
                         let _ = app.run("file.open", json!({}));
                         ui.close();
                     }
                     ui.separator();
-                    if item(ui, tl!("Save"), doc) {
+                    if item(ui, tl!("Save"), "save", doc) {
                         let _ = app.run("file.save", json!({}));
                         ui.close();
                     }
-                    if item(ui, tl!("Save As"), doc) {
+                    if item(ui, tl!("Save As"), "saveAs", doc) {
                         let _ = app.run("file.saveAs", json!({}));
                         ui.close();
                     }
                     ui.separator();
-                    if item(ui, tl!("Print"), doc) {
+                    if item(ui, tl!("Print"), "print", doc) {
                         let _ = app.run("ui.dialog", json!({"name": "print"}));
                         ui.close();
                     }
-                    if item(ui, tl!("Export"), doc) {
+                    if item(ui, tl!("Export"), "export", doc) {
                         let _ = app.run("ui.dialog", json!({"name": "export"}));
                         ui.close();
                     }
-                    if item(ui, tl!("Info"), doc) {
+                    if item(ui, tl!("Info"), "info", doc) {
                         let _ = app.run("ui.dialog", json!({"name": "info"}));
                         ui.close();
                     }
                     ui.separator();
-                    if item(ui, tl!("Close"), doc) {
+                    if item(ui, tl!("Close"), "close", doc) {
                         let _ = app.run("file.close", json!({}));
                         ui.close();
                     }
-                    if item(ui, tl!("Options"), true) {
+                    if item(ui, tl!("Options"), "options", true) {
                         let _ = app.run("ui.dialog", json!({"name": "options"}));
                         ui.close();
                     }
@@ -400,7 +416,37 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         ui.label(egui::RichText::new(tl!("Recent")).font(medium(11.5)).color(t.text_dim));
                         for path in recents {
                             let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(path.clone());
-                            if ui.selectable_label(false, egui::RichText::new(name).font(regular(13.0))).clicked() {
+                            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
+                            if resp.hovered() {
+                                ui.painter().rect_filled(r, 4.0, t.hover);
+                            }
+                            icons::paint(
+                                ui.painter(),
+                                Rect::from_center_size(pos2(r.min.x + 16.0, r.center().y), vec2(15.0, 15.0)),
+                                "printLayout",
+                                t.icon,
+                                t.accent,
+                            );
+                            // The name, cut with … when the path is long.
+                            let room = r.width() - 44.0;
+                            if text_width(ui.painter(), &name, &regular(13.0), 0.0, t.text) > room {
+                                let mut job =
+                                    egui::text::LayoutJob::single_section(name.clone(), egui::text::TextFormat::simple(regular(13.0), t.text));
+                                job.wrap = egui::text::TextWrapping {
+                                    max_width: room.max(1.0),
+                                    max_rows: 1,
+                                    break_anywhere: true,
+                                    overflow_character: Some('…'),
+                                };
+                                let galley = ui.painter().layout_job(job);
+                                ui.painter().galley(pos2(r.min.x + 34.0, r.center().y - galley.size().y / 2.0), galley, t.text);
+                            } else {
+                                paint_text(ui.painter(), pos2(r.min.x + 34.0, r.center().y), Align2::LEFT_CENTER, &name, &regular(13.0), 0.0, t.text);
+                            }
+                            let name_label = name.clone();
+                            resp.widget_info(move || egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &name_label));
+                            let resp = resp.on_hover_cursor(egui::CursorIcon::Default);
+                            if resp.clicked() {
                                 let _ = app.run("file.open", json!({"path": path}));
                                 ui.close();
                             }
