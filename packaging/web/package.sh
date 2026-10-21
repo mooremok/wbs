@@ -13,7 +13,8 @@ HERE="$ROOT/packaging/web"
 
 if [ "${1:-}" != "--skip-build" ]; then
   command -v trunk >/dev/null || { echo "error: trunk not found (cargo install trunk --locked)" >&2; exit 1; }
-  (cd "$ROOT/apps/wbs-web" && trunk build --release)
+  # The directory keeps its upstream name (wordcraft-web); only the package name is wbs-web.
+  (cd "$ROOT/apps/wordcraft-web" && trunk build --release)
 fi
 
 SITE="$ROOT/dist/web"

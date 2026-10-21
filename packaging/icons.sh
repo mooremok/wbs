@@ -24,7 +24,7 @@ grep -q 'viewBox="-62.136' "$MAC" || { echo "error: expected viewBox=\"0 0 512 5
 render() { resvg -w "$2" -h "$2" "$1" "$3" </dev/null; }
 
 render "$SVG" 1024 "$DIR/wbs-1024.png"
-# Runtime window/Dock icon on macOS (embedded by apps/wbs); other platforms use hicolor 256.
+# Runtime window/Dock icon on macOS (embedded by apps/wordcraft, the wbs binary); other platforms use hicolor 256.
 render "$MAC" 512 "$DIR/wbs-macos-512.png"
 
 # Linux hicolor theme.

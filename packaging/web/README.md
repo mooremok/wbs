@@ -14,7 +14,7 @@ There is no server-side code. Upload the folder's contents anywhere that serves 
 
 ## Any path works
 
-All URLs in `index.html` are relative (`public_url = "./"` in `apps/wbs-web/Trunk.toml`),
+All URLs in `index.html` are relative (`public_url = "./"` in `apps/wordcraft-web/Trunk.toml`),
 so the site works at a domain root (`https://example.com/`), under a prefix
 (`https://example.com/tools/wbs/`) and from a CDN bucket. The asset names carry a content
 hash, so they can be cached forever. Only `index.html` needs revalidation.
