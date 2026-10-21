@@ -1444,9 +1444,41 @@ impl PermRange {
     }
 }
 
-/// Words in `s` (tokens separated by whitespace that contain at least one alphanumeric char).
+/// Words in `s`, as Word counts them: each whitespace-separated token with at least one
+/// alphanumeric character counts one word, and every East Asian character in it counts one word
+/// of its own (中文四个字 is four words; `法院94年` is three: 法院, 94, 年).
 pub fn count_words(s: &str) -> usize {
-    s.split(|c: char| c.is_whitespace() || c == para::OBJ).filter(|w| w.chars().any(char::is_alphanumeric)).count()
+    let mut n = 0;
+    for token in s.split(|c: char| c.is_whitespace() || c == para::OBJ) {
+        let mut latin = false;
+        for c in token.chars() {
+            if is_cjk_word_char(c) {
+                n += 1;
+            } else if c.is_alphanumeric() {
+                latin = true;
+            }
+        }
+        if latin {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// A character Word counts as a word on its own: CJK ideographs, kana, bopomofo and Hangul
+/// (not CJK punctuation, which belongs to no word).
+fn is_cjk_word_char(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x11FF        // Hangul jamo
+        | 0x3040..=0x309F      // hiragana
+        | 0x30A0..=0x30FF      // katakana
+        | 0x3105..=0x312F      // bopomofo
+        | 0x3130..=0x318F      // Hangul compatibility jamo
+        | 0x3400..=0x4DBF      // CJK extension A
+        | 0x4E00..=0x9FFF      // CJK unified ideographs
+        | 0xAC00..=0xD7AF      // Hangul syllables
+        | 0xF900..=0xFAFF      // compatibility ideographs
+        | 0x20000..=0x3FFFF) // supplementary ideographs
 }
 
 /// How deep in nested tables [`Document::para_paths`] goes: cells below this are skipped.

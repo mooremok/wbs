@@ -922,6 +922,9 @@ impl Session {
         let untouched = self.path.is_none() && !self.dirty && self.history.is_empty() && self.redo.is_empty();
         if untouched && self.doc.plain_text(StoryRef::Body).trim().is_empty() && self.doc.paragraph_count() <= 1 {
             self.doc.styles.default_chr.lang = Some(self.editing_lang.clone().unwrap_or_else(|| "en-US".into()));
+            if is_chinese(self.editing_lang.as_deref()) {
+                chinese_defaults(&mut self.doc);
+            }
             self.rev = self.rev.wrapping_add(1);
             self.relayout();
         }
@@ -1503,4 +1506,30 @@ pub fn blank_document(region: &wordcraft_geom::Region) -> Document {
     d.last_section.page_w = w;
     d.last_section.page_h = h;
     d
+}
+
+/// The editing language means Chinese text (zh-CN, zh-TW, zh-HK…).
+pub(crate) fn is_chinese(tag: Option<&str>) -> bool {
+    tag.is_some_and(|t| t.starts_with("zh"))
+}
+
+/// A document written in Chinese starts the way WPS and Word in China start one: 宋体 for East
+/// Asian text and Times New Roman for Latin text, 黑体 headings, and a first-line indent of two
+/// characters on Normal. Headings, Title and list paragraphs set their own indent (none), as
+/// Word's Chinese template does; documents a person has touched are never re-styled.
+pub(crate) fn chinese_defaults(d: &mut Document) {
+    d.styles.default_chr.font_ea = Some("宋体".into());
+    d.styles.default_chr.font = Some("Times New Roman".into());
+    for st in &mut d.styles.styles {
+        if st.id.starts_with("Heading") || matches!(st.id.as_str(), "Title" | "Subtitle") {
+            st.chr.font_ea = Some("黑体".into());
+            st.para.indent_first_chars = Some(0.0);
+        }
+        if st.id == "Normal" {
+            st.para.indent_first_chars = Some(2.0);
+        }
+        if st.id == "ListParagraph" {
+            st.para.indent_first_chars = Some(0.0);
+        }
+    }
 }

@@ -1122,8 +1122,13 @@ fn an_italian_interface_writes_new_documents_in_italian() {
 
 #[test]
 fn the_editing_languages_are_the_ones_wordcraft_can_proof() {
+    // Chinese sets an editing language for its document defaults (宋体, 黑体, the two-character
+    // first-line indent) and language tagging, not for proofing: it has no dictionary.
     let with: Vec<(&str, &str)> = Lang::all().filter_map(|l| l.editing_lang().map(|e| (l.code(), e))).collect();
-    assert_eq!(with, [("pt-br", "pt-BR"), ("pl", "pl-PL"), ("cs", "cs-CZ"), ("tr", "tr-TR"), ("it", "it-IT")]);
+    assert_eq!(
+        with,
+        [("zh-hans", "zh-CN"), ("zh-hant", "zh-TW"), ("pt-br", "pt-BR"), ("pl", "pl-PL"), ("cs", "cs-CZ"), ("tr", "tr-TR"), ("it", "it-IT")]
+    );
 }
 
 #[test]

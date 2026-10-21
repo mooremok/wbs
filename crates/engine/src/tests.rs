@@ -6717,6 +6717,36 @@ fn new_documents_follow_the_editing_language() {
     assert_eq!(s.editing_lang, None);
 }
 
+/// Chinese editing defaults (a WPS-style start): 宋体 East Asian text with Times New Roman
+/// Latin, 黑体 headings, a first-line indent of two characters on Normal — and headings and list
+/// paragraphs keeping no indent of their own. A touched document is never re-styled.
+#[test]
+fn chinese_editing_defaults() {
+    let mut s = s();
+    s.set_editing_language(Some("zh-CN"));
+    let font_ea = || s.doc.styles.default_chr.font_ea.clone().unwrap_or_default();
+    let latin = || s.doc.styles.default_chr.font.clone().unwrap_or_default();
+    assert_eq!((font_ea(), latin()), ("宋体".to_string(), "Times New Roman".to_string()));
+    let normal = s.doc.styles.get("Normal").cloned().unwrap();
+    assert_eq!(normal.para.indent_first_chars, Some(2.0), "正文首行缩进两字符");
+    for id in ["Heading1", "Heading3", "Title", "ListParagraph"] {
+        let st = s.doc.styles.get(id).cloned().unwrap();
+        assert_eq!(st.para.indent_first_chars, Some(0.0), "{id} sets its own indent, none");
+    }
+    assert_eq!(s.doc.styles.get("Heading1").unwrap().chr.font_ea.as_deref(), Some("黑体"));
+    // A document a person has touched is never re-styled.
+    run(&mut s, "text.insert", json!({"text": "文字"}));
+    s.set_editing_language(Some("en-US"));
+    assert_eq!(s.doc.styles.default_chr.font_ea.as_deref(), Some("宋体"), "a touched document keeps its fonts");
+    // File › New blank in Chinese starts styled; the English templates stay as they are.
+    s.set_editing_language(Some("zh-CN"));
+    run(&mut s, "file.new", json!({}));
+    assert_eq!(s.doc.styles.default_chr.font_ea.as_deref(), Some("宋体"));
+    assert_eq!(s.doc.styles.get("Normal").unwrap().para.indent_first_chars, Some(2.0));
+    run(&mut s, "file.new", json!({"template": "sample"}));
+    assert_ne!(s.doc.styles.default_chr.font_ea.as_deref(), Some("宋体"), "templates keep their own fonts");
+}
+
 /// A Polish document keeps its languages through .docx: the default (`w:docDefaults`) and an
 /// English run (`w:lang`) come back, and so does the proofing.
 #[test]

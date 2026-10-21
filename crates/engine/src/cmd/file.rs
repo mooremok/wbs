@@ -202,6 +202,9 @@ fn normal_document(s: &Session) -> Document {
     if let Some(lang) = &s.editing_lang {
         d.styles.default_chr.lang = Some(lang.clone());
     }
+    if crate::session::is_chinese(s.editing_lang.as_deref()) {
+        crate::session::chinese_defaults(&mut d);
+    }
     d
 }
 

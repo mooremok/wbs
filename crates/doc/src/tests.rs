@@ -14,6 +14,11 @@ fn word_count() {
     let d = Document::from_text("Hello, world!\nThis is — a test 42.\n\n");
     assert_eq!(d.word_count(), 7);
     assert_eq!(count_words(" -- "), 0);
+    // East Asian characters count one word each (Word's 字数), Latin runs still one.
+    assert_eq!(count_words("中文四个字"), 5);
+    assert_eq!(count_words("法院94年"), 4, "法 + 院 + 94 + 年");
+    assert_eq!(count_words("中文与 English 混排"), 6, "中文与 + English + 混排");
+    assert_eq!(count_words("，。、；"), 0, "CJK punctuation is no word");
 }
 
 #[test]

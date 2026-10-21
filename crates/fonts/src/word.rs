@@ -68,6 +68,17 @@ fn substitutes(family: &str) -> &'static [&'static str] {
     const THAI_SERIF: &[&str] = &["Sathu", "Noto Serif Thai", "Thonburi", "Ayuthaya", "Krungthep", "Noto Sans Thai", "Tahoma"];
     #[cfg(not(any(windows, target_os = "macos")))]
     const THAI_SERIF: &[&str] = &["Noto Serif Thai", "Norasi", "Kinnari", "Noto Sans Thai", "Laksaman", "Garuda", "Waree"];
+    // Chinese document fonts (宋体, 黑体, 楷体, 仿宋, 微软雅黑, 等线…): each chain keeps the
+    // family's class (serif with serif, sans with sans, brush with brush), platform faces first —
+    // macOS ships Songti/Heiti/Kaiti/STFangsong/PingFang, Windows the Sim families, Linux the
+    // Noto CJK / Source Han / WenQuanYi ones — so the substitute keeps the document's look.
+    const HAN_SERIF: &[&str] = &["Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "AR PL UMing CN"];
+    const HAN_SANS: &[&str] =
+        &["Heiti SC", "PingFang SC", "SimHei", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Zen Hei"];
+    const HAN_KAI: &[&str] = &["Kaiti SC", "STKaiti", "KaiTi", "AR PL UKai CN", "Noto Serif CJK SC"];
+    const HAN_FANG: &[&str] = &["STFangsong", "FangSong", "AR PL UMing CN", "Noto Serif CJK SC"];
+    const HAN_SERIF_TC: &[&str] = &["Songti TC", "PMingLiU", "MingLiU", "Noto Serif CJK TC", "Source Han Serif TC"];
+    const HAN_SANS_TC: &[&str] = &["PingFang TC", "Heiti TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Source Han Sans TC"];
     // Palatino Linotype / Book Antiqua: macOS ships the same design as "Palatino"; open
     // look-alikes with matching metrics (TeX Gyre Pagella, URW P052 / Palladio) on Linux.
     const PALATINO: &[&str] = &[
@@ -103,6 +114,13 @@ fn substitutes(family: &str) -> &'static [&'static str] {
         return ARABIC_SANS;
     }
     match f.as_str() {
+        "simsun" | "nsimsun" | "宋体" | "新宋体" => HAN_SERIF,
+        "simhei" | "黑体" => HAN_SANS,
+        "microsoft yahei" | "微软雅黑" | "dengxian" | "等线" => HAN_SANS,
+        "kaiti" | "kaiti_gb2312" | "楷体" | "楷体_gb2312" => HAN_KAI,
+        "fangsong" | "fangsong_gb2312" | "stfangsong" | "仿宋" | "仿宋_gb2312" => HAN_FANG,
+        "pmingliu" | "mingliu" | "新細明體" | "細明體" => HAN_SERIF_TC,
+        "microsoft jhenghei" | "微軟正黑體" => HAN_SANS_TC,
         "palatino linotype" | "book antiqua" | "palatino" => PALATINO,
         "arial" | "helvetica" | "arial nova" => ARIAL,
         "arial unicode ms" => ARIAL_UNICODE,
@@ -549,6 +567,43 @@ mod tests {
         // Latin and other script families are unchanged.
         assert!(!is_thai_family("Arial") && !is_thai_family("Tahoma") && !is_thai_family("Calibri") && !is_thai_family("David"));
         assert_eq!(substitutes("Calibri").first(), Some(&"Carlito"));
+    }
+
+    #[test]
+    fn chinese_families_resolve_within_their_class() {
+        // Every Chinese document family — by its English and its localized name — maps to a chain
+        // of CJK faces of the same class (serif, sans, kai, fangsong), never a Latin-only list.
+        let han = |list: &[&str]| {
+            list.iter().any(|s| {
+                s.contains("CJK")
+                    || s.contains("Han")
+                    || s.contains("Songti")
+                    || s.contains("PingFang")
+                    || s.contains("Heiti")
+                    || s.contains("Kai")
+                    || s.contains("Fang")
+            })
+        };
+        let serif_first = |family: &str| substitutes(family).iter().take(2).any(|s| s.contains("Songti") || s.contains("Serif"));
+        for (family, list) in [
+            ("SimSun", substitutes("SimSun")),
+            ("宋体", substitutes("宋体")),
+            ("SimHei", substitutes("SimHei")),
+            ("黑体", substitutes("黑体")),
+            ("Microsoft YaHei", substitutes("Microsoft YaHei")),
+            ("微软雅黑", substitutes("微软雅黑")),
+            ("DengXian", substitutes("DengXian")),
+            ("KaiTi", substitutes("KaiTi")),
+            ("楷体", substitutes("楷体")),
+            ("FangSong", substitutes("FangSong")),
+            ("仿宋", substitutes("仿宋")),
+            ("PMingLiU", substitutes("PMingLiU")),
+            ("Microsoft JhengHei", substitutes("Microsoft JhengHei")),
+        ] {
+            assert!(han(list) && !list.contains(&"Carlito"), "{family}: {list:?}");
+        }
+        assert!(serif_first("SimSun") && serif_first("PMingLiU"), "song-style families prefer a serif face");
+        assert!(!serif_first("SimHei"), "hei-style families prefer a sans face");
     }
 
     #[test]

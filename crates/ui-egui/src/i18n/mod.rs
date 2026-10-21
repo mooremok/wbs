@@ -55,12 +55,14 @@ pub struct LangInfo {
 pub static LANGUAGES: [LangInfo; 23] = [
     LangInfo { code: "en", name: "English", source: "", prefer_hans: false, editing_lang: None, catalog: OnceLock::new() },
     // Simplified Chinese; `zh`, `zh-CN`, `zh-SG` and `zh-Hans-*` resolve here (see `candidates`).
+    // No proofing for Chinese, but new documents are written (and counted, laid out and styled
+    // for: 宋体 body, 黑体 headings, two-character first-line indent) as Simplified Chinese.
     LangInfo {
         code: "zh-hans",
         name: "简体中文",
         source: include_str!("zh-hans.tsv"),
         prefer_hans: true,
-        editing_lang: None,
+        editing_lang: Some("zh-CN"),
         catalog: OnceLock::new(),
     },
     // Traditional Chinese (Taiwan vocabulary); `zh-TW`, `zh-HK`, `zh-MO` and `zh-Hant-*` resolve here.
@@ -69,7 +71,7 @@ pub static LANGUAGES: [LangInfo; 23] = [
         name: "繁體中文",
         source: include_str!("zh-hant.tsv"),
         prefer_hans: true,
-        editing_lang: None,
+        editing_lang: Some("zh-TW"),
         catalog: OnceLock::new(),
     },
     LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), prefer_hans: false, editing_lang: None, catalog: OnceLock::new() },
