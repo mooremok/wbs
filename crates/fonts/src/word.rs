@@ -341,6 +341,47 @@ const FAMILY_KEY_MAX: usize = 256;
 
 /// Resolve `family` with bold/italic to a face (memoised until user fonts are added or removed,
 /// [`FontDb::generation`]).
+/// Is `family` the name of a Chinese, Japanese or Korean font — the document fonts Word routes
+/// to East Asian text (`w:eastAsia`) when picked in the font box, whether or not this machine has
+/// it? A name written in Han, kana, hangul or full-width characters is one, as are the romanized
+/// names Word knows (SimSun, MS Mincho, Malgun Gothic…).
+pub fn is_east_asian_family(family: &str) -> bool {
+    if family.chars().any(|c| matches!(c as u32, 0x2E80..=0x9FFF | 0xAC00..=0xD7AF | 0xF900..=0xFAFF | 0xFF00..=0xFFEF)) {
+        return true;
+    }
+    let f = family.to_ascii_lowercase();
+    matches!(
+        f.as_str(),
+        "simsun"
+            | "nsimsun"
+            | "simhei"
+            | "microsoft yahei"
+            | "dengxian"
+            | "kaiti"
+            | "kaiti_gb2312"
+            | "fangsong"
+            | "fangsong_gb2312"
+            | "stfangsong"
+            | "pmingliu"
+            | "mingliu"
+            | "microsoft jhenghei"
+            | "ms mincho"
+            | "ms pmincho"
+            | "ms gothic"
+            | "ms pgothic"
+            | "meiryo"
+            | "yu gothic"
+            | "yu mincho"
+            | "malgun gothic"
+            | "batang"
+            | "batangche"
+            | "gulim"
+            | "gungsuh"
+            | "dotum"
+            | "applegothic"
+    )
+}
+
 pub fn resolve(family: &str, bold: bool, italic: bool) -> Resolved {
     let cache = resolve_cache();
     let db = FontDb::global();
@@ -496,6 +537,17 @@ mod tests {
     fn symbol_fonts_substitute_symbol_faces() {
         for f in ["Symbol", "Wingdings", "Wingdings 2", "Wingdings 3", "Webdings"] {
             assert!(substitutes(f).contains(&"Noto Sans Symbols 2"), "{f}");
+        }
+    }
+
+    #[test]
+    fn east_asian_font_names_are_known_by_name_installed_or_not() {
+        for name in ["宋体", "SimSun", "黑体", "微软雅黑", "等线", "楷体", "仿宋", "新細明體", "ＭＳ 明朝", "MS Mincho", "Malgun Gothic", "바탕"]
+        {
+            assert!(super::is_east_asian_family(name), "{name}");
+        }
+        for name in ["Times New Roman", "Arial", "Georgia", "Courier New", "Helvetica", "Segoe UI"] {
+            assert!(!super::is_east_asian_family(name), "{name}");
         }
     }
 

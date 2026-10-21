@@ -7090,6 +7090,30 @@ fn format_font_sets_the_asian_and_latin_fonts_separately() {
     assert!(s.run("format.font", &json!({})).is_err() && s.run("format.font", &json!({"eastAsia": " "})).is_err());
 }
 
+#[test]
+fn the_font_box_sets_the_chinese_font_by_name_without_needing_it_installed() {
+    // The paper workflow: set the Chinese font over everything, then the Latin font over
+    // everything; the second must not eat the first. 宋体 isn't installed on this machine (it
+    // renders through its substitute chain), and its name still routes it to the East Asian
+    // text's slot, as in Word.
+    let mut s = s();
+    run(&mut s, "document.setText", json!({"text": "中文 Abc 123"}));
+    run(&mut s, "select.all", json!({}));
+    let fonts = |s: &Session| {
+        let c = s.doc.para(StoryRef::Body, &wordcraft_doc::Path::top(0)).unwrap().props_of_char(0).clone();
+        (c.font, c.font_ea)
+    };
+    run(&mut s, "format.font", json!({"name": "宋体"}));
+    assert_eq!(fonts(&s), (Some("宋体".into()), Some("宋体".into())), "a Chinese font name is the East Asian text's font too");
+    run(&mut s, "format.font", json!({"name": "Times New Roman"}));
+    assert_eq!(fonts(&s), (Some("Times New Roman".into()), Some("宋体".into())), "the Latin font leaves the Chinese one alone");
+    // And the saved file carries both slots.
+    let bytes = crate::io::save_bytes("slots.docx", &s.doc).unwrap();
+    let back =
+        crate::io::open_bytes("slots.docx", &bytes).unwrap().para(StoryRef::Body, &wordcraft_doc::Path::top(0)).unwrap().props_of_char(0).clone();
+    assert_eq!((back.font, back.font_ea), (Some("Times New Roman".into()), Some("宋体".into())));
+}
+
 /// The result of the formula field in cell `c` of row `r` of the first table, if there is one.
 fn formula_result(s: &Session, r: usize, c: usize) -> Option<String> {
     let t = s.doc.body.iter().find_map(|b| b.as_table())?;

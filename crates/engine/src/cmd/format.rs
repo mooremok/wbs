@@ -302,11 +302,16 @@ fn font(s: &mut Session, v: &Value) -> CmdResult {
     }
     // The font applies to Persian/Arabic text in the selection too (its complex-script font). A
     // Chinese, Japanese or Korean font is the East Asian text's font as well (`w:eastAsia`), as in
-    // Word; choosing a Latin font leaves that text's font as it was.
+    // Word; choosing a Latin font leaves that text's font as it was. The name decides, not the
+    // machine's fonts: 宋体 picked where it isn't installed (it renders through its substitute,
+    // #505's chains) is still the East Asian text's font — the paper workflow of setting the
+    // Chinese font first and the Latin font second must not have the second eat the first.
     let ea = east_asia.or_else(|| {
         name.clone().filter(|n| {
-            let r = wordcraft_fonts::word::resolve(n, false, false);
-            !r.substituted && r.face.is_east_asian()
+            wordcraft_fonts::word::is_east_asian_family(n) || {
+                let r = wordcraft_fonts::word::resolve(n, false, false);
+                r.face.is_east_asian()
+            }
         })
     });
     apply(s, &|c| {
