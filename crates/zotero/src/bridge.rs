@@ -270,7 +270,7 @@ impl Bridge {
                 Self::end_edit(s);
                 Ok(Value::Null)
             }
-            // Zotero's field kinds are one kind in WordCraft; only the note type matters: a
+            // Zotero's field kinds are one kind in WBS; only the note type matters: a
             // citation moves between the text, footnotes and endnotes (switching styles).
             "Document_convert" => {
                 let Value::Array(ids) = arg(c, 1)? else { return Err("field ids must be an array".into()) };
@@ -362,9 +362,9 @@ impl Bridge {
                 Ok(Value::Null)
             }
             "Document_importDocument" | "Document_exportDocument" => {
-                Err("WordCraft doesn't support Zotero's document transfer; the citations are already stored the way Word keeps them".into())
+                Err("WBS doesn't support Zotero's document transfer; the citations are already stored the way Word keeps them".into())
             }
-            m => Err(format!("WordCraft doesn't support {m}")),
+            m => Err(format!("WBS doesn't support {m}")),
         }
     }
 

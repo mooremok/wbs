@@ -395,7 +395,7 @@ fn vba_related_parts_are_bounded_and_never_shadow_ours() {
     let mut add = |id: &str, kind: &str, target: &str| {
         rels = rels.replace("</Relationships>", &format!(r#"<Relationship Id="{id}" Type="{kind}" Target="{target}"/></Relationships>"#));
     };
-    // Targets that are parts WordCraft writes itself, or live outside word/.
+    // Targets that are parts WBS writes itself, or live outside word/.
     add("rS", "urn:x:clash", "styles.xml");
     add("rD", "urn:x:clash", "document.xml");
     add("rR", "urn:x:clash", "_rels/document.xml.rels");

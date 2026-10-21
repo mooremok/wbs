@@ -528,7 +528,7 @@ impl Reader<'_> {
         rels.by_id(&id).is_some_and(|r| !r.external && rel_is(&r.kind, rt::DIAGRAM_DRAWING)).then_some(id)
     }
 
-    /// The SmartArt model of a diagram WordCraft wrote (its data part exactly as WordCraft writes
+    /// The SmartArt model of a diagram WBS wrote (its data part exactly as WBS writes
     /// it); `None` for any other.
     pub(super) fn smart_art_spec(&mut self, gd: &El, rels: &Rels) -> Option<wordcraft_doc::smart_art::SmartArtSpec> {
         let dm = gd.child("dgm:relIds")?.attr("r:dm")?;

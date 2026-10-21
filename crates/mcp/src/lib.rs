@@ -1,7 +1,7 @@
-//! WordCraft's MCP server (Model Context Protocol, JSON-RPC 2.0 over stdio).
+//! WBS's MCP server (Model Context Protocol, JSON-RPC 2.0 over stdio).
 //!
 //! Two backends: [`Headless`] runs an in-process editing session (no window); [`backend::Remote`]
-//! talks to a running WordCraft app through its control channel (`wordcraft --control PORT`), so
+//! talks to a running WBS app through its control channel (`wordcraft --control PORT`), so
 //! agents can also click, type and screenshot the real UI.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 

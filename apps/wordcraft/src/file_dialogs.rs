@@ -2,7 +2,7 @@
 //!
 //! The blocking `rfd::FileDialog` ran on the UI thread: on Linux the xdg-desktop-portal call
 //! blocked the event loop until the dialog closed, and with no parent window the dialog could open
-//! behind WordCraft, which then sat there frozen. Now the app's request ([`Services::file_dialog`])
+//! behind WBS, which then sat there frozen. Now the app's request ([`Services::file_dialog`])
 //! is queued; the frame (which has the window) builds an `rfd::AsyncFileDialog` parented to the
 //! window, and a background thread waits for the answer, hands it to the app and wakes the UI.
 //!

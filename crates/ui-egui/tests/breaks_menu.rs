@@ -4,7 +4,7 @@ use serde_json::json;
 use wordcraft_engine::Session;
 use wordcraft_ui_egui::{Services, WordApp};
 
-/// A WordCraft window on the Layout tab, ready for ribbon clicks.
+/// A WBS window on the Layout tab, ready for ribbon clicks.
 fn layout_tab() -> egui_kittest::Harness<'static, WordApp> {
     let app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("one\ntwo")), Services::default());
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(

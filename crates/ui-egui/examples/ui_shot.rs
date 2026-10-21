@@ -1,4 +1,4 @@
-//! Headless UI screenshots: renders the whole WordCraft window offscreen (wgpu), so it works
+//! Headless UI screenshots: renders the whole WBS window offscreen (wgpu), so it works
 //! with a locked screen or a hidden window.
 //!
 //! `cargo run -p wordcraft-ui-egui --example ui_shot -- script.jsonl`

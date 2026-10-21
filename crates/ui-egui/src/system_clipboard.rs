@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(a.session.doc.media.len(), 1);
     }
 
-    /// A clipboard holding nothing WordCraft can paste says what it holds (#833); one that can't
+    /// A clipboard holding nothing WBS can paste says what it holds (#833); one that can't
     /// be read says why; a truly empty one says it is empty.
     #[test]
     fn nothing_to_paste_says_what_the_clipboard_holds() {

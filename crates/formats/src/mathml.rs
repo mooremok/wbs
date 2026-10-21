@@ -5,7 +5,7 @@
 //! pasting into Word and LibreOffice not yet verified); and read back from pasted or opened HTML.
 //!
 //! The writer walks the equation tree ([`MNode`]) and wraps it in `<semantics>` with the linear
-//! format as an `application/x-unicodemath` annotation, which renderers ignore and WordCraft reads
+//! format as an `application/x-unicodemath` annotation, which renderers ignore and WBS reads
 //! back exactly. The reader takes that annotation when present, else a TeX annotation, else
 //! builds the tree from the presentation elements (fractions, scripts, radicals, under/over
 //! limits, tables, fences); both bound their nesting and size.

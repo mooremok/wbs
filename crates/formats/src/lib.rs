@@ -1,4 +1,4 @@
-//! WordCraft import/export for the "other" text formats: plain text, Markdown (CommonMark subset
+//! WBS import/export for the "other" text formats: plain text, Markdown (CommonMark subset
 //! plus GFM tables and strikethrough), HTML, RTF, OpenDocument Text and LaTeX — and, read-only,
 //! spreadsheet cells for mail-merge recipient lists ([`sheet`]: .xlsx/.xlsm/.xls/.ods).
 //!

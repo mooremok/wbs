@@ -52,7 +52,7 @@ pub fn export(doc: &Document) -> String {
 
     let meta = &flow.meta;
     let mut o = String::new();
-    o.push_str("% Written by WordCraft (https://getartcraft.com/apps/wordcraft).\n");
+    o.push_str("% Written by WBS (https://getartcraft.com/apps/wordcraft).\n");
     o.push_str("\\documentclass{article}\n");
     o.push_str("\\usepackage[T1]{fontenc}\n");
     if w.uses.ulem {
@@ -462,7 +462,7 @@ fn escape_url(s: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Equations: WordCraft keeps them in the linear format (`x=(-b±√(b^2-4ac))/2a`).
+// Equations: WBS keeps them in the linear format (`x=(-b±√(b^2-4ac))/2a`).
 
 /// Symbols with a LaTeX command: (character, command without the backslash).
 const MATH_SYMBOLS: &[(char, &str)] = &[

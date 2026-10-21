@@ -1,4 +1,4 @@
-//! WordCraft rasteriser: draws a page's display list with vello_cpu.
+//! WBS rasteriser: draws a page's display list with vello_cpu.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 use std::collections::HashMap;
@@ -1248,7 +1248,7 @@ mod tests {
     fn background_at_caret_follows_page_colour_highlight_and_dark_mode() {
         use wordcraft_doc::Pos;
         use wordcraft_doc::props::Highlight;
-        let mut d = Document::from_text("Hello WordCraft");
+        let mut d = Document::from_text("Hello WBS");
         let mid = |d: &Document, off: usize| {
             let l = layout(d, &mut LayoutCache::new(), &LayoutOptions::default());
             let c = l.caret_on(&Pos::body(0, off), 0).unwrap();
@@ -1298,7 +1298,7 @@ mod tests {
 
     #[test]
     fn renders_text_dark_pixels() {
-        let d = Document::from_text("Hello WordCraft");
+        let d = Document::from_text("Hello WBS");
         let l = layout(&d, &mut LayoutCache::new(), &LayoutOptions::default());
         let img = render_page(&d, &l.pages[0], 1.0, &RenderOptions::default());
         assert_eq!((img.width, img.height), (612, 792));
@@ -1561,7 +1561,7 @@ mod tests {
         // Pure hues keep their colour; dark blue turns light blue.
         assert_eq!(invert_lightness(Rgb(255, 0, 0)), Rgb(255, 0, 0));
         assert_eq!(invert_lightness(Rgb(0, 0, 0x80)), Rgb(0x7F, 0x7F, 0xFF));
-        let d = Document::from_text("Hello WordCraft");
+        let d = Document::from_text("Hello WBS");
         let l = layout(&d, &mut LayoutCache::new(), &LayoutOptions::default());
         let opts = RenderOptions { dark: true, ..Default::default() };
         assert_eq!(opts.ink(Rgb::WHITE), Rgb(DARK_PAPER, DARK_PAPER, DARK_PAPER));

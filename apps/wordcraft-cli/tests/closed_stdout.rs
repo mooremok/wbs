@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 
 fn cli() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_wordcraft-cli"))
+    Command::new(env!("CARGO_BIN_EXE_wbs-cli"))
 }
 
 #[test]

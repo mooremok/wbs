@@ -1,23 +1,19 @@
 <p align="center">
-  <a href="https://getartcraft.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/brand/artcraft-logo-white.svg">
-      <img alt="ArtCraft" src="docs/brand/artcraft-logo.svg" width="200">
-    </picture>
-  </a>
+  <img src="assets/app-icon/wbs.svg" alt="WBS" width="120">
 </p>
 
-<h1 align="center">WordCraft</h1>
+<h1 align="center">WBS</h1>
 
 <p align="center">
-  <b>Writing and document design; an open-source, modern word processor, built in pure Rust.</b>
+  <b>An open-source, Chinese-friendly word processor, built in pure Rust. A fork of WBS.</b>
 </p>
 
 <p align="center">
   A fast, open-source word processor with a familiar workflow: the ribbon, styles,
   tables, track changes, references and mail merge. It reads and writes .docx, runs natively on
-  macOS, Windows, Linux and BSD, and in the browser via WebAssembly.<br>
-  <i>By the ArtCraft team.</i>
+  macOS, Windows, Linux and BSD, and in the browser via WebAssembly, with a Simplified-Chinese
+  interface and Chinese typography (CJK line breaking, East Asian fonts, Chinese numbering).<br>
+  <i>Forked from <a href="https://github.com/storytold/wordcraft">WordCraft</a> by the ArtCraft team.</i>
 </p>
 
 <p align="center">
@@ -26,35 +22,25 @@
   <img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-2b47b5?style=flat-square">
   <img alt="Agent-drivable over MCP" src="https://img.shields.io/badge/agents-MCP%20%C2%B7%20CLI-3b5bdb?style=flat-square">
   <br>
-  <a href="https://sonarcloud.io/project/overview?id=storytold_wordcraft"><img alt="Scanned by SonarCloud" src="https://img.shields.io/badge/Scanned_by-SonarCloud-4b9fd5?style=flat-square&logo=sonarqubecloud&logoColor=white"></a>
-  <a href="https://coderabbit.ai"><img alt="Reviewed by CodeRabbit" src="https://img.shields.io/coderabbit/prs/github/storytold/wordcraft?style=flat-square&label=Reviewed%20by%20CodeRabbit&logo=coderabbit"></a>
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/artcraft"><img alt="Join the ArtCraft community on Discord" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
-</p>
-
-<p align="center">
-  <a href="https://getartcraft.com/apps/wordcraft"><b>WordCraft on getartcraft.com</b></a> ·
-  <a href="https://getartcraft.com/">ArtCraft</a> ·
-  <a href="https://getartcraft.com/apps">All Crafting Apps</a>
+  <a href="https://github.com/mooremok/wbs"><b>WBS on GitHub</b></a> ·
+  <a href="https://github.com/storytold/wordcraft">Upstream WBS</a>
 </p>
 
 <br>
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="WordCraft with the Home tab of the ribbon open over a two-page document titled The Open Studio Handbook. The Navigation pane on the left lists the document's headings, the Styles gallery shows live previews of Normal, Heading 1, Title and Subtitle, and a word in the first paragraph is selected." width="100%">
-  <br><sub><b>The Open Studio Handbook</b>, WordCraft's built-in sample: the ribbon, live Styles gallery, rulers and the Navigation pane.</sub>
+  <img src="docs/images/hero.png" alt="WBS with the Home tab of the ribbon open over a two-page document titled The Open Studio Handbook. The Navigation pane on the left lists the document's headings, the Styles gallery shows live previews of Normal, Heading 1, Title and Subtitle, and a word in the first paragraph is selected." width="100%">
+  <br><sub><b>The Open Studio Handbook</b>, WBS's built-in sample: the ribbon, live Styles gallery, rulers and the Navigation pane.</sub>
 </p>
 
 > [!NOTE]
-> **ArtCraft is a community of artists from all walks of life.** Painters, photographers,
-> filmmakers, illustrators, designers, animators, hobbyists, and people who picked up a pencil
-> last week. If you make things, you're one of us. **[Come say hi on Discord](https://discord.gg/artcraft).**
 
 <p align="center">
   <a href="#a-tour">A tour</a> ·
-  <a href="#why-wordcraft">Why WordCraft</a> ·
+  <a href="#why-wbs">Why WBS</a> ·
   <a href="#what-works-today">What works today</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#for-agents-cli-and-mcp">For agents</a> ·
@@ -67,7 +53,7 @@
 
 ## A tour
 
-Every screenshot below is WordCraft itself, rendered offscreen by its own UI test harness
+Every screenshot below is WBS itself, rendered offscreen by its own UI test harness
 (`cargo run -p wordcraft-ui-egui --example ui_shot`).
 
 <table>
@@ -77,7 +63,7 @@ Every screenshot below is WordCraft itself, rendered offscreen by its own UI tes
 </tr>
 <tr>
 <td width="50%" valign="top"><img src="docs/images/design.png" alt="The Design tab showing style-set previews; the document is set in a serif theme with plum headings underlined by thin rules and a pale diagonal DRAFT watermark behind the text" width="100%"><p align="center"><sub><b>Design.</b> Themes, style sets, paragraph spacing, watermarks, page colour and borders.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/dark.png" alt="WordCraft in dark mode with the Insert tab open and formatting marks shown: pilcrows at paragraph ends and dots for spaces" width="100%"><p align="center"><sub><b>Dark mode</b> with formatting marks, and the Insert tab: tables, pictures, shapes, links, headers, footers, fields and symbols.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/dark.png" alt="WBS in dark mode with the Insert tab open and formatting marks shown: pilcrows at paragraph ends and dots for spaces" width="100%"><p align="center"><sub><b>Dark mode</b> with formatting marks, and the Insert tab: tables, pictures, shapes, links, headers, footers, fields and symbols.</sub></p></td>
 </tr>
 <tr>
 <td colspan="2"><img src="docs/images/layout.png" alt="The Layout tab at 80% zoom: the first paragraph opens with a three-line drop cap E, a dark blue circle sits beside the second section with its paragraph wrapping around it and hyphenating art-ist at the line end, every line is numbered in the left margin and a thin blue border surrounds the page" width="100%"><p align="center"><sub><b>Layout.</b> Drop caps, text wrapping around pictures and shapes, automatic hyphenation, line numbers and page borders.</sub></p></td>
@@ -87,7 +73,7 @@ Every screenshot below is WordCraft itself, rendered offscreen by its own UI tes
 </tr>
 </table>
 
-## Why WordCraft
+## Why WBS
 
 - **Familiar.** Ribbon tabs, groups, shortcuts and behaviour: Enter continues a list,
   Tab demotes it, Ctrl/⌘+B bolds the word under the caret, the Styles gallery previews styles live,
@@ -130,34 +116,34 @@ The honest picture, area by area, is in [ROADMAP.md](ROADMAP.md), the
 ## Quick start
 
 ```sh
-git clone https://github.com/storytold/wordcraft
-cd wordcraft
-cargo run --release -p wordcraft -- --sample        # the desktop app with the sample document
-cargo run --release -p wordcraft -- report.docx     # open a document
+git clone https://github.com/mooremok/wbs
+cd wbs
+cargo run --release -p wbs -- --sample        # the desktop app with the sample document
+cargo run --release -p wbs -- report.docx     # open a document
 ```
 
 Command line:
 
 ```sh
-wordcraft-cli convert report.docx report.pdf        # docx, pdf, odt, rtf, html, md, tex, txt, png
-wordcraft-cli text report.docx                      # plain text
-wordcraft-cli inspect report.docx                   # structure as JSON
-wordcraft-cli run --template sample \
+wbs-cli convert report.docx report.pdf        # docx, pdf, odt, rtf, html, md, tex, txt, png
+wbs-cli text report.docx                      # plain text
+wbs-cli inspect report.docx                   # structure as JSON
+wbs-cli run --template sample \
   --cmd 'select.text={"text":"Membership"}' --cmd format.bold --save out.docx
-wordcraft-cli run --script job.json                 # the same from a file: commands, then save to docx and pdf
+wbs-cli run --script job.json                 # the same from a file: commands, then save to docx and pdf
 ```
 
 Web: `cd apps/wordcraft-web && trunk serve`, then open <http://127.0.0.1:8771/?sample>.
 
 ## For agents: CLI and MCP
 
-WordCraft was designed to be driven by people *and* by AI agents.
+WBS was designed to be driven by people *and* by AI agents.
 
 ```sh
-claude mcp add wordcraft -- wordcraft-cli mcp                  # headless documents
-# confine the agent to folders: wordcraft-cli mcp --automation-read-root DIR --automation-write-root DIR
-wordcraft --control 7981 &                                     # or drive the running app…
-claude mcp add wordcraft-app -- wordcraft-cli mcp --connect 127.0.0.1:7981
+claude mcp add wbs -- wbs-cli mcp                  # headless documents
+# confine the agent to folders: wbs-cli mcp --automation-read-root DIR --automation-write-root DIR
+wbs --control 7981 &                                     # or drive the running app…
+claude mcp add wbs-app -- wbs-cli mcp --connect 127.0.0.1:7981
 ```
 
 Tools include `list_commands`, `execute`, `batch`, `type_text`, `select_text`, `inspect_document`,
@@ -168,18 +154,18 @@ play it back (`tools.recordMacro`, `tools.macros`).
 
 ## Logs
 
-The desktop app writes its log records to standard error and to `logs/wordcraft.log` next to its
-preferences: on Linux `$XDG_CONFIG_HOME/wordcraft/logs/` (by default `~/.config/wordcraft/logs/`),
-on macOS `~/Library/Application Support/WordCraft/logs/`, on Windows `%APPDATA%\WordCraft\logs\`.
+The desktop app writes its log records to standard error and to `logs/wbs.log` next to its
+preferences: on Linux `$XDG_CONFIG_HOME/wbs/logs/` (by default `~/.config/wbs/logs/`),
+on macOS `~/Library/Application Support/WBS/logs/`, on Windows `%APPDATA%\WBS\logs\`.
 A start from a desktop menu or the Dock has no terminal, so this file is what to attach to a bug
 report: unreadable parts of a .docx, pictures or fonts a PDF export had to leave out and panics the
-command guard recovered from land there. Each launch moves the previous log to `wordcraft.1.log`
-(and that one to `wordcraft.2.log`), so the log of a run that crashed survives the next start; a
+command guard recovered from land there. Each launch moves the previous log to `wbs.1.log`
+(and that one to `wbs.2.log`), so the log of a run that crashed survives the next start; a
 log stops growing at 16 MiB. `--version` writes no file, and runs with `WORDCRAFT_NO_PREFS` (agents'
 test runs) log to standard error only. Document text is never logged; a panic message leaves out
 the text it quotes.
 
-By default WordCraft's own crates log at `info` and everything else at `warn`. `RUST_LOG` replaces
+By default WBS's own crates log at `info` and everything else at `warn`. `RUST_LOG` replaces
 that with env_logger-style directives, for example `RUST_LOG=debug`,
 `RUST_LOG=warn,wordcraft_docx=trace` or `RUST_LOG=info,wgpu_core=warn`; a directive ending in `*`
 covers every target starting with it (`wordcraft*=debug`). The logger is
@@ -196,14 +182,14 @@ covers every target starting with it (`wordcraft*=debug`). The logger is
 | L4 | `wordcraft-engine` | session, undo, 422 commands, document feature catalog |
 | L5 | `wordcraft-mcp` | MCP server |
 | L6 | `wordcraft-ui-egui` | the word processor front end (swappable) |
-| apps | `wordcraft`, `wordcraft-cli`, `wordcraft-web` | desktop, command line, browser |
+| apps | `wbs`, `wbs-cli`, `wbs-web` | desktop, command line, browser |
 
 `cargo xtask ci` runs formatting, clippy, ~800 tests, the asset-attribution check, the layering
 check and the wasm build. Contributor and agent instructions: [AGENTS.md](AGENTS.md).
 
 ## Roadmap
 
-WordCraft is in **alpha**. It has commands for 97% of the ribbon and menu features in its feature catalog
+WBS is in **alpha**. It has commands for 97% of the ribbon and menu features in its feature catalog
 ([`docs/parity-checklist.md`](docs/parity-checklist.md)) today; counting
 depth, file fidelity, stability and the rest, we estimate it is about 60% ready for real work,
 about 55% for a typical professional's weekly work and about 63% for everyday essentials. Beta
@@ -213,15 +199,15 @@ closer pagination fidelity, a stability sweep and native printing. Details and e
 
 ## Downloads
 
-**Download WordCraft** from GitHub: the [latest release](https://github.com/storytold/wordcraft/releases/latest) has every build listed below, and [all releases](https://github.com/storytold/wordcraft/releases) has earlier versions and their notes. `<ver>` in the file names is the version number, and `SHA256SUMS.txt` lists a checksum for every file.
+**Download WBS** from GitHub: the [latest release](https://github.com/mooremok/wbs/releases/latest) has every build listed below, and [all releases](https://github.com/mooremok/wbs/releases) has earlier versions and their notes. `<ver>` in the file names is the version number, and `SHA256SUMS.txt` lists a checksum for every file.
 
 ### Windows
 
 | Build | Installer | Portable |
 |---|---|---|
-| x64 (64-bit Intel/AMD) | `wordcraft-<ver>-windows-x64.msi` | `wordcraft-<ver>-windows-x64-portable.zip` |
-| arm64 (Snapdragon and other ARM PCs) | `wordcraft-<ver>-windows-arm64.msi` | `wordcraft-<ver>-windows-arm64-portable.zip` |
-| x86 (32-bit) | `wordcraft-<ver>-windows-x86.msi` | `wordcraft-<ver>-windows-x86-portable.zip` |
+| x64 (64-bit Intel/AMD) | `wbs-<ver>-windows-x64.msi` | `wbs-<ver>-windows-x64-portable.zip` |
+| arm64 (Snapdragon and other ARM PCs) | `wbs-<ver>-windows-arm64.msi` | `wbs-<ver>-windows-arm64-portable.zip` |
+| x86 (32-bit) | `wbs-<ver>-windows-x86.msi` | `wbs-<ver>-windows-x86-portable.zip` |
 
 Installers and executables are code-signed.
 
@@ -233,7 +219,7 @@ PowerShell, from the folder containing the executable:
 
 ```powershell
 $env:WGPU_BACKEND = "vulkan"
-& .\wordcraft.exe
+& .\wbs.exe
 Remove-Item Env:WGPU_BACKEND                     # restore the default for later launches
 ```
 
@@ -245,15 +231,15 @@ Windows, creating a DirectX 12 graphics pipeline fails immediately and the app e
 window appears. `WGPU_BACKEND=vulkan` (or `dx12`) still overrides that.
 
 **If the app quits right after its window appears with "Parent device is lost" in the log:**
-WordCraft compiles DirectX 12 shaders with FXC, the compiler built into Windows, so it needs no
+WBS compiles DirectX 12 shaders with FXC, the compiler built into Windows, so it needs no
 `dxcompiler.dll`/`dxil.dll` and ignores any copy another program put on `PATH` (#603).
 `WGPU_DX12_COMPILER` (`fxc`, `dxc`, `auto`) overrides this; with `dxc`, a matching
-`dxcompiler.dll` *and* `dxil.dll` must sit next to `wordcraft.exe`. `WGPU_BACKEND = "vulkan"`
+`dxcompiler.dll` *and* `dxil.dll` must sit next to `wbs.exe`. `WGPU_BACKEND = "vulkan"`
 also avoids DirectX 12 altogether.
 
 **If the app is slow on an older Windows PC:** when DirectX 12 finds no graphics card with a
 driver for it (for example Intel 4th-generation graphics on Windows 11), it only offers the built-in
-software renderer, which draws every frame on the processor. WordCraft normally uses OpenGL instead,
+software renderer, which draws every frame on the processor. WBS normally uses OpenGL instead,
 without setting anything. If OpenGL has no usable adapter, it can use DirectX 12's WARP software
 adapter. The log file records the choice (lines starting with
 `graphics:`). `WGPU_BACKEND` still overrides it, e.g. `$env:WGPU_BACKEND = "gl"` or `"dx12"`.
@@ -262,20 +248,20 @@ adapter. The log file records the choice (lines starting with
 
 | Build | File | Notes |
 |---|---|---|
-| App, universal (Apple silicon + Intel) | `wordcraft-<ver>-macos-universal.dmg` | Signed and notarized |
-| Command-line tool, universal | `wordcraft-cli-<ver>-macos-universal.zip` | Signed and notarized |
+| App, universal (Apple silicon + Intel) | `wbs-<ver>-macos-universal.dmg` | Signed and notarized |
+| Command-line tool, universal | `wbs-cli-<ver>-macos-universal.zip` | Signed and notarized |
 
 ### Linux
 
 | Format | x86_64 | aarch64 (ARM64) | Notes |
 |---|---|---|---|
-| AppImage | `wordcraft-<ver>-linux-x86_64.AppImage` | `wordcraft-<ver>-linux-aarch64.AppImage` | Runs anywhere; updates itself with [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) (`.zsync` files) |
-| Flatpak | `wordcraft-<ver>-linux-x86_64.flatpak` | `wordcraft-<ver>-linux-aarch64.flatpak` | Sandboxed; `flatpak install --user <file>` |
-| Debian/Ubuntu | `wordcraft-<ver>-linux-x86_64.deb` | `wordcraft-<ver>-linux-aarch64.deb` | |
-| Fedora/RHEL/openSUSE | `wordcraft-<ver>-linux-x86_64.rpm` | `wordcraft-<ver>-linux-aarch64.rpm` | |
-| Tarball | `wordcraft-<ver>-linux-x86_64.tar.gz` | `wordcraft-<ver>-linux-aarch64.tar.gz` | Unpack anywhere |
+| AppImage | `wbs-<ver>-linux-x86_64.AppImage` | `wbs-<ver>-linux-aarch64.AppImage` | Runs anywhere; updates itself with [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) (`.zsync` files) |
+| Flatpak | `wbs-<ver>-linux-x86_64.flatpak` | `wbs-<ver>-linux-aarch64.flatpak` | Sandboxed; `flatpak install --user <file>` |
+| Debian/Ubuntu | `wbs-<ver>-linux-x86_64.deb` | `wbs-<ver>-linux-aarch64.deb` | |
+| Fedora/RHEL/openSUSE | `wbs-<ver>-linux-x86_64.rpm` | `wbs-<ver>-linux-aarch64.rpm` | |
+| Tarball | `wbs-<ver>-linux-x86_64.tar.gz` | `wbs-<ver>-linux-aarch64.tar.gz` | Unpack anywhere |
 
-RISC-V (riscv64): `wordcraft-<ver>-linux-riscv64.tar.gz`, a tarball cross-compiled for glibc 2.39+
+RISC-V (riscv64): `wbs-<ver>-linux-riscv64.tar.gz`, a tarball cross-compiled for glibc 2.39+
 (Ubuntu 24.04, Debian 13 and newer).
 
 **Wayland:** on a Wayland desktop the app runs through XWayland when it is available, because
@@ -284,11 +270,11 @@ native Wayland backend instead (for example for sharper text with fractional sca
 of file drag-and-drop), start it with `WORDCRAFT_WAYLAND=1`:
 
 ```sh
-WORDCRAFT_WAYLAND=1 wordcraft
+WORDCRAFT_WAYLAND=1 wbs
 ```
 
-**Arch Linux (AUR).** Community members maintain three AUR packages; the project doesn't publish
-to the AUR itself. Install one of them:
+**Arch Linux (AUR).** Community members maintain three AUR packages for upstream WBS; WBS
+doesn't publish to the AUR itself. Install one of them for upstream builds:
 | Package | What it installs | Choose it when |
 |---|---|---|
 | [`wordcraft-bin`](https://aur.archlinux.org/packages/wordcraft-bin) | The release tarball above, prebuilt (x86_64, aarch64) | You want the latest release without compiling (quickest) |
@@ -298,7 +284,7 @@ For example `yay -S wordcraft-bin` or `paru -S wordcraft-bin`.
 
 #### Community packages
 
-These packages are maintained by community members, not by the WordCraft team.
+These packages are maintained by community members, not by the WBS team.
 
 On Gentoo, the [::snakebyte overlay](https://github.com/switch87/snakebyte-overlay) packages the
 Linux release as `app-office/wordcraft-bin` (prebuilt) and `app-office/wordcraft` (built from source):
@@ -314,7 +300,7 @@ emerge --ask app-office/wordcraft-bin
 
 | Build | File |
 |---|---|
-| x86_64 | `wordcraft-<ver>-freebsd-x86_64.tar.gz` |
+| x86_64 | `wbs-<ver>-freebsd-x86_64.tar.gz` |
 
 ### Web (WebAssembly)
 
@@ -322,51 +308,18 @@ emerge --ask app-office/wordcraft-bin
 |---|---|---|
 | Static site | `wordcraft-web-<ver>.zip` | Runs in a modern browser; host it on any static server |
 
-## The Crafting Apps
+## Upstream and related projects
 
-WordCraft is one of the **Crafting Apps**: free, open-source creative tools from the
-[ArtCraft](https://getartcraft.com/) team, each written from scratch in Rust and each able to
-stand on its own.
+WBS is forked from [WordCraft](https://github.com/storytold/wordcraft), one of the open-source
+**Crafting Apps** from the [ArtCraft](https://getartcraft.com/) team (PhotoCraft, VectorCraft,
+FilmCraft, LightCraft, PdfCraft, EffectCraft, DesignCraft). Each is written from scratch in Rust.
+This fork tracks upstream's engine and formats while building a Chinese-first experience.
 
-| | App | What it's for | Code | Learn more |
-|:-:|---|---|---|---|
-| <img src="https://raw.githubusercontent.com/storytold/photocraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.photocraft.png" alt="" width="32" height="32"> | **PhotoCraft** | Image editing: layers, masks, type and real PSD files | [GitHub](https://github.com/storytold/photocraft) | [Website](https://getartcraft.com/apps/photocraft) |
-| <img src="https://raw.githubusercontent.com/storytold/vectorcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.vectorcraft.png" alt="" width="32" height="32"> | **VectorCraft** | Vector illustration | [GitHub](https://github.com/storytold/vectorcraft) | [Website](https://getartcraft.com/apps/vectorcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/filmcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.filmcraft.png" alt="" width="32" height="32"> | **FilmCraft** | Video editing, color and sound | [GitHub](https://github.com/storytold/filmcraft) | [Website](https://getartcraft.com/apps/filmcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/lightcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.lightcraft.png" alt="" width="32" height="32"> | **LightCraft** | Photo library and raw development | [GitHub](https://github.com/storytold/lightcraft) | [Website](https://getartcraft.com/apps/lightcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/pdfcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.pdfcraft.png" alt="" width="32" height="32"> | **PdfCraft** | Reading, organizing and protecting PDFs | [GitHub](https://github.com/storytold/pdfcraft) | [Website](https://getartcraft.com/apps/pdfcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/effectcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.effectcraft.png" alt="" width="32" height="32"> | **EffectCraft** | Motion graphics and visual effects | [GitHub](https://github.com/storytold/effectcraft) | [Website](https://getartcraft.com/apps/effectcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/designcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.designcraft.png" alt="" width="32" height="32"> | **DesignCraft** | Page layout and publishing | [GitHub](https://github.com/storytold/designcraft) | [Website](https://getartcraft.com/apps/designcraft) |
-| <img src="https://raw.githubusercontent.com/storytold/wordcraft/main/assets/app-icon/hicolor/64x64/apps/ai.storyteller.wordcraft.png" alt="" width="32" height="32"> | **WordCraft** | **Writing and document design · you are here** | [GitHub](https://github.com/storytold/wordcraft) | [Website](https://getartcraft.com/apps/wordcraft) |
-
-And [**ArtCraft**](https://getartcraft.com/) itself, our AI image and video studio for artists who want real control.
-
-<br>
-
-<p align="center">
-  <a href="https://discord.gg/artcraft"><img alt="Join the ArtCraft community on Discord" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
-</p>
-
-<h3 align="center">Come make things with us</h3>
-
-<p align="center">
-  Our Discord is where artists of every kind hang out: people who paint, shoot, draw, cut film,
-  set type, and people still figuring out what they like to make. Share what you're working on,
-  ask for help, tell us what's broken, or tell us what you wish these tools could do.
-  Whatever your medium and however long you've been at it, you're welcome here.
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/artcraft"><b>discord.gg/artcraft</b></a> ·
-  <a href="https://getartcraft.com/">getartcraft.com</a> ·
-  <a href="https://getartcraft.com/apps">The Crafting Apps</a> ·
-  <a href="https://getartcraft.com/apps/wordcraft">WordCraft</a>
-</p>
 
 ## License and credits
 
-WordCraft is dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
-Copyright (c) 2026 ArtCraft Team and the WordCraft contributors. Required notices are in [NOTICE](NOTICE).
+WBS is dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
+Copyright (c) 2026 ArtCraft Team and the WBS contributors. Required notices are in [NOTICE](NOTICE).
 
 Bundled fonts, icons, images and other assets keep their own open licenses; each one is listed
 with its author, source and license in [ATTRIBUTION.md](ATTRIBUTION.md).
@@ -376,14 +329,13 @@ Hyphenator II word list. Polish spelling reads the Hunspell `pl_PL` dictionary i
 do Russian, Portuguese, Czech, Italian, Croatian and Turkish spelling (how to install them:
 [docs/spelling-dictionaries.md](docs/spelling-dictionaries.md)), and
 Polish hyphenation the TeX patterns by Hanna Kołodziejska, Bogusław Jackowski and Marek Ryćko (MIT
-option). The sample documents and templates are original text written for WordCraft.
+option). The sample documents and templates are original text written for WBS.
 
-The ArtCraft name, wordmark and logos in [`docs/brand/`](docs/brand/) are trademarks of the
-ArtCraft Team and are not covered by this license. They may be used only unmodified, and only as
-part of this repository and WordCraft, under [`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt).
-Forks and modified versions must remove them.
+WBS is a fork of WordCraft. The WBS name and app mark (`assets/app-icon/wbs.svg`) are original
+to this fork. Upstream's ArtCraft brand files were removed from this fork, as their licence
+requires; WordCraft and ArtCraft belong to the ArtCraft Team.
 
 <p align="center">
-  <a href="https://getartcraft.com/"><img alt="ArtCraft" src="docs/brand/artcraft-mark.svg" width="28"></a><br>
-  <sub>Made by the <a href="https://getartcraft.com/">ArtCraft</a> team and community.</sub>
+  <sub>WBS is maintained by <a href="https://github.com/mooremok">mooremok</a>, on the work of the
+  <a href="https://github.com/storytold/wordcraft">WordCraft</a> team and community.</sub>
 </p>

@@ -22,7 +22,7 @@ fn tool(s: &mut Server, name: &str, args: Value) -> Value {
 fn lifecycle_and_tools() {
     let mut s = Server::new(Box::new(Headless::default()));
     let init = call(&mut s, 1, "initialize", json!({"protocolVersion": "2025-06-18"}));
-    assert_eq!(init["result"]["serverInfo"]["name"], "wordcraft");
+    assert_eq!(init["result"]["serverInfo"]["name"], "wbs");
     assert!(s.handle_line(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#).is_none());
     let tools = call(&mut s, 2, "tools/list", json!({}));
     assert!(tools["result"]["tools"].as_array().unwrap().len() >= 12);
@@ -64,7 +64,7 @@ fn resources() {
     let mut s = Server::new(Box::new(Headless::default()));
     let l = call(&mut s, 1, "resources/list", json!({}));
     assert_eq!(l["result"]["resources"].as_array().unwrap().len(), 2);
-    let r = call(&mut s, 2, "resources/read", json!({"uri": "wordcraft://document"}));
+    let r = call(&mut s, 2, "resources/read", json!({"uri": "wbs://document"}));
     assert!(r["result"]["contents"][0]["text"].as_str().unwrap().contains("blocks"));
 }
 

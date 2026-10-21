@@ -786,7 +786,7 @@ fn turkish_covers_the_entire_existing_interface_catalog_and_preserves_templates(
         ("Euler's identity", "Euler Özdeşliği"),
         ("Default Paragraph Font", "Varsayılan Paragraf Yazı Tipi"),
         ("CONFIDENTIAL", "GİZLİ"),
-        ("WordCraft", "WordCraft"),
+        ("WBS", "WBS"),
         ("unknown future label", "unknown future label"),
     ] {
         assert_eq!(super::tr(tr, source), expected);
@@ -865,7 +865,7 @@ fn hungarian_covers_the_entire_existing_interface_catalog() {
         ("Save", "Mentés"),
         ("Redo", "Újra"),
         ("UPPERCASE", "NAGYBETŰS"),
-        ("WordCraft", "WordCraft"),
+        ("WBS", "WBS"),
         ("unknown future label", "unknown future label"),
     ] {
         assert_eq!(super::tr(hu, source), expected);
@@ -1050,7 +1050,7 @@ fn a_polish_interface_writes_new_documents_in_polish() {
     let ctx = egui::Context::default();
     let frame = |app: &mut crate::WordApp| ctx.run_ui(egui::RawInput::default(), |ui| app.logic(ui.ctx())).drop_without_applying_deltas();
     frame(&mut app);
-    assert_eq!(app.session.editing_lang, None, "English interface: WordCraft's default, US English");
+    assert_eq!(app.session.editing_lang, None, "English interface: WBS's default, US English");
     assert_eq!(app.session.doc.styles.default_chr.lang.as_deref(), Some("en-US"));
     app.run("ui.language", serde_json::json!({"value": "pl"})).unwrap();
     frame(&mut app);
@@ -1272,7 +1272,7 @@ fn bulgarian_covers_the_entire_existing_interface_catalog() {
         ("Heading 1", "Заглавие 1"),
         ("Hyphenation", "Сричкопренасяне"),
         ("Track Changes", "Проследяване на промените"),
-        ("WordCraft", "WordCraft"),
+        ("WBS", "WBS"),
         ("unknown future label", "unknown future label"),
     ] {
         assert_eq!(tr(bg, source), expected, "{source}");
@@ -1354,7 +1354,7 @@ fn croatian_covers_the_entire_existing_interface_catalog_and_keeps_count_labels_
         ("Heading 1", "Naslov 1"),
         ("Spelling & Grammar", "Pravopis i gramatika"),
         ("Hyphenation", "Rastavljanje riječi"),
-        ("WordCraft", "WordCraft"),
+        ("WBS", "WBS"),
         ("unknown future label", "unknown future label"),
     ] {
         assert_eq!(tr(hr, source), expected, "{source}");
@@ -1435,7 +1435,7 @@ fn swedish_covers_the_entire_existing_interface_catalog() {
         ("Heading 1", "Rubrik 1"),
         ("Hyphenation", "Avstavning"),
         ("Track Changes", "Spåra ändringar"),
-        ("WordCraft", "WordCraft"),
+        ("WBS", "WBS"),
         ("unknown future label", "unknown future label"),
     ] {
         assert_eq!(tr(sv, source), expected, "{source}");

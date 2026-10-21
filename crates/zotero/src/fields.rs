@@ -1,4 +1,4 @@
-//! Zotero's fields and preferences as WordCraft stores them (the Word plugin's layout).
+//! Zotero's fields and preferences as WBS stores them (the Word plugin's layout).
 //!
 //! A citation is a range field with code `ADDIN ZOTERO_ITEM CSL_CITATION {…}`; Zotero itself
 //! sees the code without the `ADDIN ZOTERO_` prefix (`ITEM CSL_CITATION {…}`). Fields in

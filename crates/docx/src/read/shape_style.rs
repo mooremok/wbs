@@ -13,7 +13,7 @@ use crate::xml::El;
 const THEME_LINE_WIDTHS: [f32; 3] = [0.5, 1.0, 1.5];
 
 /// The shape kind drawn for DrawingML preset geometry `prst` (ECMA-376 Part 1 §20.1.10.56).
-/// Presets WordCraft has no shape for are drawn as the nearest one it has: callouts as the box,
+/// Presets WBS has no shape for are drawn as the nearest one it has: callouts as the box,
 /// round or cloud they point from, flowchart boxes as rectangles.
 pub(crate) fn preset_kind(prst: &str) -> ShapeKind {
     match prst {
@@ -48,7 +48,7 @@ pub(crate) fn preset_kind(prst: &str) -> ShapeKind {
 
 /// The shape kind drawn for a legacy VML preset shape type `spt` (`o:spt`, the MSOSPT numbers of
 /// [MS-ODRAW] §2.4.24): that of the DrawingML preset of the same shape, through [`preset_kind`],
-/// so a preset WordCraft has no shape for is drawn as the nearest one; None for shapes with no
+/// so a preset WBS has no shape for is drawn as the nearest one; None for shapes with no
 /// preset geometry (freeforms, WordArt text, picture frames) and numbers MSOSPT doesn't define.
 pub(crate) fn vml_preset_kind(spt: u32) -> Option<ShapeKind> {
     let prst = match spt {

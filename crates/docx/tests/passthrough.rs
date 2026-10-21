@@ -1,5 +1,5 @@
 //! What a save keeps from a Word file beyond the document model (settings: `settings_merge.rs`):
-//! package parts WordCraft doesn't write (carried verbatim),
+//! package parts WBS doesn't write (carried verbatim),
 //! comment durable ids and UTC dates, localized default styles, latent styles, list identities
 //! and extended properties. Hand-written fixtures (from the spec), no files produced by Word.
 
@@ -337,7 +337,7 @@ fn extended_properties_are_kept_without_words_counts_and_personal_ones_follow_th
     for gone in ["Pages", "Characters", "Lines", "TotalTime", "AppVersion", "Microsoft Office Word", "40000"] {
         assert!(!a.contains(gone), "{gone}: {a}");
     }
-    assert!(a.contains("<Application>WordCraft</Application>"));
+    assert!(a.contains("<Application>WBS</Application>"));
     let private = make(SETTINGS);
     assert!(!private.contains("Company") && !private.contains("Manager"), "{private}");
     assert!(private.contains("<Template>Normal.dotm</Template>"));

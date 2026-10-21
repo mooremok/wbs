@@ -508,7 +508,7 @@ pub enum InlineObject {
         locked: bool,
         /// `w:dirty` (ECMA-376 §17.16.5.35): the cached result is stale — another program that
         /// couldn't compute it set the flag so Word refreshes the field on open. Kept through
-        /// saves; cleared when WordCraft computes a result, like Word's F9.
+        /// saves; cleared when WBS computes a result, like Word's F9.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         dirty: bool,
         /// Shows its code (`{ PAGE }`) instead of its result, the other way round from the

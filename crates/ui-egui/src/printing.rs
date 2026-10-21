@@ -2,7 +2,7 @@
 use craft_ui::printing::Labels;
 pub use craft_ui::printing::{Discover, Duplex, Feedback, Printer, Settings, State};
 
-/// Native submission adds WordCraft's PDF-page collation setting and spooler options to the shared spooler settings.
+/// Native submission adds WBS's PDF-page collation setting and spooler options to the shared spooler settings.
 pub type Submit = Box<dyn Fn(Vec<u8>, Settings, bool, Vec<(String, String)>) -> std::sync::mpsc::Receiver<Result<String, String>>>;
 
 /// Metadata for the app-owned commands. Inspecting it never discovers printers or submits.

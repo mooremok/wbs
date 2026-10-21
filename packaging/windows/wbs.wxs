@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WBS MSI (WiX Toolset v5: `dotnet tool install -g wix`, plus its UI and Util extensions:
+  `wix extension add -g WixToolset.UI.wixext/5.0.2` and the same for WixToolset.Util.wixext).
+  Built by package.ps1:
+
+    wix build wbs.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext
+      -d Version=1.2.3 -d BinDir=... -d IconPath=... -d LicenseRtf=... -o out.msi
+
+  Per-machine install into Program Files with a Start Menu shortcut. The installer shows the
+  standard WiX dialogs: welcome + license, progress, and a finish page.
+
+  UpgradeCode and the component GUIDs below belong to WBS alone. Never copy them from (or
+  into) a sibling Craft app: Windows Installer treats every package sharing an UpgradeCode as one
+  product, so a shared code makes one app's installer refuse to install ("a newer version is
+  already installed") or silently uninstall the other. packaging-lint.yml checks this.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+      Name="WBS"
+      Manufacturer="mooremok"
+      Version="$(var.Version)"
+      UpgradeCode="9025AD2A-4900-4F0E-9B74-3414F7F5A65A"
+      Scope="perMachine"
+      Compressed="yes"
+      Language="1033">
+    <SummaryInformation Description="WBS word processor" Manufacturer="mooremok" />
+    <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
+         (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="A newer version of WBS is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="WbsIcon.ico" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="WbsIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/mooremok/wbs" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/mooremok/wbs" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/mooremok/wbs" />
+
+    <!-- Installer UI (#198): WixUI_Minimal is welcome + license, progress, then a finish page so
+         people can see the install worked. Its dialogs and bitmaps are WiX's own
+         (WixToolset.UI.wixext); package.ps1 builds the license RTF from LICENSE-MIT and
+         LICENSE-APACHE. The finish page offers to launch WBS (ticked by default) through
+         WixShellExec (WixToolset.Util.wixext); silent installs (/qn) never show it. -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch WBS" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#WbsExe]" />
+    <CustomAction Id="LaunchWbs" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec"
+        Impersonate="yes" Return="ignore" />
+    <UI>
+      <ui:WixUI Id="WixUI_Minimal" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchWbs"
+          Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="WBS" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="WBS" Level="1">
+      <ComponentGroupRef Id="WbsFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="WbsFiles" Directory="INSTALLFOLDER">
+      <Component Id="WbsApp" Guid="C0A4BD0B-4901-4885-9457-C4CEFC6ABE33">
+        <File Id="WbsExe" Source="$(var.BinDir)\wbs.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="WBS"
+              Description="WBS word processor" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+              Icon="WbsIcon.ico" IconIndex="0" />
+        </File>
+
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\wbs.exe" Value="[#WbsExe]" Type="string" />
+      </Component>
+
+      <!-- File associations (#295). Each document type gets a WBS ProgId (name, icon, open
+           command) and is listed under the extension's OpenWithProgids, so WBS shows in
+           Explorer's "Open with". The Word, RTF and ODT types are also WBS's Capabilities
+           (RegisteredApplications), so it appears in Settings › Default apps, where the user
+           makes it the default (File › Options › General opens that page). Nothing here sets an
+           extension's default: the installer never takes over .docx from another app. Markdown and
+           plain text are only "Open with" candidates. Removed again on uninstall. -->
+      <Component Id="WbsFileTypes" Guid="2235978C-E91F-48B6-8961-366138080A3E">
+        <RegistryValue Root="HKLM" Key="Software\RegisteredApplications" Name="WBS" Value="Software\WBS\Capabilities" Type="string" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities" Name="ApplicationName" Value="WBS" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities" Name="ApplicationDescription" Value="Write and design documents; open and save Word files." Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities" Name="ApplicationIcon" Value="&quot;[#WbsExe]&quot;,0" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe" Name="FriendlyAppName" Value="WBS" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+
+        <ProgId Id="WBS.Document" Description="Word Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.Document\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.docx\OpenWithProgids" Name="WBS.Document" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".docx" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".docx" Value="WBS.Document" Type="string" />
+
+        <ProgId Id="WBS.DocumentMacroEnabled" Description="Word Macro-Enabled Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.DocumentMacroEnabled\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.docm\OpenWithProgids" Name="WBS.DocumentMacroEnabled" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".docm" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".docm" Value="WBS.DocumentMacroEnabled" Type="string" />
+
+        <ProgId Id="WBS.Template" Description="Word Template" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.Template\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dotx\OpenWithProgids" Name="WBS.Template" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".dotx" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".dotx" Value="WBS.Template" Type="string" />
+
+        <ProgId Id="WBS.TemplateMacroEnabled" Description="Word Macro-Enabled Template" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.TemplateMacroEnabled\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dotm\OpenWithProgids" Name="WBS.TemplateMacroEnabled" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".dotm" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".dotm" Value="WBS.TemplateMacroEnabled" Type="string" />
+
+        <ProgId Id="WBS.LegacyDocument" Description="Legacy Word Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.LegacyDocument\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.doc\OpenWithProgids" Name="WBS.LegacyDocument" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".doc" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".doc" Value="WBS.LegacyDocument" Type="string" />
+
+        <ProgId Id="WBS.LegacyTemplate" Description="Legacy Word Template" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.LegacyTemplate\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dot\OpenWithProgids" Name="WBS.LegacyTemplate" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".dot" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".dot" Value="WBS.LegacyTemplate" Type="string" />
+
+        <ProgId Id="WBS.RichText" Description="Rich Text Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.RichText\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.rtf\OpenWithProgids" Name="WBS.RichText" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".rtf" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".rtf" Value="WBS.RichText" Type="string" />
+
+        <ProgId Id="WBS.OpenDocumentText" Description="OpenDocument Text" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.OpenDocumentText\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.odt\OpenWithProgids" Name="WBS.OpenDocumentText" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".odt" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\WBS\Capabilities\FileAssociations" Name=".odt" Value="WBS.OpenDocumentText" Type="string" />
+
+        <ProgId Id="WBS.Markdown" Description="Markdown Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.Markdown\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.md\OpenWithProgids" Name="WBS.Markdown" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".md" Value="" Type="string" />
+
+        <ProgId Id="WBS.PlainText" Description="Text Document" Icon="WbsExe" IconIndex="0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\WBS.PlainText\shell\open\command" Value="&quot;[#WbsExe]&quot; &quot;%1&quot;" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.txt\OpenWithProgids" Name="WBS.PlainText" Value="" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Applications\wbs.exe\SupportedTypes" Name=".txt" Value="" Type="string" />
+      </Component>
+
+      <Component Id="WbsCli">
+        <File Id="WbsCliExe" Source="$(var.BinDir)\wbs-cli.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

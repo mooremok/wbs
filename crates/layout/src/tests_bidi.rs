@@ -131,7 +131,7 @@ fn numbers_and_latin_inside_persian_keep_their_order() {
 
 #[test]
 fn caret_and_hit_agree_in_bidi_text() {
-    for (s, rtl) in [("سلام world ۱۲۳", true), ("Hello سلام دنیا end", false), ("کتاب «WordCraft» (نسخه ۲)", true)] {
+    for (s, rtl) in [("سلام world ۱۲۳", true), ("Hello سلام دنیا end", false), ("کتاب «WBS» (نسخه ۲)", true)] {
         let d = doc_of(&[(s, rtl)]);
         let l = lay(&d);
         let (pl, _) = first_line(&l, 0);
@@ -365,7 +365,7 @@ fn persian_text_in_a_latin_font_stays_in_one_fallback_face() {
 
 #[test]
 fn glyph_runs_carry_their_text_for_pdf_export() {
-    let s = "سلام WordCraft می‌خواهم";
+    let s = "سلام WBS می‌خواهم";
     let d = doc_of(&[(s, true)]);
     let l = lay(&d);
     let lam_alef_ligature = arabic_face().is_some_and(|f| {

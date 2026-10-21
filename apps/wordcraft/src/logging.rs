@@ -8,7 +8,7 @@
 //! that crashed survives the next launch. Runs without preferences (`WORDCRAFT_NO_PREFS`) log to
 //! standard error only.
 //!
-//! Levels: `info` for WordCraft's own crates, `warn` for everything else (wgpu and naga are
+//! Levels: `info` for WBS's own crates, `warn` for everything else (wgpu and naga are
 //! chatty). `RUST_LOG` replaces that with env_logger-style directives: `debug`,
 //! `warn,wordcraft_docx=trace`, `wgpu_core=info`. A directive ending in `*` matches every target
 //! that starts with it (`wordcraft*=debug`).

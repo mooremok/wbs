@@ -688,7 +688,7 @@ pub fn dttm_to_iso(v: u32) -> Option<String> {
 
 /// An ISO 8601 date (`YYYY-MM-DD`, optionally `THH:MM…`; seconds and zone ignored) as an RTF
 /// DTTM; `None` when it isn't one or falls outside DTTM's years (1900–2411). DTTM has no time
-/// zone or seconds: the clock time is written as given (WordCraft keeps UTC, `Z`), and seconds
+/// zone or seconds: the clock time is written as given (WBS keeps UTC, `Z`), and seconds
 /// and any offset are dropped.
 pub fn iso_to_dttm(s: &str) -> Option<u32> {
     let num = |a: usize, b: usize| s.get(a..b).filter(|t| t.bytes().all(|c| c.is_ascii_digit())).and_then(|t| t.parse::<u32>().ok());
@@ -746,7 +746,7 @@ fn export_with(m: &Meta, w: &Writer, body: &str, sec: &wordcraft_doc::SectionPro
     for c in &w.t.colors {
         out.push_str(&format!("\\red{}\\green{}\\blue{};", c.0, c.1, c.2));
     }
-    out.push_str("}\n{\\*\\generator WordCraft;}\n{\\stylesheet{\\s0\\snext0 Normal;}");
+    out.push_str("}\n{\\*\\generator WBS;}\n{\\stylesheet{\\s0\\snext0 Normal;}");
     for n in 1..=6u32 {
         let sz = HEAD_SIZES.get(n as usize - 1).copied().unwrap_or(12.0);
         out.push_str(&format!("{{\\s{n}\\sbasedon0\\snext0\\outlinelevel{}\\keepn\\b\\fs{} heading {n};}}", n - 1, (sz * 2.0) as i32));
@@ -1419,8 +1419,8 @@ impl Reader {
 
     /// The formatting a paragraph of kind `kind` in style `id` gives its runs. A style whose
     /// entry and `\sbasedon` chain set no character formatting (a bare `{\s2 heading 2;}`) has
-    /// WordCraft's own (`style_fmt`); otherwise what the chain doesn't set is RTF's default (not
-    /// bold, not italic, 12 pt). The font alone falls back per property: WordCraft writes the code
+    /// WBS's own (`style_fmt`); otherwise what the chain doesn't set is RTF's default (not
+    /// bold, not italic, 12 pt). The font alone falls back per property: WBS writes the code
     /// font on each code paragraph, not in its Code entry.
     fn style_base(&self, kind: Kind, id: i32) -> Fmt {
         let mut f = style_fmt(kind);
@@ -3605,8 +3605,8 @@ mod tests {
 
     #[test]
     fn heading_and_code_runs_take_their_style_formatting_on_import() {
-        // A stylesheet entry without formatting words (WordCraft's older files, minimal
-        // stylesheets): WordCraft's own heading and code formatting stand in for the style's.
+        // A stylesheet entry without formatting words (WBS's older files, minimal
+        // stylesheets): WBS's own heading and code formatting stand in for the style's.
         let rtf = br"{\rtf1\ansi{\fonttbl{\f0 Times New Roman;}{\f1 Arial;}{\f2 Courier New;}}{\stylesheet{\s0 Normal;}{\s2 heading 2;}{\s9 Code;}}
 \pard\s2\b\fs32 Head\par
 \pard\s2\b\fs26 Small\par
@@ -3685,7 +3685,7 @@ mod tests {
     fn hostile_sbasedon_chains_are_harmless() {
         let mut chain = String::new();
         // s100 (heading 5) based on s101 … s139, the last one not bold: past the bound, so
-        // heading 5 takes WordCraft's bold.
+        // heading 5 takes WBS's bold.
         for i in 100..140 {
             let name = if i == 100 { "heading 5".to_string() } else { format!("x{i}") };
             let b0 = if i == 139 { "\\b0" } else { "" };
@@ -3703,7 +3703,7 @@ mod tests {
 \pard\s-2147483648\fs56 title\par}}"
         );
         let runs = text_runs(rtf.as_bytes());
-        // Self-based heading 1: WordCraft's values.
+        // Self-based heading 1: WBS's values.
         assert_eq!((run_fmt(&runs, "one").size, run_fmt(&runs, "one").bold), (None, false));
         // A loop between heading 3 and 4: both take heading 3's `\b0`.
         assert!(run_fmt(&runs, "three").bold);
@@ -3752,7 +3752,7 @@ mod tests {
 
     #[test]
     fn a_code_paragraph_round_trips_without_a_direct_code_font() {
-        // WordCraft's Code entry has no `\f` (the code font is on the paragraph): the code font
+        // WBS's Code entry has no `\f` (the code font is on the paragraph): the code font
         // stands in for the style's.
         let mut code = Para { kind: Kind::Code, ..Default::default() };
         code.push_text("let x", &Fmt::default());

@@ -255,7 +255,7 @@ impl Writer<'_> {
         // Split into pieces with their props.
         let mut pieces: Vec<(Piece, &CharProps)> = Vec::new();
         let mut k = 0usize;
-        // Runs of mixed direction are split so Word orders them as WordCraft does (#1543).
+        // Runs of mixed direction are split so Word orders them as WBS does (#1543).
         let rtl_para = self.doc.styles.resolve_para(&p.props).bidi;
         let styles = &self.doc.styles;
         let para_style = p.props.style.as_deref();

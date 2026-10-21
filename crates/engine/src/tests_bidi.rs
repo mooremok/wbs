@@ -220,10 +220,10 @@ fn word_moves_follow_reading_order() {
 #[test]
 fn typing_persian_keeps_logical_order() {
     let mut s = session("", true);
-    for w in ["سلام", " ", "WordCraft", " ", "۱۴۰۳"] {
+    for w in ["سلام", " ", "WBS", " ", "۱۴۰۳"] {
         run(&mut s, "text.insert", json!({"text": w}));
     }
-    assert_eq!(s.doc.plain_text(StoryRef::Body), "سلام WordCraft ۱۴۰۳");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "سلام WBS ۱۴۰۳");
     // The caret after typing a number at the end sits right after it on the screen.
     let l = s.layout();
     let c = l.caret(&s.sel.focus).unwrap();
@@ -312,9 +312,9 @@ fn a_latin_link_inserted_into_reopened_hebrew_is_saved_left_to_right() {
     let bytes = crate::io::save_bytes("x.docx", &s.doc).unwrap();
     let mut s = Session::new(crate::io::open_bytes("x.docx", &bytes).unwrap());
     s.sel = crate::Selection::caret(Pos::new(StoryRef::Body, wordcraft_doc::Path::top(0), "לפני ".len()));
-    run(&mut s, "insert.link", json!({"url": "https://example.com", "text": "WordCraft site"}));
+    run(&mut s, "insert.link", json!({"url": "https://example.com", "text": "WBS site"}));
     let runs = saved_runs(&s);
-    assert!(runs.contains(&(false, "WordCraft site".to_string())), "{runs:?}");
+    assert!(runs.contains(&(false, "WBS site".to_string())), "{runs:?}");
     // The caret's own formatting, as Reveal Formatting shows it, still says right to left.
     s.sel = crate::Selection::caret(Pos::new(StoryRef::Body, wordcraft_doc::Path::top(0), "לפ".len()));
     s.pending = None; // moving the caret by hand doesn't drop the link's pending formatting

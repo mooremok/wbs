@@ -87,7 +87,7 @@ fn title_block(out: &mut Vec<GraphicItem>, t: &str, area: Rect) -> Rect {
     Rect { y: area.y + lh + PAD, h: (area.h - lh - PAD).max(1.0), ..area }
 }
 
-/// A chart whose plot area holds only chart types WordCraft doesn't draw (radar, stock…): its
+/// A chart whose plot area holds only chart types WBS doesn't draw (radar, stock…): its
 /// frame with a light border, its title and a line saying which type it is, so it isn't blank
 /// space. Nothing when the plot area has no chart type at all, or a supported one with nothing
 /// to draw.
@@ -111,7 +111,7 @@ fn placeholder(out: &mut Vec<GraphicItem>, space: &El, theme: &[Rgb], w: f32, h:
     text(out, line, &clip_text(&msg, area.w, size), size, TextAlign::Center, false);
 }
 
-/// What a placeholder calls a chart type element WordCraft doesn't draw.
+/// What a placeholder calls a chart type element WBS doesn't draw.
 fn unsupported_name(name: &str) -> &'static str {
     match name {
         "c:radarChart" => "Radar chart",

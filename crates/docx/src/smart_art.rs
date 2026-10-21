@@ -1,7 +1,7 @@
-//! SmartArt graphics WordCraft makes ([`SmartArtSpec`]) as diagram parts (ECMA-376 Part 1 §21.4)
+//! SmartArt graphics WBS makes ([`SmartArtSpec`]) as diagram parts (ECMA-376 Part 1 §21.4)
 //! and back.
 //!
-//! WordCraft lays a graphic out with its own algorithms ([`layout`]: blocks, steps with arrows,
+//! WBS lays a graphic out with its own algorithms ([`layout`]: blocks, steps with arrows,
 //! a cycle, a tree, a pyramid, a radial, a matrix, overlapping circles) and writes five parts:
 //! - the data model ([`data_xml`], `dgm:dataModel`): the document point, a node point per item
 //!   with its text, and connections that give each item its parent;
@@ -9,7 +9,7 @@
 //!   definition ([`colors_xml`]) of our own, named by the identifiers ECMA-376 applications use
 //!   for the matching built-in layouts, styles and colours;
 //! - the drawing ([`drawing_xml`], `dsp:drawing`): every shape already placed, so any reader
-//!   shows the graphic as WordCraft laid it out. WordCraft draws its own graphics from that same
+//!   shows the graphic as WBS laid it out. WBS draws its own graphics from that same
 //!   drawing ([`smart_art_items`]).
 //!
 //! [`spec_of`] turns a data part back into the model only when writing that model again gives

@@ -1,7 +1,7 @@
 //! Alignment guides: while a picture, shape or text box is dragged, its left, centre or right
 //! edge (and top, middle or bottom) snaps to the page's edges and centre, the margins and the
 //! edges and centres of the other floating objects on its page, and a thin line across the page
-//! shows each place it snapped to. WordCraft's own design (Word for Mac shows no guides).
+//! shows each place it snapped to. WBS's own design (Word for Mac shows no guides).
 //!
 //! The maths here is pure (points in, points out) so it's tested without egui; `objects.rs`
 //! gathers the candidates and draws the lines.

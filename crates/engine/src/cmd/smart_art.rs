@@ -2,7 +2,7 @@
 //! Text Pane, Add Shape, Promote, Demote), change its layout and colours, reset it.
 //!
 //! A SmartArt graphic is an inline [`InlineObject::Graphic`] whose graphic keeps its model
-//! ([`SmartArtSpec`]); WordCraft lays it out and draws it (see `wordcraft_docx::smart_art_items`)
+//! ([`SmartArtSpec`]); WBS lays it out and draws it (see `wordcraft_docx::smart_art_items`)
 //! and saves it as diagram parts. SmartArt made by other programs is shown as it is; these
 //! commands only edit graphics with a model. Each command is one undo step.
 
@@ -152,7 +152,7 @@ fn has_smart_art(s: &Session) -> Option<&'static str> {
     match selected(s) {
         Some((_, InlineObject::Graphic { graphic, .. })) if graphic.smart_art.is_some() => None,
         Some((_, InlineObject::Graphic { graphic, .. })) if graphic.kind == GraphicKind::Diagram => {
-            Some("this SmartArt was made in another program: WordCraft shows it but can't edit it")
+            Some("this SmartArt was made in another program: WBS shows it but can't edit it")
         }
         _ => Some("select a SmartArt graphic first"),
     }

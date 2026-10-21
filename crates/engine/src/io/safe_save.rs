@@ -3,7 +3,7 @@
 //!
 //! When the folder refuses the temporary file (macOS privacy protection, #2138, or a read-only
 //! folder), an existing destination is never written in place: it is left exactly as it was and
-//! the error says to use Save As to another folder or to give WordCraft access to this one. Only
+//! the error says to use Save As to another folder or to give WBS access to this one. Only
 //! a destination that doesn't exist yet, so has no previous version to lose, is created directly;
 //! a failed direct write removes it again.
 use std::fs::{self, File, OpenOptions};
@@ -57,10 +57,10 @@ fn create_directly(path: &Path, refused: io::Error, prepare: impl FnOnce(&mut Fi
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
             return Err(guided(
                 refused,
-                "This folder doesn't let WordCraft create the temporary file a safe save needs, so the existing file was left unchanged.",
+                "This folder doesn't let WBS create the temporary file a safe save needs, so the existing file was left unchanged.",
             ));
         }
-        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => return Err(guided(e, "WordCraft can't create files in this folder.")),
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied => return Err(guided(e, "WBS can't create files in this folder.")),
         Err(e) => return Err(e),
     };
     let Err(failed) = prepare(&mut file) else {
@@ -88,14 +88,14 @@ impl std::error::Error for Guided {}
 /// `e`, then `why`, then how to save anyway: Save As to another folder, or access to this one.
 fn guided(e: io::Error, why: &str) -> io::Error {
     let access = if cfg!(target_os = "macos") {
-        "allow WordCraft to use this folder in System Settings › Privacy & Security › Files and Folders"
+        "allow WBS to use this folder in System Settings › Privacy & Security › Files and Folders"
     } else {
         "get write access to this folder"
     };
     io::Error::new(e.kind(), Guided(format!("{e}. {why} Use Save As to save the document in another folder, or {access}, then save again.")))
 }
 
-/// A permission error on macOS usually means its privacy protection keeps WordCraft out of the
+/// A permission error on macOS usually means its privacy protection keeps WBS out of the
 /// folder; say where to allow it (errors from [`guided`] already do).
 fn explain(e: io::Error) -> io::Error {
     let worded = e.get_ref().is_some_and(|inner| inner.is::<Guided>());
@@ -103,7 +103,7 @@ fn explain(e: io::Error) -> io::Error {
         return io::Error::new(
             e.kind(),
             format!(
-                "{e}. macOS may be blocking WordCraft from this folder: allow it in System Settings › Privacy & Security › Files and Folders, or save somewhere else"
+                "{e}. macOS may be blocking WBS from this folder: allow it in System Settings › Privacy & Security › Files and Folders, or save somewhere else"
             ),
         );
     }

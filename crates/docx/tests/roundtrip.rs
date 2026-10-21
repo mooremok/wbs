@@ -845,7 +845,7 @@ fn toc_field_wraps_its_entries() {
         let heading_end = xml[..xml.find("Intro").unwrap()].rfind("</w:p>").unwrap();
         assert!(begin > heading_end, "field must start in the first entry, not the heading: {xml}");
 
-        // WordCraft reads its own TOC back unchanged.
+        // WBS reads its own TOC back unchanged.
         let r = wordcraft_docx::read(&bytes).expect("read");
         let ps = paras(&r);
         let expected: Vec<_> = std::iter::once("Contents").chain(entries.iter().map(|(t, _)| *t)).chain(std::iter::once("Body")).collect();

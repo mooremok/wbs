@@ -2551,7 +2551,7 @@ fn set_author_refuses_blank_names_and_clamps_long_ones() {
     let mut s = s();
     for bad in [json!(null), json!({}), json!({"name": 5}), json!({"name": ""}), json!({"name": " \t\n "}), json!({"name": "\u{0}\u{7}"})] {
         assert!(s.run("file.setAuthor", &bad).is_err(), "{bad} should be refused");
-        assert_eq!(s.author, "WordCraft User", "a refused name leaves the author alone");
+        assert_eq!(s.author, "WBS User", "a refused name leaves the author alone");
     }
     run(&mut s, "file.setAuthor", json!({"name": "Ada\u{0}\u{1b} Lovelace"}));
     assert_eq!(s.author, "Ada Lovelace", "control characters can't reach the saved XML");
@@ -2942,7 +2942,7 @@ fn update_toc_clears_stale_field_result_for_docx_span() {
 }
 
 /// #877: computing a field's result clears `w:dirty` — the result is no longer stale, like
-/// Word's F9. A field WordCraft can't compute keeps the flag so Word refreshes it on open.
+/// Word's F9. A field WBS can't compute keeps the flag so Word refreshes it on open.
 #[test]
 fn update_fields_clears_dirty() {
     let mut s = s();
@@ -2974,7 +2974,7 @@ fn update_fields_clears_dirty() {
 
 /// #877/#878: an imported TOC field whose begin marker carries `w:dirty` (a generator wrote a
 /// placeholder result and asked Word to refresh it on open) keeps the flag through saves until
-/// WordCraft computes the entries: Update Table replaces the placeholder in place (#878) and
+/// WBS computes the entries: Update Table replaces the placeholder in place (#878) and
 /// clears the flag, like Word's F9. Undo brings the dirty imported field back.
 #[test]
 fn imported_dirty_toc_updates_in_place_and_clears() {
@@ -5593,7 +5593,7 @@ fn word_xml_and_web_pages_saved_as_doc_open_by_content() {
     }
 }
 
-/// #569: a playlist (.m3u / .m3u8) — or any file with an extension WordCraft doesn't know —
+/// #569: a playlist (.m3u / .m3u8) — or any file with an extension WBS doesn't know —
 /// opens as plain text with its encoding detected, like Word's text import; a binary file is a
 /// clean error, never garbage or a panic.
 #[test]
@@ -8072,7 +8072,7 @@ fn html_converted_to_docx_keeps_bold_headers_and_right_aligned_cells() {
 #[test]
 fn exported_page_images_draw_headers_at_full_strength() {
     // file.exportPng (and `wordcraft-cli render`) drew headers and footers dimmed, as the screen
-    // does while the body is edited; Word's exported pages and WordCraft's PDF don't.
+    // does while the body is edited; Word's exported pages and WBS's PDF don't.
     let mut s = s();
     run(&mut s, "text.insert", json!({"text": "Body"}));
     let mut hp = wordcraft_doc::Paragraph::with_text("HEADER", wordcraft_doc::props::CharProps { size: Some(28.0), ..Default::default() });

@@ -1750,7 +1750,7 @@ mod tests {
     #[test]
     fn rtf_tracked_changes_accept_and_reject_after_opening_and_round_trip() {
         // Gap 19: an RTF file's tracked insertions and deletions open as tracked changes, also
-        // after a WordCraft → RTF → WordCraft round trip.
+        // after a WBS → RTF → WBS round trip.
         let rtf: &[u8] = br"{\rtf1\ansi\deff0{\fonttbl{\f0 Arial;}}{\*\revtbl {Unknown;}{Alice;}{Bob;}}
 \pard Keep {\revised\revauth1\revdttm-1480361314 added }text{\deleted\revauthdel2\revdttmdel-2016341499  gone} end{\revised\revauth1\revdttm-1480361314\deleted\revauthdel2\revdttmdel-2016341499  both}.\par}";
         let opened = wordcraft_formats::rtf::import(rtf).unwrap();

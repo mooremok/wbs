@@ -1,15 +1,15 @@
 # MCP server
 
-WordCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
+WBS speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 Claude and other agents can write and edit documents.
 
 ```sh
-wordcraft-cli mcp                          # headless session (no window)
-wordcraft --control 7981 &                 # or: drive the running app…
-wordcraft-cli mcp --connect 127.0.0.1:7981 # …including clicks, keys and screenshots
+wbs-cli mcp                          # headless session (no window)
+wbs --control 7981 &                 # or: drive the running app…
+wbs-cli mcp --connect 127.0.0.1:7981 # …including clicks, keys and screenshots
 ```
 
-Claude Code: `claude mcp add wordcraft -- wordcraft-cli mcp`.
+Claude Code: `claude mcp add wbs -- wbs-cli mcp`.
 
 With `--connect`, the bridge sends the app's control key, which it reads from
 `WORDCRAFT_CONTROL_KEY` or from the key file the app writes at start. It sends the key only to
@@ -17,7 +17,7 @@ loopback addresses; see [Keys](control-protocol.md#keys).
 
 ## Scripts from the command line
 
-`wordcraft-cli run --script job.json` (`--script -` reads standard input) runs the commands in a
+`wbs-cli run --script job.json` (`--script -` reads standard input) runs the commands in a
 file, in order, exactly like repeated `--cmd`, and then saves. Use it to generate a DOCX and its
 PDF in one run without a window:
 
@@ -38,21 +38,21 @@ status 1, and nothing is saved. Every output is checked (known extension, folder
 
 ## Tracked changes by an agent
 
-Tracked changes and comments are recorded under the session's user name ("WordCraft User" by
+Tracked changes and comments are recorded under the session's user name ("WBS User" by
 default). Name the agent so reviewers can tell its edits from people's: start the headless server
-with `wordcraft-cli mcp --author "Claude (copyedit)"`, or run
+with `wbs-cli mcp --author "Claude (copyedit)"`, or run
 `file.setAuthor {"name": "Claude (copyedit)"}`. Turn tracking on explicitly with
 `review.trackChanges {"value": true}`; without `value` it toggles, which turns tracking *off* in
-a document that was saved with it on. `wordcraft-cli run` takes `--author` too.
+a document that was saved with it on. `wbs-cli run` takes `--author` too.
 
 ## Confining file access
 
 ```sh
-wordcraft-cli mcp --automation-read-root /work/project --automation-write-root /work/project/out
+wbs-cli mcp --automation-read-root /work/project --automation-write-root /work/project/out
 ```
 
 ```json
-{"mcpServers": {"wordcraft": {"command": "/abs/path/target/release/wordcraft-cli",
+{"mcpServers": {"wbs": {"command": "/abs/path/target/release/wbs-cli",
   "args": ["mcp", "--automation-read-root", "/work/project", "--automation-write-root", "/work/project/out"]}}}
 ```
 
@@ -85,8 +85,8 @@ config works across the suite) keep the agent to the folders you give it:
   given once (`--flag <dir>` or `--flag=<dir>`).
 
 The flags confine the headless server; `--connect` with them is an error, since the server would
-otherwise talk to an app that isn't confined. WordCraft's desktop app has no equivalent flags yet,
-so a running app (`wordcraft --control`) is not confined.
+otherwise talk to an app that isn't confined. WBS's desktop app has no equivalent flags yet,
+so a running app (a running `wbs --control`) is not confined.
 
 What the roots do not cover: commands that take no path (`text.insert`, `execute` of anything that
 works on the open document) can still read and change that document, and `get_text` and
@@ -118,7 +118,7 @@ files it was given rather than guarding against other software on the computer.
 `insert.picture` and `insert.icon` leave the caret after the new picture, so typing next doesn't
 replace it; Picture Format commands (`picture.*`, `arrange.*`) still act on it.
 
-Resources: `wordcraft://document` (inspect) and `wordcraft://commands`.
+Resources: `wbs://document` (inspect) and `wbs://commands`.
 
 The acceptance test `crates/mcp/src/tests.rs` writes a formatted document using MCP only.
 

@@ -3,7 +3,7 @@
 //! Each written object gets its kept markup with fresh relationship ids, pointing at copies of the
 //! parts it needs. The first object to use a part writes it under its original name (unless that
 //! name is one this writer uses for something else: then it's renamed). An object written again
-//! (copied and pasted in WordCraft) gets its own renamed copies of every part, so the copies stay
+//! (copied and pasted in WBS) gets its own renamed copies of every part, so the copies stay
 //! independent in Word; past [`MAX_COPY_BYTES`] of such copies, later ones share the first's parts.
 
 use std::collections::{BTreeMap, HashMap, HashSet};

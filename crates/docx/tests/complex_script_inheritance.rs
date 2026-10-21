@@ -191,7 +191,7 @@ fn split_runs_add_no_phantom_tracked_formatting() {
         let (now, before) = direction_markup(r);
         assert_eq!(now, before, "no direction or language difference to report: {r}");
     }
-    // And WordCraft reads no difference back either.
+    // And WBS reads no difference back either.
     let r = wordcraft_docx::read(&bytes).unwrap();
     for run in &paragraph(&r).runs {
         let old = &run.props.fmt_change.as_ref().unwrap().old;

@@ -435,11 +435,11 @@ fn autocorrect_replacement_list_follows_the_texts_language() {
 fn autocorrect_options_change_what_typing_does() {
     let mut s = s();
     // A user entry, a deleted built-in entry, an added exception; names of days.
-    run(&mut s, "tools.autocorrect", json!({"add": {"from": "wc", "to": "WordCraft"}}));
+    run(&mut s, "tools.autocorrect", json!({"add": {"from": "wc", "to": "WBS"}}));
     run(&mut s, "tools.autocorrect", json!({"delete": "teh"}));
     run(&mut s, "tools.autocorrect", json!({"addException": "approx."}));
     typ(&mut s, "wc ships on monday. teh end is approx. three weeks ");
-    assert_eq!(s.doc.plain_text(StoryRef::Body), "WordCraft ships on Monday. Teh end is approx. three weeks ");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "WBS ships on Monday. Teh end is approx. three weeks ");
     // AutoFormat options off: straight quotes, no dashes, no list; sentences not capitalised.
     let mut s = self::s();
     run(&mut s, "tools.autocorrect", json!({"smartQuotes": false, "dashes": false, "bullets": false, "capSentences": false, "capDays": false}));
@@ -607,7 +607,7 @@ fn smileys_are_replaced_inside_words_too() {
 
 #[test]
 fn a_large_mixed_document_types_like_word() {
-    // The corpus typed into Word and WordCraft side by side; the paragraph structure must match.
+    // The corpus typed into Word and WBS side by side; the paragraph structure must match.
     let mut s = s();
     let prose = "The keeper's log runs to four hundred pages, and almost every one begins with the weather. ";
     typ(&mut s, &format!("Notes\n{}\n", prose.repeat(20)));

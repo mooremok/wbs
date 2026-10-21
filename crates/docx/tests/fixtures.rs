@@ -1548,7 +1548,7 @@ fn moved_and_copied_chart_keeps_its_parts() {
     let d = wordcraft_docx::read(&chart_docx()).unwrap();
     let g = graphics(&d);
     let [InlineObject::Graphic { alt, graphic, .. }] = g.as_slice() else { panic!("{g:?}") };
-    // Resized and dragged to float on the page in WordCraft, then copied and pasted.
+    // Resized and dragged to float on the page in WBS, then copied and pasted.
     let float = wordcraft_doc::para::Float { wrap: Wrap::Square, h_rel: Anchor::Page, v_rel: Anchor::Page, x: 36.0, y: 18.0, ..Default::default() };
     let moved = InlineObject::Graphic { w: 288.0, h: 144.0, alt: alt.clone(), float, graphic: graphic.clone() };
     let mut p = Paragraph::new();
@@ -1592,7 +1592,7 @@ fn ole_object_round_trips() {
     let Some(InlineObject::Image { w, ole: Some(_), .. }) = paras(&d)[0].objects.first() else { panic!("{:?}", paras(&d)[0].objects) };
     assert_eq!(*w, 72.0);
 
-    // Resized in WordCraft.
+    // Resized in WBS.
     let mut doc = d.clone();
     if let Some(wordcraft_doc::Block::Para(p)) = doc.body.first_mut().map(std::sync::Arc::make_mut)
         && let Some(InlineObject::Image { w, h, .. }) = p.objects.first_mut()
@@ -1687,7 +1687,7 @@ fn first_object(doc: &mut Document) -> &mut InlineObject {
     p.objects.first_mut().expect("an object")
 }
 
-/// #319 with #332: an OLE object turned or flipped in WordCraft is written back turned, in its VML
+/// #319 with #332: an OLE object turned or flipped in WBS is written back turned, in its VML
 /// shape (`rotation`, `flip`) and in a DrawingML picture (`a:xfrm` rot/flipH/flipV, with the
 /// effect extent covering the rotated bounds like other drawings).
 #[test]
@@ -2218,7 +2218,7 @@ fn vml_lines_and_rectangles() {
 const VML_RIGHT_ARROW_TYPE: &str = r#"<v:shapetype id="_x0000_t13" coordsize="21600,21600" o:spt="13" adj="16200,5400" path="m@0,l@0@1,0@1,0@2@0@2@0,21600,21600,10800xe"><v:stroke joinstyle="miter"/><v:formulas><v:f eqn="val #0"/><v:f eqn="val #1"/></v:formulas><v:path o:connecttype="custom"/></v:shapetype>"#;
 
 /// #1377: a VML shape drawn from a preset shapetype (`type="#_x0000_t13"`) is the DrawingML
-/// preset WordCraft draws, with its fill, outline and size: from the shapetype beside it, from
+/// preset WBS draws, with its fill, outline and size: from the shapetype beside it, from
 /// Word's shapetype id when the shapetype was written at an earlier use, or from its own `o:spt`.
 #[test]
 fn vml_preset_shapes_are_drawn() {
@@ -2229,7 +2229,7 @@ fn vml_preset_shapes_are_drawn() {
         pict(r##"<v:shape o:spt="74" style="width:30pt;height:30pt" fillcolor="red" stroked="f"/>"##),
         pict(r##"<v:shapetype id="tri" o:spt="5" coordsize="21600,21600"/><v:shape type="#tri" style="width:20pt;height:10pt" filled="f"/>"##),
         pict(r##"<v:shape type="#_x0000_t4" style="width:50pt;height:50pt" fillcolor="#ffff00"><v:textbox><w:txbxContent><w:p><w:r><w:t>yes?</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape>"##),
-        // A preset WordCraft has no shape for is drawn as the nearest one, as for DrawingML: a
+        // A preset WBS has no shape for is drawn as the nearest one, as for DrawingML: a
         // right triangle (`o:spt` 6) as a triangle.
         pict(r##"<v:shape type="#_x0000_t6" style="width:20pt;height:20pt" fillcolor="red"/>"##),
         // Its own path wins over the shapetype's: not the preset.
@@ -2568,7 +2568,7 @@ fn embedded_fonts_survive_a_round_trip() {
     assert_eq!(text(&again, "word/fonts/Roboto-bold.ttf"), "bold font bytes");
 }
 
-// ---- native Word ink: opaque preservation, never re-encoded as WordCraft freeforms ----
+// ---- native Word ink: opaque preservation, never re-encoded as WBS freeforms ----
 
 const INK_NS: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingInk";
 const INK_XML: &str = r##"<ink xmlns="http://www.w3.org/2003/InkML"><definitions><context xml:id="ctx"><inkSource xml:id="src"><traceFormat><channel name="X" type="integer" units="cm"/><channel name="Y" type="integer" units="cm"/></traceFormat></inkSource></context><brush xml:id="blue"><brushProperty name="color" value="#2563EB"/><brushProperty name="width" value="0.08" units="cm"/></brush></definitions><trace contextRef="#ctx" brushRef="#blue">0 0, 1 1, 2 0</trace></ink>"##;
@@ -3001,7 +3001,7 @@ fn deleting_drawing_level_native_ink_writes_no_orphan_ink_part() {
     }
 }
 
-/// A group member's ink taken out of its group (not something WordCraft's commands do: Ungroup
+/// A group member's ink taken out of its group (not something WBS's commands do: Ungroup
 /// refuses such a group) can't be written as a stand-alone drawing: it is left out whole, never
 /// written in the wrong place, and its parts aren't written either.
 #[test]
@@ -3111,7 +3111,7 @@ fn toc_entry_links_lose_the_hyperlink_style() {
 
 /// A style or paragraph whose `w:numPr` gives only a level (`w:ilvl`) takes the list from its
 /// style chain (ECMA-376 §17.3.1.19): a Heading 3 based on a numbered Heading 2 is level 3 of the
-/// same list. WordCraft dropped the level, so Heading 3s numbered as Heading 2s (6.15 where Word
+/// same list. WBS dropped the level, so Heading 3s numbered as Heading 2s (6.15 where Word
 /// shows 6.4.5 in NIH's monitoring-plan template).
 #[test]
 fn a_list_level_without_a_list_takes_the_style_s_list() {

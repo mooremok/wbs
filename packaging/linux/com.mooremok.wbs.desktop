@@ -1,14 +1,14 @@
 [Desktop Entry]
 Type=Application
-Name=WordCraft
+Name=WBS
 GenericName=Word Processor
 Comment=Write and design documents; open and save Word files
-Exec=wordcraft %F
-TryExec=wordcraft
-Icon=ai.storyteller.wordcraft
+Exec=wbs %F
+TryExec=wbs
+Icon=com.mooremok.wbs
 Terminal=false
 StartupNotify=true
-StartupWMClass=ai.storyteller.wordcraft
+StartupWMClass=com.mooremok.wbs
 Categories=Office;WordProcessor;
 Keywords=word;processor;document;docx;writer;text;letter;report;
 MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.ms-word.document.macroEnabled.12;application/vnd.openxmlformats-officedocument.wordprocessingml.template;application/vnd.ms-word.template.macroEnabled.12;application/msword;application/msword-template;application/vnd.oasis.opendocument.text;application/rtf;text/rtf;text/markdown;text/x-tex;text/html;text/plain;

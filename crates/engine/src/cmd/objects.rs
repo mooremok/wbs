@@ -42,7 +42,7 @@ fn movable_story(s: &Session, story: StoryRef) -> bool {
 /// Charts and diagrams are not written back on save yet, so their size, position and wrapping stay
 /// as imported: they can be selected and deleted, not moved, resized or arranged.
 const FROZEN: &str = "charts and diagrams can't be moved or resized yet";
-/// `has_movable` for Size: charts and SmartArt WordCraft can edit are laid out again at their
+/// `has_movable` for Size: charts and SmartArt WBS can edit are laid out again at their
 /// new size.
 fn has_sizable(s: &Session) -> Option<&'static str> {
     match selected(s) {

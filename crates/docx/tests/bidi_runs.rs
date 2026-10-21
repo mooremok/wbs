@@ -1,4 +1,4 @@
-//! Runs of mixed right-to-left and left-to-right text (#1543). WordCraft lays a paragraph out with
+//! Runs of mixed right-to-left and left-to-right text (#1543). WBS lays a paragraph out with
 //! the Unicode Bidirectional Algorithm (UAX #9) from its text and direction alone, while Word
 //! orders a run's characters by the run's `w:rtl` (ECMA-376 Part 1 §17.3.2.30): text in a run
 //! without it is laid out left to right, so Hebrew words around a Latin name, and the punctuation
@@ -65,8 +65,8 @@ fn owned(v: &[(bool, &str)]) -> Vec<(bool, String)> {
 
 #[test]
 fn rtl_paragraph_splits_latin_out_of_rtl_runs() {
-    let d = doc_of("עברית WordCraft 2026 ואחריה עוד עברית.", true, arial());
-    assert_eq!(written_runs(&d), owned(&[(true, "עברית "), (false, "WordCraft 2026"), (true, " ואחריה עוד עברית.")]));
+    let d = doc_of("עברית WBS 2026 ואחריה עוד עברית.", true, arial());
+    assert_eq!(written_runs(&d), owned(&[(true, "עברית "), (false, "WBS 2026"), (true, " ואחריה עוד עברית.")]));
 }
 
 #[test]
@@ -77,13 +77,13 @@ fn rtl_paragraph_brackets_email_and_final_stop_take_the_paragraph_direction() {
 
 #[test]
 fn line_breaks_stay_in_the_split_runs() {
-    let d = doc_of("שלום עולם.\nעברית WordCraft 2026 ואחריה.", true, arial());
-    assert_eq!(written_runs(&d), owned(&[(true, "שלום עולם.\nעברית "), (false, "WordCraft 2026"), (true, " ואחריה.")]));
+    let d = doc_of("שלום עולם.\nעברית WBS 2026 ואחריה.", true, arial());
+    assert_eq!(written_runs(&d), owned(&[(true, "שלום עולם.\nעברית "), (false, "WBS 2026"), (true, " ואחריה.")]));
 }
 
 #[test]
 fn split_runs_keep_their_formatting() {
-    let d = doc_of("עברית WordCraft עברית", true, arial());
+    let d = doc_of("עברית WBS עברית", true, arial());
     let xml = document_xml(&wordcraft_docx::write(&d).unwrap());
     let body = xml.split("<w:body>").nth(1).unwrap();
     assert_eq!(body.matches("<w:r>").count(), 3);
@@ -108,9 +108,9 @@ fn text_without_rtl_characters_is_one_run() {
 #[test]
 fn explicit_run_direction_is_kept() {
     // A run that already says its direction is written as it is, unsplit.
-    let d = doc_of("עברית WordCraft", true, CharProps { rtl: Some(true), ..arial() });
-    assert_eq!(written_runs(&d), owned(&[(true, "עברית WordCraft")]));
-    let d = doc_of("עברית WordCraft", true, CharProps { rtl: Some(false), ..arial() });
+    let d = doc_of("עברית WBS", true, CharProps { rtl: Some(true), ..arial() });
+    assert_eq!(written_runs(&d), owned(&[(true, "עברית WBS")]));
+    let d = doc_of("עברית WBS", true, CharProps { rtl: Some(false), ..arial() });
     let xml = document_xml(&wordcraft_docx::write(&d).unwrap());
     assert!(xml.contains(r#"<w:rtl w:val="0"/>"#), "{xml}");
     assert_eq!(runs(&xml).len(), 1);
@@ -118,7 +118,7 @@ fn explicit_run_direction_is_kept() {
 
 #[test]
 fn mixed_paragraph_round_trips_text_and_direction() {
-    let text = "לפני (ABC 123) אחרי; דוא״ל test@example.com.\nעברית WordCraft 2026 ואחריה עוד עברית.";
+    let text = "לפני (ABC 123) אחרי; דוא״ל test@example.com.\nעברית WBS 2026 ואחריה עוד עברית.";
     let d = doc_of(text, true, arial());
     let bytes = wordcraft_docx::write(&d).unwrap();
     let r = wordcraft_docx::read(&bytes).unwrap();
@@ -171,24 +171,24 @@ fn hebrew_pieces_say_they_are_hebrew() {
 
 #[test]
 fn arabic_pieces_say_they_are_arabic() {
-    let d = doc_of("مرحبا WordCraft بالعالم", true, arial());
+    let d = doc_of("مرحبا WBS بالعالم", true, arial());
     let ar = Some("ar-SA".to_string());
     assert_eq!(langs(&d), vec![(true, ar.clone()), (false, None), (true, ar)]);
 }
 
 #[test]
 fn a_language_the_run_already_has_is_kept() {
-    let d = doc_of("سلام WordCraft دنیا", true, CharProps { lang_bidi: Some("fa-IR".into()), ..arial() });
+    let d = doc_of("سلام WBS دنیا", true, CharProps { lang_bidi: Some("fa-IR".into()), ..arial() });
     let fa = Some("fa-IR".to_string());
     assert_eq!(langs(&d), vec![(true, fa.clone()), (false, fa.clone()), (true, fa)]);
     // A right-to-left proofing language on the run (w:val) names the right-to-left text too.
-    let d = doc_of("שלום WordCraft", true, CharProps { lang: Some("yi".into()), ..arial() });
+    let d = doc_of("שלום WBS", true, CharProps { lang: Some("yi".into()), ..arial() });
     assert_eq!(langs(&d), vec![(true, Some("yi".into())), (false, None)]);
 }
 
 #[test]
 fn an_inherited_bidi_language_is_not_repeated() {
-    let mut d = doc_of("سلام WordCraft دنیا", true, arial());
+    let mut d = doc_of("سلام WBS دنیا", true, arial());
     d.styles.default_chr.lang_bidi = Some("fa-IR".into());
     assert_eq!(langs(&d), vec![(true, None), (false, None), (true, None)]);
 }

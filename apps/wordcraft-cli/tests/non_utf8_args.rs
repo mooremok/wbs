@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 
 fn cli(args: &[OsString]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_wordcraft-cli")).args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_wbs-cli")).args(args).output().unwrap()
 }
 
 /// A temp folder holding `caf\xe9.txt`, whose text is "Bonjour".
@@ -69,7 +69,7 @@ fn any_other_such_argument_is_an_error_naming_it() {
         let shown = args[n - 1].to_string_lossy();
         assert!(shown.contains('\u{FFFD}'));
         assert_eq!(out.status.code(), Some(1), "{args:?}: stderr: {stderr}");
-        assert_eq!(stderr, format!("wordcraft-cli: argument {n} is not valid Unicode: {shown}\n"), "{args:?}");
+        assert_eq!(stderr, format!("wbs-cli: argument {n} is not valid Unicode: {shown}\n"), "{args:?}");
     }
     assert!(!std::path::Path::new(&out_name).exists());
     let _ = std::fs::remove_dir_all(dir);

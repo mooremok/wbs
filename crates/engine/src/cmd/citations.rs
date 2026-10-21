@@ -106,7 +106,7 @@ const fn names(first: Name, rest: Name, sep: &'static str, two: &'static str, la
 const AUTHOR_DATE: Cite = Cite::AuthorDate { year_sep: " ", pages_sep: ", p. " };
 
 /// Every style, in picker order (alphabetical). Formats follow the published style guides'
-/// rules for the source types WordCraft records, written in our own words.
+/// rules for the source types WBS records, written in our own words.
 pub static STYLES: [CiteStyle; 12] = [
     CiteStyle {
         name: "APA",
@@ -347,7 +347,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"kind"?: "footnote|endnote", "pos"?: "pageBottom|beneathText" (footnotes) | "sectEnd|docEnd" (endnotes), "numFmt"?: "decimal|lowerRoman|upperRoman|lowerLetter|upperLetter|…", "numStart"?: 1-32767, "numRestart"?: "continuous|eachSect|eachPage" (each page: footnotes only), "scope"?: "document|section", "footnoteFormat"?: …, "endnoteFormat"?: …} — no settings: the options in effect at the caret"#,
         ),
         CommandSpec::new("references.researcher", "Researcher", "References › Research", |s, _| {
-            s.status = "Researcher needs an online service; WordCraft keeps your documents offline.".into();
+            s.status = "Researcher needs an online service; WBS keeps your documents offline.".into();
             Ok(json!({"available": false}))
         })
         .pure(),

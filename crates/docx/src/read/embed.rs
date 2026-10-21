@@ -1,6 +1,6 @@
 //! Objects kept for writing back: charts, SmartArt diagrams and OLE objects.
 //!
-//! WordCraft draws charts and diagrams and shows an OLE object's picture, but doesn't edit them.
+//! WBS draws charts and diagrams and shows an OLE object's picture, but doesn't edit them.
 //! So that saving doesn't lose them, the reader keeps each one's own markup (an `a:graphic` or a
 //! `w:object`) as a [`wordcraft_doc::graphic::Embedded`] on the object, and every part that markup
 //! reaches through relationships (chart, embedded workbook, colours and style; diagram data, layout,
@@ -93,7 +93,7 @@ impl Reader<'_> {
         }
     }
 
-    /// Keep the parts the package and the main document relate to that WordCraft neither models
+    /// Keep the parts the package and the main document relate to that WBS neither models
     /// nor writes itself (web settings, styles-with-effects, add-in task panes, the thumbnail, a
     /// glossary…), with every part they reach, so saving carries them unchanged. Skipped: the
     /// relationship types the writer produces or the reader models ([`HANDLED_RELS`]) and any

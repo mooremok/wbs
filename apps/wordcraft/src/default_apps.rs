@@ -1,11 +1,11 @@
-//! File › Options › General › Make WordCraft the default for Word documents (#295).
+//! File › Options › General › Make WBS the default for Word documents (#295).
 //!
-//! The installers register WordCraft for Word, RTF and ODT files without taking over the
+//! The installers register WBS for Word, RTF and ODT files without taking over the
 //! defaults (`packaging/windows/wordcraft.wxs`, the `.desktop` file's `MimeType=`, `Info.plist`).
 //! This is the button that makes it the default when the user asks:
-//! - **Windows** doesn't let apps set defaults: it opens Settings › Default apps on WordCraft's
-//!   page (`ms-settings:defaultapps?registeredAppMachine=WordCraft`; Windows 10 ignores the query
-//!   and shows the Default apps list), where the user picks WordCraft per type.
+//! - **Windows** doesn't let apps set defaults: it opens Settings › Default apps on WBS's
+//!   page (`ms-settings:defaultapps?registeredAppMachine=WBS`; Windows 10 ignores the query
+//!   and shows the Default apps list), where the user picks WBS per type.
 //! - **Linux and BSD**: `xdg-mime default ai.storyteller.wordcraft.desktop <types>` for
 //!   [`WORD_MIME_TYPES`], which writes the user's `mimeapps.list`. Only when the desktop entry is
 //!   installed (deb, rpm, Flatpak; a bare AppImage has none), and not from inside the Flatpak
@@ -34,9 +34,9 @@ pub fn hook() -> Option<Hook> {
 #[cfg(any(all(unix, not(target_os = "macos")), test))]
 const DESKTOP_ID: &str = "ai.storyteller.wordcraft.desktop";
 
-/// The types the button makes WordCraft the default for on Linux and BSD: Word documents and
+/// The types the button makes WBS the default for on Linux and BSD: Word documents and
 /// templates (also macro-enabled and legacy), RTF and ODT. The same set the Windows installer
-/// lists under WordCraft's Capabilities; Markdown and plain text are only offered under Open With.
+/// lists under WBS's Capabilities; Markdown and plain text are only offered under Open With.
 /// Every one is in the `.desktop` file's `MimeType=` (a test checks).
 #[cfg(any(all(unix, not(target_os = "macos")), test))]
 const WORD_MIME_TYPES: &[&str] = &[
@@ -82,9 +82,9 @@ fn application_dirs(data_home: Option<&str>, data_dirs: Option<&str>, home: Opti
 mod windows {
     use wordcraft_ui_egui::DefaultApp;
 
-    /// Settings › Default apps, on the page of the app registered as `WordCraft` under
+    /// Settings › Default apps, on the page of the app registered as `WBS` under
     /// `HKLM\Software\RegisteredApplications` (the MSI writes it).
-    const SETTINGS_URI: &str = "ms-settings:defaultapps?registeredAppMachine=WordCraft";
+    const SETTINGS_URI: &str = "ms-settings:defaultapps?registeredAppMachine=WBS";
 
     pub(super) fn open_default_apps() -> Result<DefaultApp, String> {
         open::that_detached(SETTINGS_URI).map_err(|e| format!("couldn't open Settings: {e}"))?;
@@ -105,9 +105,7 @@ mod xdg {
 
     pub(super) fn make_default() -> Result<DefaultApp, String> {
         if std::env::var_os("FLATPAK_ID").is_some() || std::path::Path::new("/.flatpak-info").exists() {
-            return Err(
-                "the Flatpak sandbox can't change default apps; choose WordCraft under Open With in your file manager or system settings".into()
-            );
+            return Err("the Flatpak sandbox can't change default apps; choose WBS under Open With in your file manager or system settings".into());
         }
         let var = |k: &str| std::env::var(k).ok();
         let dirs = application_dirs(var("XDG_DATA_HOME").as_deref(), var("XDG_DATA_DIRS").as_deref(), var("HOME").as_deref());
@@ -155,13 +153,13 @@ mod tests {
     /// Every type the button claims is one the desktop entry declares, or desktops ignore it.
     #[test]
     fn the_desktop_entry_declares_every_claimed_type() {
-        let entry = include_str!("../../../packaging/linux/ai.storyteller.wordcraft.desktop");
+        let entry = include_str!("../../../packaging/linux/com.mooremok.wbs.desktop");
         let declared: Vec<&str> =
             entry.lines().find_map(|l| l.strip_prefix("MimeType=")).map(|v| v.split(';').filter(|s| !s.is_empty()).collect()).unwrap_or_default();
         for t in WORD_MIME_TYPES {
             assert!(declared.contains(t), "{t} missing from MimeType=");
         }
-        assert!(entry.lines().any(|l| l == "Exec=wordcraft %F"), "files are passed on the command line");
+        assert!(entry.lines().any(|l| l == "Exec=wbs %F"), "files are passed on the command line");
     }
 
     #[cfg(unix)]

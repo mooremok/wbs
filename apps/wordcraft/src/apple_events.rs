@@ -1,9 +1,9 @@
 //! macOS open-documents and quit Apple events (#27).
 //!
-//! Finder double-clicks, Open With, drops on the Dock icon and `open -a WordCraft letter.docx` don't
+//! Finder double-clicks, Open With, drops on the Dock icon and `open -a WBS letter.docx` don't
 //! pass paths on the command line: LaunchServices sends the running (or just-launched) app a
 //! `kAEOpenDocuments` ('odoc') Apple event. winit 0.30 doesn't handle it and owns the
-//! `NSApplicationDelegate`, so AppKit answered "WordCraft cannot open files in the Word Document
+//! `NSApplicationDelegate`, so AppKit answered "WBS cannot open files in the Word Document
 //! format". Handling it ourselves needs Objective-C class declarations, i.e. `unsafe`, which this
 //! workspace forbids. The `fmv-macos-events` crate (also used by PdfCraft and PhotoCraft)
 //! wraps exactly that, an `NSAppleEventManager` handler registered before Finder's launch event

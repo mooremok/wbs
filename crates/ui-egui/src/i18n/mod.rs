@@ -46,7 +46,7 @@ pub struct LangInfo {
     /// Which CJK interface face comes first (Chinese text wants the Chinese face).
     pub prefer_hans: bool,
     /// The language (BCP 47) new blank documents are written in with this interface, for
-    /// languages WordCraft can proof; `None` keeps WordCraft's default, US English.
+    /// languages WBS can proof; `None` keeps WBS's default, US English.
     pub editing_lang: Option<&'static str>,
     catalog: OnceLock<Catalog>,
 }
@@ -109,7 +109,7 @@ pub static LANGUAGES: [LangInfo; 23] = [
         editing_lang: None,
         catalog: OnceLock::new(),
     },
-    // Polish; `pl`, `pl-PL` and `pl_PL.UTF-8` resolve here. WordCraft proofs Polish (spelling,
+    // Polish; `pl`, `pl-PL` and `pl_PL.UTF-8` resolve here. WBS proofs Polish (spelling,
     // grammar, hyphenation), so new documents are written in Polish with this interface.
     LangInfo {
         code: "pl",
@@ -297,7 +297,7 @@ pub fn lang_from_tag(tag: &str) -> Option<Lang> {
     cands.iter().find_map(|c| Lang::from_code(c))
 }
 
-/// The first of the system's preferred languages WordCraft has, in the user's order: someone
+/// The first of the system's preferred languages WBS has, in the user's order: someone
 /// who prefers French, then Japanese, gets Japanese rather than English.
 pub fn first_supported<'a>(tags: impl IntoIterator<Item = &'a str>) -> Option<Lang> {
     tags.into_iter().find_map(lang_from_tag)

@@ -1031,7 +1031,7 @@ pub enum FieldKind {
     Plain,
 }
 
-/// The fields WordCraft computes, by category: (name, category, description).
+/// The fields WBS computes, by category: (name, category, description).
 pub const FIELDS: &[(&str, &str, &str)] = &[
     ("CREATEDATE", "Date and Time", "When this document was first created"),
     ("DATE", "Date and Time", "The date it is today"),

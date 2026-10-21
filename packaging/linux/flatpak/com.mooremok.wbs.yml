@@ -1,22 +1,22 @@
-# Flatpak manifest for WordCraft, ready for a Flathub submission.
+# Flatpak manifest for WBS, ready for a Flathub submission.
 #
 # Flatpak builds run offline, so the crate sources must be vendored first. From the repo root:
 #
 #   curl -fsSLO https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 #   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
-#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/ai.storyteller.wordcraft.yml
-#   flatpak run ai.storyteller.wordcraft
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/linux/flatpak/com.mooremok.wbs.yml
+#   flatpak run com.mooremok.wbs
 #
 # For Flathub, replace the `dir` source with a `git` source pinned to a release tag and commit.
-# The release's .flatpak bundles come from ai.storyteller.wordcraft.bundle.yml instead (see there);
+# The release's .flatpak bundles come from com.mooremok.wbs.bundle.yml instead (see there);
 # keep runtime, runtime-version, sdk and finish-args identical in both (packaging-lint checks this).
-id: ai.storyteller.wordcraft
+id: com.mooremok.wbs
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: wordcraft
+command: wbs
 finish-args:
   # Display: Wayland first; X11 only when no Wayland compositor is running.
   - --socket=wayland
@@ -32,29 +32,29 @@ finish-args:
   - --filesystem=xdg-documents
   - --filesystem=xdg-pictures
   # Deliberately not granted: network (the optional --control server listens on 127.0.0.1 in
-  # the sandbox; `flatpak override --user --share=network ai.storyteller.wordcraft` exposes it to
+  # the sandbox; `flatpak override --user --share=network com.mooremok.wbs` exposes it to
   # host agents) and home/host filesystem access.
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
 modules:
-  - name: wordcraft
+  - name: wbs
     buildsystem: simple
     build-options:
       env:
-        CARGO_HOME: /run/build/wordcraft/cargo
+        CARGO_HOME: /run/build/wbs/cargo
         CARGO_NET_OFFLINE: 'true'
     build-commands:
-      - cargo --offline build --release --locked -p wordcraft -p wordcraft-cli
-      - install -Dm755 target/release/wordcraft /app/bin/wordcraft
-      - install -Dm755 target/release/wordcraft-cli /app/bin/wordcraft-cli
-      - install -Dm644 packaging/linux/ai.storyteller.wordcraft.desktop /app/share/applications/ai.storyteller.wordcraft.desktop
-      - install -Dm644 packaging/linux/ai.storyteller.wordcraft.mime.xml /app/share/mime/packages/ai.storyteller.wordcraft.xml
+      - cargo --offline build --release --locked -p wbs -p wbs-cli
+      - install -Dm755 target/release/wbs /app/bin/wbs
+      - install -Dm755 target/release/wbs-cli /app/bin/wbs-cli
+      - install -Dm644 packaging/linux/com.mooremok.wbs.desktop /app/share/applications/com.mooremok.wbs.desktop
+      - install -Dm644 packaging/linux/com.mooremok.wbs.mime.xml /app/share/mime/packages/com.mooremok.wbs.xml
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;
         sed -e "s/@VERSION@/$version/" -e "s/@DATE@/$(date -u +%Y-%m-%d)/"
-        packaging/linux/ai.storyteller.wordcraft.metainfo.xml.in > /app/share/metainfo/ai.storyteller.wordcraft.metainfo.xml
+        packaging/linux/com.mooremok.wbs.metainfo.xml.in > /app/share/metainfo/com.mooremok.wbs.metainfo.xml
     sources:
       - type: dir
         path: ../../..

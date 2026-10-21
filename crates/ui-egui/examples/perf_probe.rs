@@ -1,4 +1,4 @@
-//! Responsiveness probe: runs the real WordCraft UI headless (like `ui_shot`, without a window or
+//! Responsiveness probe: runs the real WBS UI headless (like `ui_shot`, without a window or
 //! focus), opens a document, and times the frames that handle typing, scrolling, zooming,
 //! ribbon tabs and window resizes. Prints numbers only (JSON), never document text.
 //!

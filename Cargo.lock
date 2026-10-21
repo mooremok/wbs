@@ -4527,6 +4527,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "wbs"
+version = "0.9.0"
+dependencies = [
+ "arboard",
+ "clipboard-win",
+ "craft-print",
+ "dispatch2",
+ "eframe",
+ "egui",
+ "fmv-macos-events",
+ "getrandom 0.3.4",
+ "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "open",
+ "pollster 0.4.0",
+ "rfd",
+ "serde_json",
+ "windows",
+ "winit",
+ "winresource",
+ "wl-clipboard-rs",
+ "wordcraft-control-key",
+ "wordcraft-doc",
+ "wordcraft-engine",
+ "wordcraft-fonts",
+ "wordcraft-proof",
+ "wordcraft-ui-egui",
+ "zbus",
+]
+
+[[package]]
+name = "wbs-cli"
+version = "0.9.0"
+dependencies = [
+ "serde_json",
+ "sys-locale",
+ "wordcraft-doc",
+ "wordcraft-engine",
+ "wordcraft-mcp",
+ "wordcraft-render",
+ "wordcraft-zotero",
+]
+
+[[package]]
+name = "wbs-web"
+version = "0.9.0"
+dependencies = [
+ "eframe",
+ "egui",
+ "js-sys",
+ "log",
+ "rfd",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wordcraft-doc",
+ "wordcraft-engine",
+ "wordcraft-fonts",
+ "wordcraft-ui-egui",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5130,52 +5195,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wordcraft"
-version = "0.9.0"
-dependencies = [
- "arboard",
- "clipboard-win",
- "craft-print",
- "dispatch2",
- "eframe",
- "egui",
- "fmv-macos-events",
- "getrandom 0.3.4",
- "log",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "open",
- "pollster 0.4.0",
- "rfd",
- "serde_json",
- "windows",
- "winit",
- "winresource",
- "wl-clipboard-rs",
- "wordcraft-control-key",
- "wordcraft-doc",
- "wordcraft-engine",
- "wordcraft-fonts",
- "wordcraft-proof",
- "wordcraft-ui-egui",
- "zbus",
-]
-
-[[package]]
-name = "wordcraft-cli"
-version = "0.9.0"
-dependencies = [
- "serde_json",
- "sys-locale",
- "wordcraft-doc",
- "wordcraft-engine",
- "wordcraft-mcp",
- "wordcraft-render",
- "wordcraft-zotero",
-]
-
-[[package]]
 name = "wordcraft-control-key"
 version = "0.9.0"
 
@@ -5403,25 +5422,6 @@ dependencies = [
  "wordcraft-zotero",
  "zbus",
  "zip",
-]
-
-[[package]]
-name = "wordcraft-web"
-version = "0.9.0"
-dependencies = [
- "eframe",
- "egui",
- "js-sys",
- "log",
- "rfd",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wordcraft-doc",
- "wordcraft-engine",
- "wordcraft-fonts",
- "wordcraft-ui-egui",
 ]
 
 [[package]]

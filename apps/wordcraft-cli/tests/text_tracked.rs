@@ -3,7 +3,7 @@
 use std::process::Command;
 
 fn cli() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_wordcraft-cli"))
+    Command::new(env!("CARGO_BIN_EXE_wbs-cli"))
 }
 
 #[test]

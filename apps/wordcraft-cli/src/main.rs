@@ -1,4 +1,4 @@
-//! `wordcraft-cli`: WordCraft from the command line.
+//! `wbs-cli`: WBS from the command line.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod automation_args;
@@ -14,21 +14,21 @@ use serde_json::{Value, json};
 use wordcraft_engine::Session;
 
 const USAGE: &str = "\
-wordcraft-cli — WordCraft from the command line
+wbs-cli — WBS from the command line
 
 USAGE:
-  wordcraft-cli convert <in> <out> [--markup] [--update-fields] [--format wordml2003|flatopc]
+  wbs-cli convert <in> <out> [--markup] [--update-fields] [--format wordml2003|flatopc]
                                               convert between formats (docx, doc [read], pdf, odt, rtf, html, md, tex, txt, json, png,
                                               xml); --update-fields refreshes unlocked fields before saving;
                                               an .xml file is a Word XML Document (Flat OPC), or with
                                               --format wordml2003 a Word 2003 XML Document;
                                               --markup (Print Markup): comments beside each page and
                                               tracked changes in pdf/png, a comment list in html/md/txt
-  wordcraft-cli info <file>                   pages, words, paragraphs, properties (JSON)
-  wordcraft-cli text <file>                   plain text
-  wordcraft-cli inspect <file>                document structure (JSON)
-  wordcraft-cli render <file> <out.png> [--page N] [--scale S]
-  wordcraft-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
+  wbs-cli info <file>                   pages, words, paragraphs, properties (JSON)
+  wbs-cli text <file>                   plain text
+  wbs-cli inspect <file>                document structure (JSON)
+  wbs-cli render <file> <out.png> [--page N] [--scale S]
+  wbs-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
                                               who tracked changes and comments are by).
@@ -37,9 +37,9 @@ USAGE:
                                               \"params\"?: {…}} | id, …], \"save\"?: [OUT, …]}; save
                                               formats follow the extension (docx and pdf in one run);
                                               relative paths resolve against the script's folder
-  wordcraft-cli commands [--json]             list every command
-  wordcraft-cli parity [--markdown]           feature-catalog parity
-  wordcraft-cli mcp [--connect HOST:PORT | --author NAME] [--automation-read-root DIR] [--automation-write-root DIR]
+  wbs-cli commands [--json]             list every command
+  wbs-cli parity [--markdown]           feature-catalog parity
+  wbs-cli mcp [--connect HOST:PORT | --author NAME] [--automation-read-root DIR] [--automation-write-root DIR]
                                               MCP server on stdio (headless, or bridged to the app).
                                               --automation-read-root / --automation-write-root confine
                                               the files the agent's commands read (open, insert text
@@ -47,13 +47,13 @@ USAGE:
                                               export, merge output…) to DIR, links followed; a root left
                                               out grants none of its access. They apply to the headless
                                               server and are an error with --connect.
-  wordcraft-cli zotero <command> <file> [--cmd 'id={json}' …] [--save OUT] [--trace] [--port P]
+  wbs-cli zotero <command> <file> [--cmd 'id={json}' …] [--save OUT] [--trace] [--port P]
                                               run a Zotero command on a document (Zotero must be
                                               running): addEditCitation, addEditBibliography,
                                               addNote, refresh, removeCodes, setDocPrefs
                                               (--cmd runs first, e.g. --cmd caret.docEnd)
-  wordcraft-cli [<command>] -h | --help       this help
-  wordcraft-cli --version
+  wbs-cli [<command>] -h | --help       this help
+  wbs-cli --version
 
 A password-protected Word file is opened with --password PASS, --password-file PATH or the
 WORDCRAFT_PASSWORD environment variable; a password given on the command line is readable by
@@ -330,7 +330,7 @@ const ZOTERO_OPTIONS: &[OptionSpec] = &[
 enum Failure {
     /// A real error, reported on stderr with a failing exit status.
     Error(String),
-    /// Whoever read stdout closed it (`wordcraft-cli commands --json | head`): there is nobody left
+    /// Whoever read stdout closed it (`wbs-cli commands --json | head`): there is nobody left
     /// to write to, so stop quietly and exit 0 like other command-line tools.
     StdoutClosed,
 }
@@ -579,9 +579,9 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
                     return Err("mcp: --author applies to the headless server; with --connect, run file.setAuthor".into());
                 }
                 Some(addr) => {
-                    let remote = wordcraft_mcp::Remote::connect(&addr).map_err(|e| format!("can't reach the WordCraft app at {addr}: {e}"))?;
+                    let remote = wordcraft_mcp::Remote::connect(&addr).map_err(|e| format!("can't reach the WBS app at {addr}: {e}"))?;
                     if let Some(w) = remote.key_warning() {
-                        eprintln!("wordcraft-cli: {w}");
+                        eprintln!("wbs-cli: {w}");
                     }
                     Box::new(remote)
                 }
@@ -591,7 +591,7 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
                         // Every thread of this process, not only the server's: nothing reaches past the roots.
                         wordcraft_engine::file_access::confine_process(roots.clone());
                         let show = |root: Option<&std::path::Path>| root.map_or_else(|| "none".to_string(), |r| r.display().to_string());
-                        eprintln!("wordcraft-cli: files confined: read root {}, write root {}", show(roots.read_root()), show(roots.write_root()));
+                        eprintln!("wbs-cli: files confined: read root {}, write root {}", show(roots.read_root()), show(roots.write_root()));
                         headless = headless.with_automation_roots(Some(roots));
                     }
                     if let Some(name) = author {
@@ -646,7 +646,7 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             }
             Ok(())
         }
-        "--version" | "-V" => write_stdout(|o| writeln!(o, "wordcraft-cli {}", env!("CARGO_PKG_VERSION"))),
+        "--version" | "-V" => write_stdout(|o| writeln!(o, "wbs-cli {}", env!("CARGO_PKG_VERSION"))),
         "" | "help" | "--help" | "-h" => write_stdout(|o| write!(o, "{USAGE}")),
         other => Err(format!("unknown command `{other}`\n\n{USAGE}").into()),
     }
@@ -662,7 +662,7 @@ fn clip(s: &str) -> String {
 
 fn parity_markdown(p: &Value) -> String {
     let mut s = String::from(
-        "# WordCraft feature parity\n\nGenerated by `cargo xtask parity` (`wordcraft-cli parity --markdown`): the word-processor feature catalog (`crates/engine/src/catalog.rs`) compared with the live command registry.\n\n",
+        "# WBS feature parity\n\nGenerated by `cargo xtask parity` (`wbs-cli parity --markdown`): the word-processor feature catalog (`crates/engine/src/catalog.rs`) compared with the live command registry.\n\n",
     );
     s += &format!(
         "**{} of {} catalog features have commands ({}%).**\n\n| Tab | Live | Total |\n|---|---|---|\n",
@@ -691,7 +691,7 @@ fn main() -> ExitCode {
     match run(&args) {
         Ok(()) | Err(Failure::StdoutClosed) => ExitCode::SUCCESS,
         Err(Failure::Error(e)) => {
-            eprintln!("wordcraft-cli: {e}");
+            eprintln!("wbs-cli: {e}");
             ExitCode::FAILURE
         }
     }
@@ -747,7 +747,7 @@ mod tests {
 
     #[test]
     fn a_password_file_loses_only_its_trailing_newline() {
-        let path = std::env::temp_dir().join("wordcraft-cli-password-test.txt");
+        let path = std::env::temp_dir().join("wbs-cli-password-test.txt");
         std::fs::write(&path, "s3cret\r\n").unwrap();
         let got = password_from(&args(&["f.docx", "--password-file", &path.to_string_lossy()]));
         std::fs::remove_file(&path).ok();
@@ -781,7 +781,7 @@ mod tests {
     fn usage_lists_exactly_the_subcommands() {
         let listed: Vec<&str> = USAGE
             .lines()
-            .filter_map(|line| line.strip_prefix("  wordcraft-cli ")?.split_whitespace().next())
+            .filter_map(|line| line.strip_prefix("  wbs-cli ")?.split_whitespace().next())
             .filter(|word| !word.starts_with(['-', '[']))
             .collect();
         assert_eq!(listed, SUBCOMMANDS);

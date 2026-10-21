@@ -191,7 +191,7 @@ pub fn effects_menu(ui: &mut Ui, app: &mut WordApp, theme: &[Rgb], transform: bo
     }
 }
 
-/// Text Effects › Transform: the warps WordCraft bends text along, as previews.
+/// Text Effects › Transform: the warps WBS bends text along, as previews.
 pub fn transform_menu(ui: &mut Ui, app: &mut WordApp) {
     let t = Tokens::get(ui.ctx());
     mi(ui, app, "No Transform", "wordArt.transform", json!({"preset": "none"}));

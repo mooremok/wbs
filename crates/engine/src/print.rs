@@ -1,6 +1,6 @@
 //! Print settings (#641): which pages go out, how many copies, as a PDF.
 //!
-//! WordCraft prints through a PDF (the host opens it in the system's print flow), so the settings
+//! WBS prints through a PDF (the host opens it in the system's print flow), so the settings
 //! that can be delivered are the ones that shape the PDF: the page range, odd/even pages, copies
 //! and collation. Printer choice, duplex and pages per sheet belong to the OS print dialog.
 //!

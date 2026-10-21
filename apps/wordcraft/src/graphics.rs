@@ -12,7 +12,7 @@ use eframe::{
 
 /// wgpu compiles its indirect-call validation compute shaders inside `request_device`. On old
 /// Intel Macs (HD Graphics 5000 on Big Sur, #2652) Metal's Intel
-/// compiler aborts on them, the device is lost and eframe exits before the window opens. WordCraft
+/// compiler aborts on them, the device is lost and eframe exits before the window opens. WBS
 /// issues no indirect draws or dispatches, so Intel Macs skip them; every other GPU keeps wgpu's
 /// default. Same fix as PhotoCraft's storytold/PhotoCraft#3171.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -95,7 +95,7 @@ pub fn configure_backends(options: &mut NativeOptions, backends: Backends) {
 /// (normally `WGPU_DX12_COMPILER`, wgpu's own variable: `fxc`, `dxc`, `auto`…) names another.
 ///
 /// #603: wgpu's default (`Auto`) uses DXC, loading whichever `dxcompiler.dll` the DLL search path
-/// finds first. WordCraft ships none, so that copy belongs to another program. Without a matching
+/// finds first. WBS ships none, so that copy belongs to another program. Without a matching
 /// `dxil.dll` beside it, DXC warns that the DXIL is unsigned; wgpu takes the warning for a compile
 /// error, its own indirect-validation pipeline fails, the device is lost and eframe exits before
 /// the first frame. FXC is always there and compiles everything egui's shaders need.

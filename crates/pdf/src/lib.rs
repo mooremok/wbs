@@ -1,4 +1,4 @@
-//! WordCraft PDF export through the shared `craft-pdf` writer and Krilla drawing primitives.
+//! WBS PDF export through the shared `craft-pdf` writer and Krilla drawing primitives.
 //!
 //! [`export`] lays the document out and draws each page's display list
 //! ([`wordcraft_layout::display::page_display`]) into a PDF page:
@@ -399,7 +399,7 @@ fn clamp_side(v: f32) -> f32 {
 
 fn metadata(doc: &Document, opts: &PdfOptions) -> Metadata {
     let c = &doc.core;
-    let mut m = Metadata { creator: "WordCraft".into(), producer: "WordCraft".into(), ..Default::default() };
+    let mut m = Metadata { creator: "WBS".into(), producer: "WBS".into(), ..Default::default() };
     let title = opts.title.clone().unwrap_or_else(|| c.title.clone());
     if !title.trim().is_empty() {
         m.title = Some(title);
@@ -702,7 +702,7 @@ impl Exporter<'_> {
                 let variations = face.is_variable().then_some(face.coords.as_slice());
                 let font = match write::font(face.data(), face.index(), variations) {
                     Ok(font) => Some(font),
-                    // Keep WordCraft's existing policy: unreadable faces are skipped.
+                    // Keep WBS's existing policy: unreadable faces are skipped.
                     Err(WriteError::InvalidFont) => None,
                     Err(error) => {
                         // Allocation, validation or backend failures must fail the export,

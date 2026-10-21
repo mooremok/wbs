@@ -1,7 +1,7 @@
 //! Paste Special: paste the clipboard in a chosen format (formatted, RTF, HTML, picture,
 //! unformatted), and the formatted content Paste and Merge Formatting take from other programs.
 //!
-//! The clipboard can hold several representations of the same content. WordCraft's own copy keeps
+//! The clipboard can hold several representations of the same content. WBS's own copy keeps
 //! a rich fragment; the system clipboard gives text, and callers (agents, the CLI, a front end
 //! with a richer clipboard) may pass `html`, `rtf` or a `picture` too. Text that is itself RTF or
 //! HTML source can also be pasted as that format. Paste keeps the source formatting of another
@@ -42,7 +42,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// Clipboard text from the params (system clipboard), else WordCraft's own copy.
+/// Clipboard text from the params (system clipboard), else WBS's own copy.
 fn clip_text(s: &Session, v: &Value) -> Option<String> {
     match p::str(v, "text") {
         Some(t) => Some(t.replace("\r\n", "\n")),
@@ -257,13 +257,13 @@ pub fn rich_fragment(s: &mut Session, v: &Value) -> Option<Fragment> {
 
 /// What a Paste brings in.
 pub enum Pasted {
-    /// WordCraft's own copy, or another program's HTML or RTF: it keeps the formatting it carries.
+    /// WBS's own copy, or another program's HTML or RTF: it keeps the formatting it carries.
     Fragment(Fragment),
     /// The system clipboard's text, lines separated by `\n`.
     Text(String),
 }
 
-/// What Paste inserts: WordCraft's own copy while the system clipboard still holds it, else
+/// What Paste inserts: WBS's own copy while the system clipboard still holds it, else
 /// another program's formatted copy (HTML, RTF), else the system clipboard's text.
 pub fn paste_content(s: &mut Session, v: &Value) -> Result<Pasted, CmdError> {
     let text = p::str(v, "text").map(|t| t.replace("\r\n", "\n"));

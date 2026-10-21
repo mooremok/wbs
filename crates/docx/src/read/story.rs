@@ -1057,7 +1057,7 @@ impl Reader<'_> {
         } else {
             let wsp = gd.find("wps:wsp")?;
             let mut obj = self.read_wsp(sc, wsp, rels, w, h, float);
-            // A freeform: whether it's ink WordCraft wrote.
+            // A freeform: whether it's ink WBS wrote.
             if let InlineObject::Shape { freeform: Some(f), .. } = &mut obj
                 && let Some(name) = c.child("wp:docPr").and_then(|p| p.attr("name"))
                 && let Some(tool) = super::freeform::ink_tool(name)
@@ -1188,7 +1188,7 @@ impl Reader<'_> {
         }
         let items = if self.graphic_budget == 0 { Vec::new() } else { self.graphic_items(kind, &key.1, w, h) };
         self.graphic_budget = self.graphic_budget.saturating_sub(graphic_work(&items));
-        // A chart or SmartArt that is exactly what WordCraft writes for its model can be edited
+        // A chart or SmartArt that is exactly what WBS writes for its model can be edited
         // (and is written from the model); any other stays as it was read.
         let chart = match kind {
             GraphicKind::Chart if !items.is_empty() => self.graphic_part(&key.1).and_then(|space| crate::chart_spec::spec_of(&space)).map(Arc::new),
@@ -2118,7 +2118,7 @@ fn vml_float(shape: &El, style: &str, in_hf: bool) -> Float {
     let get = |k: &str| vml_style(style, k);
     let hidden = get("visibility").is_some_and(|v| v.eq_ignore_ascii_case("hidden"));
     if !get("position").is_some_and(|p| p.eq_ignore_ascii_case("absolute")) {
-        // Inline: only the turn (an OLE object turned in WordCraft is saved so, #319).
+        // Inline: only the turn (an OLE object turned in WBS is saved so, #319).
         let mut f = Float { hidden, ..Float::default() };
         f.set_spin(vml_spin(style));
         return f;

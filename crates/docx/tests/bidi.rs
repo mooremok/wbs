@@ -38,7 +38,7 @@ fn document_xml(bytes: &[u8]) -> String {
 }
 
 /// Persian text with a ZWNJ (نیم‌فاصله), Persian digits, Latin and punctuation.
-const FA: &str = "می‌خواهم نسخهٔ ۲٫۵ از WordCraft را (امروز) نصب کنم.";
+const FA: &str = "می‌خواهم نسخهٔ ۲٫۵ از WBS را (امروز) نصب کنم.";
 
 fn persian_run() -> CharProps {
     CharProps {

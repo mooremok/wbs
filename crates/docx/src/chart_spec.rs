@@ -1,4 +1,4 @@
-//! Charts WordCraft makes ([`ChartSpec`]) as chart parts (ECMA-376 Part 1 §21.2) and back.
+//! Charts WBS makes ([`ChartSpec`]) as chart parts (ECMA-376 Part 1 §21.2) and back.
 //!
 //! [`chart_xml`] writes a `c:chartSpace` with the data as literals in the part itself
 //! (`c:strLit`, `c:numLit`): no embedded workbook (`c:externalData`) and no external references.

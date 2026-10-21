@@ -774,7 +774,7 @@ mod editing_tests {
     /// and each control's `w:rPr` gives the style entered text takes (`Eingabe`, bold black).
     /// Text typed over the placeholder takes the control's run properties, as in Word (17 of 17
     /// values filled in Word did); without them it drops the placeholder style whatever its id.
-    /// WordCraft kept the German placeholder style, so entries stayed grey.
+    /// WBS kept the German placeholder style, so entries stayed grey.
     #[test]
     fn typing_over_a_localized_placeholder_takes_the_controls_formatting() {
         use wordcraft_doc::props::{CharProps, Rgb, TextColor};

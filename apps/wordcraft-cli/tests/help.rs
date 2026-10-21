@@ -7,14 +7,14 @@ const SUBCOMMANDS: [&str; 10] = ["convert", "info", "text", "inspect", "render",
 
 fn cli(args: &[&str]) -> Output {
     // `output()` gives the child no stdin, so `mcp` can't wait for a client.
-    Command::new(env!("CARGO_BIN_EXE_wordcraft-cli")).args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_wbs-cli")).args(args).output().unwrap()
 }
 
 fn assert_prints_usage(args: &[&str]) {
     let out = cli(args);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{args:?}: status {:?}, stderr: {stderr}", out.status);
-    assert!(String::from_utf8_lossy(&out.stdout).starts_with("wordcraft-cli — "), "{args:?}: stdout: {}", String::from_utf8_lossy(&out.stdout));
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("wbs-cli — "), "{args:?}: stdout: {}", String::from_utf8_lossy(&out.stdout));
     assert!(stderr.is_empty(), "{args:?}: stderr: {stderr}");
 }
 

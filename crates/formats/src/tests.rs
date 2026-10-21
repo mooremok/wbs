@@ -249,7 +249,7 @@ fn odt_round_trip() {
 fn latex_round_trip() {
     check_round_trip("tex", true);
     let tex = String::from_utf8(export("tex", &sample()).unwrap().unwrap()).unwrap();
-    assert!(tex.starts_with("% Written by WordCraft") && tex.contains("\\documentclass{article}"), "{tex}");
+    assert!(tex.starts_with("% Written by WBS") && tex.contains("\\documentclass{article}"), "{tex}");
     assert!(tex.contains("\\section*{Main Heading}") && tex.contains("\\subsection*{Second Level}"), "{tex}");
     assert!(tex.contains("\\textbf{bold}") && tex.contains("\\textit{italic}"), "{tex}");
     assert!(tex.contains("\\href{https://example.com/x}{a link}"), "{tex}");
@@ -693,7 +693,7 @@ fn bounded_scans_keep_ordinary_markdown_and_entities() {
     assert!(t.contains(&"a".repeat(40)), "{t}");
 }
 
-/// A document's hyperlink can be `javascript:` (WordCraft refuses to follow it); the exported
+/// A document's hyperlink can be `javascript:` (WBS refuses to follow it); the exported
 /// HTML and Markdown must not hand it to a browser either. Web, mail, bookmark and relative links
 /// still export as links.
 #[test]

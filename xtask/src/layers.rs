@@ -51,7 +51,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ui-egui", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
-    ("wordcraft", Class::Exempt),
+    ("wbs", Class::Exempt),
     ("cli", Class::Exempt),
     ("web", Class::Exempt),
     ("xtask", Class::Exempt),
@@ -79,7 +79,7 @@ pub const UI_CRATES: &[&str] = &["egui", "eframe", "winit", "egui_kittest", "rfd
 pub const UI_MIN_LAYER: u8 = 6;
 
 pub fn short_name(pkg: &str) -> &str {
-    pkg.strip_prefix("wordcraft-").unwrap_or(pkg)
+    pkg.strip_prefix("wordcraft-").or_else(|| pkg.strip_prefix("wbs-")).unwrap_or(pkg)
 }
 
 pub fn classify(pkg: &str) -> Option<Class> {
@@ -247,7 +247,7 @@ mod tests {
             c("wordcraft-doc", &[("wordcraft-geom", Normal, true)]),
             c("wordcraft-engine", &[("wordcraft-doc", Normal, true), ("wordcraft-testkit", Dev, true)]),
             c("wordcraft-ui-egui", &[("wordcraft-engine", Normal, true), ("egui", Normal, false)]),
-            c("wordcraft-cli", &[("wordcraft-ui-egui", Normal, true)]),
+            c("wbs-cli", &[("wordcraft-ui-egui", Normal, true)]),
         ];
         assert!(check(&g).is_empty(), "{:?}", check(&g));
     }
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn apps_and_xtask_exempt() {
-        for app in ["wordcraft", "wordcraft-cli", "wordcraft-web", "xtask"] {
+        for app in ["wbs", "wbs-cli", "wbs-web", "xtask"] {
             assert!(check(&[c(app, &[("egui", Normal, false), ("wordcraft-ui-egui", Normal, true)])]).is_empty());
         }
     }

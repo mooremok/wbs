@@ -13,7 +13,7 @@ use crate::theme::{Tokens, regular, semibold};
 
 pub fn show(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    // SmartArt Design › Text Pane, while a SmartArt graphic WordCraft can edit is selected.
+    // SmartArt Design › Text Pane, while a SmartArt graphic WBS can edit is selected.
     if app.session.view.smart_art_pane && wordcraft_engine::cmd::smart_art::selected_smart_art(&app.session).is_some() {
         egui::Panel::left("smart_art_pane")
             .default_size(250.0)

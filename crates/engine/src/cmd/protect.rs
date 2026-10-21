@@ -113,12 +113,12 @@ fn restrict(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The error Stop Protection reports when the document's password hash uses an algorithm or form
-/// WordCraft can't check; the protection stays on.
+/// WBS can't check; the protection stays on.
 pub const UNSUPPORTED_PASSWORD: &str = "This password type isn't supported";
 
 /// Stop Protection: with the document's password when it has one. The password is checked like
 /// Word checks it — the current hash form and the legacy one (ECMA-376 Part 4 §14.8.1); a hash
-/// WordCraft can't check refuses ([`UNSUPPORTED_PASSWORD`]) rather than unlocking.
+/// WBS can't check refuses ([`UNSUPPORTED_PASSWORD`]) rather than unlocking.
 fn stop_protection(s: &mut Session, password: &str) -> CmdResult {
     if enforced(&s.doc) {
         use wordcraft_docx::PasswordCheck;
@@ -737,7 +737,7 @@ mod tests {
     }
 
     /// While Filling in forms is enforced, Word offers no Remove Content Control and greys out the
-    /// Developer tab's control buttons and Properties. WordCraft removed a fillable control (its
+    /// Developer tab's control buttons and Properties. WBS removed a fillable control (its
     /// content left as plain text), inserted new controls inside one, and renamed one.
     #[test]
     fn forms_mode_keeps_its_controls() {
@@ -1075,7 +1075,7 @@ mod tests {
     }
 
     /// A Word file with the legacy hash (`w:cryptAlgorithmSid`): a wrong password is rejected, the
-    /// right one unlocks; a hash WordCraft can't check never unlocks.
+    /// right one unlocks; a hash WBS can't check never unlocks.
     #[test]
     fn legacy_password_is_verified_and_unknown_forms_refused() {
         let protected = |sid: &str| {

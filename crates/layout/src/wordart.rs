@@ -243,7 +243,7 @@ fn triangle_down(u: f32, k: f32) -> (f32, f32) {
 
 impl Warp {
     /// The warp `w` fitted to `frame` for text whose box is `aspect` times as tall as it is
-    /// wide. `None` for warps drawn flat (plain, and those WordCraft doesn't bend).
+    /// wide. `None` for warps drawn flat (plain, and those WBS doesn't bend).
     pub fn new(w: &TextWarp, frame: Rect, aspect: f32) -> Option<Warp> {
         use std::f32::consts::PI;
         if !(frame.w > 0.5 && frame.h > 0.5 && frame.w.is_finite() && frame.h.is_finite()) {

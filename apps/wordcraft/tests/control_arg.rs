@@ -4,7 +4,7 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 fn app(args: &[&str]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_wordcraft"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_wbs"))
         .args(args)
         // With no display, an app that tries to open a window fails at once instead.
         .env_remove("DISPLAY")
@@ -22,7 +22,7 @@ fn app(args: &[&str]) -> Output {
     while child.try_wait().unwrap().is_none() {
         if Instant::now() > deadline {
             let _ = child.kill();
-            panic!("wordcraft {args:?} was still running after 30 s: it started the app");
+            panic!("wbs {args:?} was still running after 30 s: it started the app");
         }
         std::thread::sleep(Duration::from_millis(50));
     }
@@ -45,7 +45,7 @@ fn a_bad_port_is_an_error_naming_it() {
         let out = app(args);
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert_eq!(out.status.code(), Some(2), "{args:?}: stderr: {stderr}");
-        assert_eq!(stderr, format!("wordcraft: --control needs a port number from 1 to 65535{got}\n"), "{args:?}");
+        assert_eq!(stderr, format!("wbs: --control needs a port number from 1 to 65535{got}\n"), "{args:?}");
     }
 }
 
@@ -54,5 +54,5 @@ fn a_flag_after_control_is_read_as_a_flag() {
     let out = app(&["--control", "--version"]);
     let (stdout, stderr) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     assert!(out.status.success(), "status {:?}, stderr: {stderr}", out.status);
-    assert!(stdout.starts_with("wordcraft "), "stdout: {stdout}");
+    assert!(stdout.starts_with("wbs "), "stdout: {stdout}");
 }

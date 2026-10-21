@@ -464,7 +464,7 @@ pub struct Session {
     /// Custom ribbon and Quick Access Toolbar (`tools.customizeRibbon`); the front end saves it too.
     pub ribbon: crate::RibbonLayout,
     /// The language new blank documents (and opened plain text) are written in, a BCP 47 tag;
-    /// `None` is WordCraft's default, US English. The front end sets it from the interface
+    /// `None` is WBS's default, US English. The front end sets it from the interface
     /// language with [`Session::set_editing_language`] (a Polish interface writes Polish).
     pub editing_lang: Option<String>,
     /// Editing inside an equation: which one and the caret in it.
@@ -646,7 +646,7 @@ impl Session {
             goal_x: None,
             page_hint: 0,
             registry: Arc::new(crate::cmd::registry()),
-            author: "WordCraft User".into(),
+            author: "WBS User".into(),
             initials: String::new(),
             painter: None,
             status: String::new(),

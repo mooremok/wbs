@@ -34,7 +34,7 @@ fn unmarked_utf16(b: &[u8]) -> Option<bool> {
     None
 }
 
-/// Does `b` look like plain text, so a file with an extension WordCraft doesn't know (a
+/// Does `b` look like plain text, so a file with an extension WBS doesn't know (a
 /// playlist, a log, a config file…) can open as text the way Word's text import opens it?
 ///
 /// Text has a BOM, or reads as UTF-16 by its zero bytes, or has no NUL byte and next to no

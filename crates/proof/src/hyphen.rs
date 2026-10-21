@@ -33,7 +33,7 @@ static EN_US_PAT: &str = include_str!("../../../assets/hyphenation/en-us.pat");
 static PL_PAT: &str = include_str!("../../../assets/hyphenation/pl.pat");
 /// hyph-utf8's `hyph-pt.tex`, unmodified (its BSD 3-clause header is in the file).
 static PT_PAT: &str = include_str!("../../../assets/hyphenation/pt.pat");
-/// hyph-utf8's `hyph-it.tex`, unmodified (offered under MIT or LPPL; WordCraft uses MIT, whose
+/// hyph-utf8's `hyph-it.tex`, unmodified (offered under MIT or LPPL; WBS uses MIT, whose
 /// notice is in the file's header).
 static IT_PAT: &str = include_str!("../../../assets/hyphenation/it.pat");
 
@@ -123,7 +123,7 @@ fn core_breaks(core: &[char], lang: ProofLang) -> (Vec<usize>, Source) {
         return core_breaks_pl(core);
     }
     // Bulgarian words follow the Bulgarian syllable rules; Latin-script words in a Bulgarian run
-    // (`WordCraft`, `email`) are hyphenated as English, as in any other language.
+    // (`WBS`, `email`) are hyphenated as English, as in any other language.
     if lang == ProofLang::Bg && core.iter().all(|&c| crate::bg::is_letter(c)) {
         return (crate::bg::points(core), Source::Rules);
     }
@@ -872,7 +872,7 @@ mod tests {
         assert_eq!(bg("„шофьор“,"), "„шо-фьор“,");
         assert_eq!(word_breaks_in("таблица", ProofLang::Bg).1, Source::Rules);
         // Latin words in a Bulgarian run are hyphenated as English.
-        for w in ["publication", "WordCraft"] {
+        for w in ["publication", "WBS"] {
             assert_eq!(hyphen_points_in(w, &Limits::default(), ProofLang::Bg), hyphen_points(w, &Limits::default()), "{w}");
         }
     }

@@ -1,5 +1,5 @@
 [package]
-name = "wordcraft-web"
+name = "wbs-web"
 description = "WordCraft in the browser (eframe web runner, WebGPU with WebGL2 fallback)"
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ publish = false
 workspace = true
 
 [[bin]]
-name = "wordcraft-web"
+name = "wbs-web"
 path = "src/main.rs"
 
 [dependencies]

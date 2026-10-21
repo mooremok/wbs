@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- WBS application mark: an original rounded-square tile, a white page with a folded
+       corner, text lines, and a handwritten stroke across the baseline. Drawn for the WBS
+       fork (CC0); not derived from any other product's artwork. -->
+  <defs>
+    <linearGradient id="wbs-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A6FE3"/>
+      <stop offset="1" stop-color="#2C4A9E"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#wbs-bg)"/>
+  <path d="M160 96 h128 l64 64 v240 a16 16 0 0 1 -16 16 H176 a16 16 0 0 1 -16 -16 Z" fill="#FDFEFF"/>
+  <path d="M288 96 l64 64 h-48 a16 16 0 0 1 -16 -16 Z" fill="#DCE4F5"/>
+  <rect x="192" y="192" width="128" height="18" rx="9" fill="#9FB2D8"/>
+  <rect x="192" y="236" width="128" height="18" rx="9" fill="#9FB2D8"/>
+  <rect x="192" y="280" width="88" height="18" rx="9" fill="#9FB2D8"/>
+  <path d="M192 352 c20 -30 32 -30 48 0 c13 25 25 25 42 -8 c11 -21 21 -21 32 1"
+        fill="none" stroke="#3B5BDB" stroke-width="20" stroke-linecap="round"/>
+</svg>

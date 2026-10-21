@@ -1,4 +1,4 @@
-//! WordCraft layout: turns a [`Document`] into pages.
+//! WBS layout: turns a [`Document`] into pages.
 //!
 //! - [`para`]: one paragraph → lines (shaping, first-fit line breaking, tabs, list labels,
 //!   alignment). Results are memoised per paragraph revision in a [`LayoutCache`].

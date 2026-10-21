@@ -14,7 +14,7 @@ fn page_size_of(region: &str, args: &[&str]) -> (f64, f64) {
     let (src, out) = (dir.join("page.html"), dir.join("out.json"));
     std::fs::write(&src, HTML).unwrap();
     let args: Vec<String> = args.iter().map(|a| a.replace("{src}", &src.to_string_lossy()).replace("{out}", &out.to_string_lossy())).collect();
-    let run = Command::new(env!("CARGO_BIN_EXE_wordcraft-cli")).args(&args).env("WORDCRAFT_REGION", region).env_remove("LC_ALL").output().unwrap();
+    let run = Command::new(env!("CARGO_BIN_EXE_wbs-cli")).args(&args).env("WORDCRAFT_REGION", region).env_remove("LC_ALL").output().unwrap();
     assert!(run.status.success(), "{args:?}: {}", String::from_utf8_lossy(&run.stderr));
     let doc: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
     let _ = std::fs::remove_dir_all(&dir);

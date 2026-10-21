@@ -4,7 +4,7 @@
 //! leaving the window stops it. Holding the wheel down and moving scrolls too, and then letting
 //! go stops.
 //!
-//! WordCraft doesn't paste the primary selection on a middle click, so on Linux the button is
+//! WBS doesn't paste the primary selection on a middle click, so on Linux the button is
 //! free for this. macOS apps don't scroll this way, and browsers have their own middle-click
 //! behaviour, so there the button is left alone.
 
