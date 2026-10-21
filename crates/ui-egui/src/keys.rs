@@ -253,6 +253,19 @@ pub fn canvas_events(app: &mut WordApp, ctx: &egui::Context) {
         return;
     }
     let alt_codes = alt_codes_supported(ctx);
+    // Ctrl+Tab / Ctrl+Shift+Tab: the next document tab around the bar (WPS's window), taken
+    // before the Tab key can type anything. On macOS that is ⌃Tab; ⌘Tab belongs to the system.
+    if let Some(back) = ctx.input(|i| {
+        i.events.iter().find_map(|e| match e {
+            egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if modifiers.ctrl && !modifiers.alt && !modifiers.mac_cmd => {
+                Some(modifiers.shift)
+            }
+            _ => None,
+        })
+    }) {
+        app.cycle_tab(back);
+        return;
+    }
     // `DeleteSurrounding` and the text replacing what it erased arrive in the same frame.
     app.canvas.ime_join_text = None;
     // Mod held since an earlier frame (its ModifiersChanged went by then).
@@ -698,6 +711,13 @@ pub fn global_shortcuts(app: &mut WordApp, ctx: &egui::Context) {
     for e in events {
         if let egui::Event::Key { key, pressed: true, modifiers, .. } = e {
             if leave_full_screen(app, key, modifiers, false) {
+                continue;
+            }
+            // Ctrl+Tab / Ctrl+Shift+Tab: the next document tab around the bar, also while no
+            // text has the keyboard. On macOS that is ⌃Tab; ⌘Tab belongs to the system and
+            // never arrives here.
+            if key == Key::Tab && modifiers.ctrl && !modifiers.alt && !modifiers.mac_cmd {
+                app.cycle_tab(modifiers.shift);
                 continue;
             }
             if is_global_shortcut(key, modifiers) {

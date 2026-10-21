@@ -889,7 +889,7 @@ mod tests {
                 crate::WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::from_text("Hello")), crate::Services::default());
             app.run("styles.create", serde_json::json!({"name": "Callout"})).unwrap();
             // The pane writes in the "semibold" family, which the app installs with the rest of the
-            // interface fonts (`chrome::title_bar`). Fonts take effect the frame after they are set,
+            // interface fonts (`chrome::tab_bar`). Fonts take effect the frame after they are set,
             // so the first frame only installs them and the pane is drawn from the second on.
             let mut fonts = false;
             let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(400.0, 1200.0)).build_ui_state(

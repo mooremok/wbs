@@ -65,10 +65,10 @@ impl Target {
     }
 }
 
-/// Word's tab letters, as Word for Windows shows them after Alt (File F, Design G, References S,
-/// Review R, View W, Help Y). File opens the Backstage.
-const TAB_LETTERS: [(&str, &str); 11] = [
-    ("File", "F"),
+/// Word's tab letters, as Word for Windows shows them after Alt (Design G, References S,
+/// Review R, View W, Help Y). The file menu is the tab bar's logo button: its badge is F,
+/// pressed in `handle_key`, not a tab of this list.
+const TAB_LETTERS: [(&str, &str); 10] = [
     ("Home", "H"),
     ("Insert", "N"),
     ("Draw", "D"),
@@ -551,8 +551,12 @@ pub fn handle_key(app: &mut WordApp, key: egui::Key) -> bool {
                         match hit {
                             Some(tab) => {
                                 let _ = app.run("ui.tab", serde_json::json!({ "tab": tab }));
-                                // File opens the Backstage: no ribbon commands to badge.
-                                app.ui.keytips = if tab == "File" { Phase::Off } else { Phase::Commands };
+                                app.ui.keytips = Phase::Commands;
+                            }
+                            // F is the tab bar's logo button: the file menu (the old File tab).
+                            None if name == "F" => {
+                                app.ui.keytips = Phase::Off;
+                                let _ = app.run("ui.backstage", serde_json::json!({ "value": true, "page": "home" }));
                             }
                             // Q is the title bar's Search box, as in Word (#819).
                             None if name == SEARCH_LETTER => {
@@ -867,7 +871,7 @@ mod tests {
     #[test]
     fn tab_letters_match_word() {
         // Observed in Word for Windows (Microsoft 365): Alt shows these over the tabs.
-        assert_eq!(tab_letter("File"), "F");
+        assert_eq!(tab_letter("File"), "", "the file menu is the tab bar's logo button, not a tab");
         assert_eq!(tab_letter("Home"), "H");
         assert_eq!(tab_letter("Insert"), "N");
         assert_eq!(tab_letter("Design"), "G");

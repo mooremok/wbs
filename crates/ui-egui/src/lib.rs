@@ -56,6 +56,7 @@ pub mod file_browser;
 pub mod file_dialogs;
 pub mod frame;
 pub mod guides;
+pub mod home;
 pub mod i18n;
 pub mod icons;
 pub mod ink;
@@ -513,9 +514,38 @@ fn migrate_units(v: &mut Value) {
     }
 }
 
+/// A document open in one of the window's other tabs. The active document's state lives in
+/// `WordApp`'s own fields; a tab switch swaps the two ([`WordApp::activate_tab`]), so the undo
+/// history, the scroll position and the autosave target travel with the document.
+pub(crate) struct DocTab {
+    pub session: Session,
+    autosave_path: Option<std::path::PathBuf>,
+    word_count: (u64, usize),
+    last_autosave: f64,
+    scroll: egui::Vec2,
+}
+
 /// The application.
 pub struct WordApp {
     pub session: Session,
+    /// The documents open in the window's other tabs, in tab-bar order; the active document is
+    /// not among them. `active_slot` is its place in the bar (0 = the first document tab, right
+    /// of the Home tab).
+    pub(crate) tabs: Vec<DocTab>,
+    pub(crate) active_slot: usize,
+    /// The Home tab is showing (WPS's 首页): the editor area shows the home view instead of a
+    /// page ([`home`]). Clicking a document tab brings its page back.
+    pub home: bool,
+    /// A tab switch happened before this frame's `logic`: the document-change reset there must
+    /// not wipe the incoming document's own autosave target.
+    switched_tab: bool,
+    /// Where every tab's crash-recovery snapshots are written, so a session opened into a new
+    /// tab gets them too ([`WordApp::enable_recovery`]). Desktop only: the browser never
+    /// writes recovery files implicitly.
+    #[cfg(not(target_arch = "wasm32"))]
+    recovery_root: Option<std::path::PathBuf>,
+    #[cfg(not(target_arch = "wasm32"))]
+    recovery_wake: Option<std::sync::Arc<dyn Fn() + Send + Sync>>,
     pub ui: UiState,
     pub services: Services,
     pub printing: printing::State,
@@ -738,6 +768,14 @@ impl WordApp {
             info_editing: None,
             recovery_seen: false,
             no_document: None,
+            tabs: Vec::new(),
+            active_slot: 0,
+            home: false,
+            switched_tab: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            recovery_root: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            recovery_wake: None,
             comment_drafts: Default::default(),
         }
     }
@@ -747,17 +785,15 @@ impl WordApp {
         self
     }
 
-    /// Start-up with no document to open (#766): show File › Home (Blank document, the templates
-    /// and Recent), as Word starts, when the Start screen setting is on (the default). No document
-    /// is open until the user picks Blank document or a template or opens a file (#1129): Esc or
-    /// the back arrow shows an empty window with the ribbon greyed out, as Word does. Hosts call
-    /// this after [`WordApp::apply_prefs`] when they have nothing to open; [`WordApp::new`] never
-    /// does, so tests, `ui_shot` and windows opened for a document start in the editor. Returns
-    /// whether the Start screen shows.
+    /// Start-up with no document to open (#766): show the Home tab (WPS's 首页 — Blank
+    /// document, the templates and Recent). No document is open until the user picks Blank
+    /// document or a template or opens a file (#1129). Hosts call this after
+    /// [`WordApp::apply_prefs`] when they have nothing to open; [`WordApp::new`] never does, so
+    /// tests, `ui_shot` and windows opened for a document start in the editor. Returns whether
+    /// the Home tab shows.
     pub fn start_screen(&mut self) -> bool {
         if self.ui.start_screen {
-            self.ui.backstage = true;
-            self.ui.backstage_page = "home".into();
+            self.home = true;
             self.no_document = Some(self.session.document_id());
         }
         self.ui.start_screen
@@ -767,6 +803,232 @@ impl WordApp {
     /// opens one (#1129).
     pub fn has_document(&self) -> bool {
         self.no_document != Some(self.session.document_id())
+    }
+
+    /// Turn on crash recovery for the active document's session, and remember where so a
+    /// session opened into a new tab gets it too (snapshots are keyed by document, so one
+    /// folder serves every tab).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn enable_recovery(&mut self, root: std::path::PathBuf, wake: std::sync::Arc<dyn Fn() + Send + Sync>) {
+        if let Err(e) = self.session.enable_recovery(root.clone(), wake.clone()) {
+            log::warn!("recovery stayed off: {e}");
+            return;
+        }
+        self.recovery_root = Some(root);
+        self.recovery_wake = Some(wake);
+    }
+
+    /// The browser never writes recovery files implicitly.
+    #[cfg(target_arch = "wasm32")]
+    pub fn enable_recovery(&mut self, _root: std::path::PathBuf, _wake: std::sync::Arc<dyn Fn() + Send + Sync>) {}
+
+    /// The documents on the tab bar, left to right: the title, whether it has unsaved changes,
+    /// and whether it is the active tab. For the bar itself, `ui.tabs`, and tests.
+    pub(crate) fn tab_infos(&self) -> Vec<(String, bool, bool)> {
+        let mut v: Vec<(usize, String, bool, bool)> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .map(|(i, tab)| (i + usize::from(i >= self.active_slot), Self::session_title(&tab.session), tab.session.dirty, false))
+            .collect();
+        v.push((self.active_slot, Self::session_title(&self.session), self.session.dirty, true));
+        v.sort_by_key(|(d, ..)| *d);
+        v.into_iter().map(|(_, title, dirty, active)| (title, dirty, active)).collect()
+    }
+
+    /// The tab bar as `ui.tabs` reports it.
+    pub(crate) fn tab_state(&self) -> Value {
+        let infos = self.tab_infos();
+        let tabs: Vec<Value> = infos
+            .iter()
+            .enumerate()
+            .map(|(d, (title, dirty, active))| json!({"index": d, "title": title, "dirty": dirty, "active": active}))
+            .collect();
+        json!({"home": self.home, "active": self.active_slot, "tabs": tabs})
+    }
+
+    /// Show the Home tab (WPS's 首页): the editor area becomes the home view. A click on a
+    /// document tab brings its page back ([`WordApp::activate_tab`]).
+    pub(crate) fn show_home(&mut self) {
+        self.home = true;
+        self.ui.backstage = false;
+        self.dialog = None;
+        self.canvas.ime_preedit.clear();
+        self.canvas.ime_preedit_cursor = None;
+    }
+
+    /// Activate the document tab at bar position `d` (0 = the first document tab). The document
+    /// showing and the one asked for swap their state, each keeping its undo history, scroll
+    /// position and autosave target.
+    pub(crate) fn activate_tab(&mut self, d: usize) {
+        if !self.has_document() || d == self.active_slot || d > self.tabs.len() {
+            return;
+        }
+        let i = if d > self.active_slot { d - 1 } else { d };
+        let Some(tab) = self.tabs.get_mut(i) else { return };
+        std::mem::swap(&mut self.session, &mut tab.session);
+        std::mem::swap(&mut self.autosave_path, &mut tab.autosave_path);
+        std::mem::swap(&mut self.word_count, &mut tab.word_count);
+        std::mem::swap(&mut self.last_autosave, &mut tab.last_autosave);
+        std::mem::swap(&mut self.canvas.scroll_offset, &mut tab.scroll);
+        self.active_slot = d;
+        self.settled_after_switch();
+    }
+
+    /// The next tab around the bar (Ctrl+Tab, Ctrl+Shift+Tab), as WPS cycles documents.
+    pub(crate) fn cycle_tab(&mut self, back: bool) {
+        let n = self.tabs.len() + 1;
+        if n < 2 || !self.has_document() {
+            return;
+        }
+        let d = if back { (self.active_slot + n - 1) % n } else { (self.active_slot + 1) % n };
+        self.activate_tab(d);
+    }
+
+    /// Move the active document (with its per-document state) into a background tab at its
+    /// place in the bar, freeing the active slot for the document about to open. The incoming
+    /// document takes the bar's last place, as WPS opens new documents.
+    fn stash_active_tab(&mut self) {
+        if !self.has_document() {
+            return;
+        }
+        let fresh = Session::new(wordcraft_doc::Document::new());
+        let tab = DocTab {
+            session: std::mem::replace(&mut self.session, fresh),
+            autosave_path: self.autosave_path.take(),
+            word_count: std::mem::take(&mut self.word_count),
+            last_autosave: self.last_autosave,
+            scroll: self.canvas.scroll_offset,
+        };
+        self.tabs.insert(self.active_slot.min(self.tabs.len()), tab);
+        self.active_slot = self.tabs.len();
+    }
+
+    /// Whether the document showing is an untouched blank one: a new window's first document,
+    /// never typed in, saved or opened (an edit undone all the way back reads the same). New
+    /// and Open take its place instead of keeping it around as an empty tab, as WPS replaces
+    /// the fresh empty document of a new window.
+    fn untouched_blank(&self) -> bool {
+        !self.session.dirty
+            && self.session.path.is_none()
+            && self.session.file_name.is_none()
+            && self.session.doc.core.title.is_empty()
+            && self.session.doc.plain_text(wordcraft_doc::StoryRef::Body).trim().is_empty()
+    }
+
+    /// A fresh session for a document opening into its own tab, carrying the user's preferences
+    /// from the session showing (author, keyboard, ribbon customization, units, region…), as a
+    /// relaunched window gets them from `ui.json`.
+    fn fresh_session_like(&self) -> Session {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        s.system_region = self.session.system_region.clone();
+        s.author = self.session.author.clone();
+        s.initials = self.session.initials.clone();
+        s.prefs = self.session.prefs.clone();
+        s.keymap = self.session.keymap.clone();
+        s.ribbon = self.session.ribbon.clone();
+        s.user_dict_path = self.session.user_dict_path.clone();
+        s.set_editing_language(i18n::Lang::from_pref(&self.ui.language).editing_lang());
+        s
+    }
+
+    /// WPS tabs: New and Open with a document already open keep that document in its own tab
+    /// and run on a fresh one, so neither replaces it (or needs to ask about its changes). A
+    /// file that fails to open drops the empty tab and returns to the document that was showing.
+    fn open_in_tab(&mut self, id: &str, params: &Value) -> Result<Value, String> {
+        let mut fresh = self.fresh_session_like();
+        let was = (self.ui.backstage, self.home);
+        self.stash_active_tab();
+        #[cfg(not(target_arch = "wasm32"))]
+        if let (Some(root), Some(wake)) = (self.recovery_root.clone(), self.recovery_wake.clone()) {
+            let _ = fresh.enable_recovery(root, wake);
+        }
+        self.session = fresh;
+        self.settled_after_switch();
+        let r = self.execute_user(id, params.clone());
+        if r.is_err() {
+            // Nothing opened: drop the empty tab, go back to the document that was showing and
+            // the view it was in (a failed Recent open keeps the File page up to say why).
+            self.close_active_tab();
+            self.ui.backstage = was.0;
+            self.home = was.1;
+        }
+        r
+    }
+
+    /// Drop the active document and adopt its neighbour (the tab to its right, else the one to
+    /// its left), as WPS closes a tab. Its changes have been saved or discarded by the caller.
+    fn close_active_tab(&mut self) {
+        if self.tabs.is_empty() {
+            return;
+        }
+        let i = self.active_slot.min(self.tabs.len() - 1);
+        let tab = self.tabs.remove(i);
+        self.active_slot = i;
+        self.session = tab.session;
+        self.autosave_path = tab.autosave_path;
+        self.word_count = tab.word_count;
+        self.last_autosave = tab.last_autosave;
+        self.canvas.scroll_offset = tab.scroll;
+        self.settled_after_switch();
+    }
+
+    /// Close the background tab at bar position `d` (a saved document) without disturbing the
+    /// active one.
+    pub(crate) fn close_bg_tab(&mut self, d: usize) {
+        if !self.has_document() || d == self.active_slot || d > self.tabs.len() {
+            return;
+        }
+        let i = if d > self.active_slot { d - 1 } else { d };
+        self.tabs.remove(i);
+        if d < self.active_slot {
+            self.active_slot -= 1;
+        }
+    }
+
+    /// Close the tab at bar position `d`: the active one through `file.close` (which asks about
+    /// unsaved changes), a dirty background one by taking the stage first so the same prompt
+    /// asks about it, a saved one straight away.
+    pub(crate) fn close_tab(&mut self, d: usize) {
+        if !self.has_document() {
+            return;
+        }
+        if d == self.active_slot {
+            let _ = self.run("file.close", json!({}));
+            return;
+        }
+        if d > self.tabs.len() {
+            return;
+        }
+        let i = if d > self.active_slot { d - 1 } else { d };
+        let dirty = self.tabs.get(i).is_some_and(|t| t.session.dirty);
+        if dirty {
+            self.activate_tab(d);
+            let _ = self.run("file.close", json!({}));
+        } else {
+            self.close_bg_tab(d);
+        }
+    }
+
+    /// State that follows the document on a tab switch: the composition is dropped, the caret
+    /// starts its blink afresh, and overlays of the last document (its mini toolbar, context
+    /// menu, dialog) don't survive onto this one.
+    fn settled_after_switch(&mut self) {
+        self.home = false;
+        self.switched_tab = true;
+        self.no_document = None;
+        self.dialog = None;
+        self.status_msg = None;
+        self.ui.backstage = false;
+        self.canvas.ime_preedit.clear();
+        self.canvas.ime_preedit_cursor = None;
+        self.canvas.caret_visible_since = now_ms();
+        self.canvas.want_focus = true;
+        self.canvas.mini_anchor = None;
+        self.canvas.context_menu_open = false;
+        self.canvas.context_menu_at = None;
+        self.sent_title.clear();
+        self.applied_editing = None;
     }
 
     /// Preferences to save between runs: the UI state plus the current user name and editing
@@ -879,6 +1141,14 @@ impl WordApp {
             self.dialog = dialogs::Dialog::open(name, self);
             return Ok(json!({"pending": name}));
         }
+        // WPS tabs: New and Open with a document already open keep it in its own tab and work on
+        // a new one, so they neither replace it nor need to ask about its changes — unless the
+        // document showing is an untouched blank one (a new window's first document, never typed
+        // in), which they simply take the place of, without leaving an empty tab behind. Open
+        // without a path only brings up the file picker; the open that follows carries a path.
+        if self.has_document() && !self.untouched_blank() && (id == "file.new" || (id == "file.open" && params.get("path").is_some())) {
+            return self.open_in_tab(id, &params);
+        }
         if (self.session.dirty || self.save_unconfirmed() || refused.is_some()) && discards_document(id, &params) {
             let name = self.prompt_name();
             self.dialog = Some(dialogs::Dialog::SaveChanges {
@@ -918,6 +1188,14 @@ impl WordApp {
             self.select_inserted_picture(&r);
         }
         let r = system_clipboard::explain(self, id, r);
+        // A document was created or opened (from the Home tab, over the Start-screen
+        // placeholder): its page replaces the home view. The Home tab stays a click away.
+        if r.is_ok() && matches!(id, "file.new" | "file.open" | "file.recover") {
+            self.home = false;
+            if self.has_document() {
+                self.no_document = None;
+            }
+        }
         // Check Accessibility shows its findings in the Accessibility pane, kept up to date there.
         if id == "file.accessibility" && r.is_ok() {
             self.session.view.accessibility_pane = true;
@@ -1309,7 +1587,8 @@ impl WordApp {
     }
 
     /// The window's close button (or the system) asked to quit. Returns true to let the window
-    /// close; with unsaved changes it asks first and returns false.
+    /// close; with unsaved changes anywhere it asks first, document by document, and returns
+    /// false.
     pub fn close_requested(&mut self) -> bool {
         if self.printing.busy() {
             self.status(tl!("Wait for the print job to finish submitting before closing."));
@@ -1325,6 +1604,13 @@ impl WordApp {
         // A comment draft the document refuses is an unsaved change: the prompt can drop it.
         let refused = panes::flush_comment_drafts(self).is_err();
         if !self.session.dirty && !self.save_unconfirmed() && !refused {
+            // Another tab may still have unsaved changes: bring the first of them round to be
+            // asked about, the same as the active document below.
+            if let Some(i) = self.tabs.iter().position(|t| t.session.dirty) {
+                self.activate_tab(if i >= self.active_slot { i + 1 } else { i });
+                let _ = self.run("file.close", json!({"quit": true}));
+                return false;
+            }
             return true;
         }
         // `quit`: once the prompt is answered the window closes too, not just the document.
@@ -1332,25 +1618,47 @@ impl WordApp {
         false
     }
 
-    /// File › Close (Mod+W, Mod+F4) closes the document and keeps the window, as Word does
-    /// (#1712): it shows no page, as after Esc on the Start screen (#1129), and File › New or Open
-    /// goes on from there. `{"quit": true}`, from the window's close button, quits instead. With no
-    /// document open there is nothing to close. Unsaved changes are never discarded unasked: a
-    /// dirty document closes only with `{"force": true}` (Don't Save in the prompt passes it).
+    /// File › Close (Mod+W, Mod+F4) closes the document's tab and keeps the window, as WPS does
+    /// (#1712): another tab takes its place, and closing the last one shows the Home tab. The
+    /// window's close button sends `{"quit": true}`: with several tabs, each document closes in
+    /// turn — a dirty one asks first — and the last close quits. With no document open there is
+    /// nothing to close. Unsaved changes are never discarded unasked: a dirty document closes
+    /// only with `{"force": true}` (Don't Save in the prompt passes it).
     fn close_document(&mut self, params: &Value) -> Result<Value, String> {
         if let Some(e) = control::close_refused(self, "file.close", params) {
             return Err(e.into());
         }
         if params.get("quit").and_then(Value::as_bool) == Some(true) {
+            // `force` is the prompt's own answer (Don't Save): the asking is done. Without it,
+            // a dirty document here means the prompt's Save failed or was cancelled — the
+            // window stays.
+            let forced = params.get("force").is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("yes"));
+            if self.has_document() && !forced && (self.session.dirty || self.save_unconfirmed()) {
+                return Ok(json!({"closed": false}));
+            }
+            // A dirty background tab takes the stage so the same prompt asks about it; when the
+            // last one is settled the close that follows quits.
+            if self.has_document()
+                && let Some(i) = self.tabs.iter().position(|t| t.session.dirty)
+            {
+                self.activate_tab(if i >= self.active_slot { i + 1 } else { i });
+                return self.run("file.close", json!({"quit": true}));
+            }
             self.quit_requested = true;
             return Ok(json!({"quit": true}));
         }
         if !self.has_document() {
             return Ok(json!({"closed": false}));
         }
+        if !self.tabs.is_empty() {
+            self.close_active_tab();
+            self.ui.backstage = false;
+            return Ok(json!({"closed": true}));
+        }
         self.execute("file.new", json!({}))?;
         self.no_document = Some(self.session.document_id());
         self.ui.backstage = false;
+        self.home = true;
         Ok(json!({"closed": true}))
     }
 
@@ -1494,6 +1802,34 @@ impl WordApp {
                     self.ui.backstage = false;
                 }
                 json!({"tab": self.ui.tab})
+            }
+            // The Home tab (WPS's 首页): the editor area becomes the home view. `{"value":
+            // false}` returns to the active document.
+            "ui.home" => {
+                if p.get("value").and_then(Value::as_bool) == Some(false) {
+                    self.home = false;
+                } else {
+                    self.show_home();
+                }
+                json!({"home": self.home})
+            }
+            "ui.tabs" => self.tab_state(),
+            // Activate a document tab by its place in the bar (0 = the first document tab).
+            "ui.tabActivate" => {
+                let d = p.get("index").and_then(Value::as_u64).unwrap_or(0) as usize;
+                self.activate_tab(d);
+                json!({"active": self.active_slot, "home": self.home})
+            }
+            // A new document in its own tab (the + button, Ctrl+N's command).
+            "ui.tabNew" => {
+                let r = self.run("file.new", json!({}));
+                return Some(r);
+            }
+            // Close the tab at bar position `index`; the active one asks about unsaved changes.
+            "ui.tabClose" => {
+                let d = p.get("index").and_then(Value::as_u64).unwrap_or(self.active_slot as u64) as usize;
+                self.close_tab(d);
+                self.tab_state()
             }
             "ui.backstage" => {
                 self.ui.backstage = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.backstage);
@@ -1932,15 +2268,20 @@ impl WordApp {
         }
     }
 
-    /// Document title for the title bar (and the suggested file name). An untitled document is
-    /// named in the interface language, as `Document1` is in English.
+    /// Document title for the title bar, the tab bar and the suggested file name. An untitled
+    /// document is named in the interface language, as `Document1` is in English.
     pub fn title_stem(&self) -> String {
-        match &self.session.path {
+        Self::session_title(&self.session)
+    }
+
+    /// [`WordApp::title_stem`] for any session, also the background tabs'.
+    pub(crate) fn session_title(s: &Session) -> String {
+        match &s.path {
             Some(p) => p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| tl!("Document1").into()),
-            None => match &self.session.file_name {
+            None => match &s.file_name {
                 Some(name) => name.clone(),
-                None if self.session.doc.core.title.is_empty() => tl!("Document1").into(),
-                None => self.session.doc.core.title.clone(),
+                None if s.doc.core.title.is_empty() => tl!("Document1").into(),
+                None => s.doc.core.title.clone(),
             },
         }
     }
@@ -2037,7 +2378,7 @@ impl WordApp {
         self.watch_fonts(ctx);
         let document = self.session.document_id();
         self.session.recovery_tick();
-        if self.session.document_id() != document {
+        if self.session.document_id() != document && !std::mem::take(&mut self.switched_tab) {
             self.autosave_path = None;
             self.dialog = None;
             self.ui.backstage = false;
@@ -2237,22 +2578,22 @@ impl WordApp {
         }
         if self.ui.backstage {
             backstage::show(self, ui);
-        } else if !self.has_document() {
-            // No document open (#1129): the ribbon greyed out but for Help, and no page.
-            chrome::title_bar(self, ui);
-            ribbon::show(self, ui);
-            chrome::status_bar(self, ui);
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |_| {});
         } else {
-            chrome::title_bar(self, ui);
-            if !self.session.view.focus_mode {
-                ribbon::show(self, ui);
-                chrome::status_bar(self, ui);
-                panes::show(self, ui);
+            chrome::tab_bar(self, ui);
+            if self.home || !self.has_document() {
+                // The Home tab is showing (WPS's 首页), or nothing is open yet (#1129): the
+                // editor area is the home view.
+                crate::home::show(self, ui);
+            } else {
+                if !self.session.view.focus_mode {
+                    ribbon::show(self, ui);
+                    chrome::status_bar(self, ui);
+                    panes::show(self, ui);
+                }
+                egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+                    canvas::show(self, ui);
+                });
             }
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
-                canvas::show(self, ui);
-            });
         }
         content_controls::popup(self, &ctx);
         dialogs::show(self, &ctx);
@@ -2267,7 +2608,7 @@ impl WordApp {
         if let Some(url) = self.canvas.open_url.take() {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
-        let title = if self.has_document() {
+        let title = if self.has_document() && !self.home {
             format!("{}{} - WBS", self.title_stem(), if self.session.dirty { " •" } else { "" })
         } else {
             "WBS".to_string()
@@ -2623,6 +2964,11 @@ pub(crate) fn works_without_document(id: &str) -> bool {
             | "view.ruler"
             | "view.numeral"
             | "ui.tab"
+            | "ui.home"
+            | "ui.tabs"
+            | "ui.tabActivate"
+            | "ui.tabNew"
+            | "ui.tabClose"
             | "ui.backstage"
             | "ui.dialog"
             | "ui.closeDialog"
@@ -2974,30 +3320,54 @@ mod tests {
     /// off it starts in the editor, and `WordApp::new` alone (tests, ui_shot, windows opened for a
     /// document) never shows it.
     #[test]
-    fn start_screen_shows_file_home_and_esc_leaves_no_document() {
+    fn start_screen_shows_the_home_tab_with_no_document() {
         use egui_kittest::kittest::Queryable;
         let mut a = app();
-        assert!(!a.ui.backstage, "`new` starts in the editor");
+        assert!(!a.home && !a.ui.backstage, "`new` starts in the editor");
         assert!(a.has_document());
         a.ui.backstage_page = "print".into();
         assert!(a.start_screen(), "on by default");
-        assert!(a.ui.backstage && a.ui.backstage_page == "home");
-        assert!(!a.has_document(), "no document behind the Start screen");
+        assert!(a.home && !a.ui.backstage, "the Home tab shows, not the File page");
+        assert!(!a.has_document(), "no document behind the home view");
         let mut h = harness(a);
         h.run_steps(4);
         assert!(h.query_by_label("Blank document").is_some(), "Home lists Blank document and the templates");
         assert!(h.query_by_label("Recent").is_some(), "and the Recent list");
-        h.key_press(egui::Key::Escape);
-        h.run_steps(4);
         let a = h.state_mut();
-        assert!(!a.ui.backstage, "Esc leaves the Start screen");
-        assert!(!a.has_document(), "for an empty window, not a blank document");
         assert_eq!(a.sent_title, "WBS", "the window is titled with the app alone");
-        // The ribbon's commands are off, but Help, the File tab and the settings work.
-        for id in ["format.bold", "text.insert", "file.save", "file.saveAs", "file.print", "edit.paste", "insert.table", "ui.print"] {
+        // The document commands are off, but Help, the file menu and the settings work.
+        for id in [
+            "format.bold",
+            "text.insert",
+            "file.save",
+            "file.saveAs",
+            "file.print",
+            "edit.paste",
+            "insert.table",
+            "ui.print",
+            "format.underline",
+            "format.highlight",
+            "format.color",
+            "format.bullets",
+            "format.numbering",
+            "format.shading",
+            "format.borders",
+        ] {
             assert!(!widgets::enabled(a, id), "{id} is off with no document");
         }
-        for id in ["file.new", "file.open", "ui.backstage", "ui.tab", "file.options", "ui.theme"] {
+        for id in [
+            "file.new",
+            "file.open",
+            "ui.backstage",
+            "ui.tab",
+            "ui.home",
+            "ui.tabs",
+            "ui.tabNew",
+            "ui.tabClose",
+            "ui.tabActivate",
+            "file.options",
+            "ui.theme",
+        ] {
             assert!(widgets::enabled(a, id), "{id} works with no document");
         }
         assert!(!chrome::qat_enabled(a, "file.save"));
@@ -3023,7 +3393,7 @@ mod tests {
         let mut b = app();
         b.run("ui.startScreen", json!({"value": false})).unwrap();
         assert!(!b.start_screen(), "off: today's behaviour");
-        assert!(!b.ui.backstage && b.has_document());
+        assert!(!b.ui.backstage && !b.home && b.has_document());
     }
 
     /// #3045: on the empty window (no document behind the Start screen) the ribbon is greyed
@@ -3047,31 +3417,6 @@ mod tests {
         h.run_steps(4);
         assert!(h.state().ui.backstage && h.state().ui.backstage_page == "home", "File reaches the Start screen");
         assert!(h.query_by_label("Blank document").is_some(), "where a document can be made");
-    }
-
-    /// #1908: with no document open the Home ribbon's split buttons grey out like the plain
-    /// buttons beside them, and their drop-down arrow opens no menu.
-    #[test]
-    fn split_buttons_are_disabled_with_no_document() {
-        use egui::accesskit::Role;
-        use egui_kittest::kittest::{NodeT, Queryable};
-        let mut a = app();
-        a.start_screen();
-        a.run("ui.backstage", json!({"value": false})).unwrap();
-        assert!(!a.has_document());
-        let mut h = harness(a);
-        h.run_steps(4);
-        for tip in ["Underline", "Text Highlight Color", "Font Color", "Bullets", "Numbering", "Shading", "Borders"] {
-            let node = h.query_by_role_and_label(Role::Button, tip);
-            assert!(node.is_some_and(|n| n.accesskit_node().is_disabled()), "{tip} is greyed out with no document");
-        }
-        let r = h.get_by_role_and_label(Role::Button, "Underline").rect();
-        let arrow = egui::pos2(r.max.x + 6.5, r.center().y);
-        for pressed in [true, false] {
-            h.event(egui::Event::PointerButton { pos: arrow, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
-        }
-        h.run_steps(3);
-        assert!(!egui::Popup::is_any_open(&h.ctx), "the disabled split button's arrow opens no menu");
     }
 
     /// #1129: the empty window's File tab goes back to the Backstage with only Home, New, Open
@@ -4711,25 +5056,94 @@ mod tests {
 
     /// Surfaces finding 1: Mod+N (and the File › New tiles) replaced unsaved work without asking.
     #[test]
-    fn new_asks_before_discarding_unsaved_work() {
+    fn new_keeps_unsaved_work_in_its_own_tab() {
         let mut a = typed();
-        a.run("file.new", json!({})).unwrap();
-        assert_eq!(prompt(&a), Some("saveChanges"));
-        assert!(body_text(&a).contains(UNSAVED), "the document is untouched while the prompt is up");
-        assert!(a.session.dirty);
-
-        // Cancel: nothing happens.
-        a.run("ui.saveChanges", json!({"answer": "cancel"})).unwrap();
-        assert_eq!(prompt(&a), None);
-        assert!(body_text(&a).contains(UNSAVED));
-
-        // Don't Save: the new document replaces it.
         a.run("file.new", json!({"template": "letter"})).unwrap();
-        a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
-        assert_eq!(prompt(&a), None);
+        assert_eq!(prompt(&a), None, "no document is replaced, so nothing is asked");
         assert!(!body_text(&a).contains(UNSAVED));
         assert!(!a.session.dirty);
         assert!(!body_text(&a).trim().is_empty(), "the template the user picked was used");
+        assert_eq!(a.tabs.len(), 1, "the unsaved document is a tab of its own");
+        assert_eq!(a.tab_state()["tabs"].as_array().unwrap().len(), 2, "`ui.tabs` lists both");
+        // It is one click away, still edited, with its text and its undo history.
+        a.activate_tab(0);
+        assert!(a.session.dirty && body_text(&a).contains(UNSAVED));
+        a.execute("edit.undo", json!({})).unwrap();
+        assert!(!body_text(&a).contains(UNSAVED), "the undo history travelled with the tab");
+    }
+
+    /// Ctrl+Tab walks the tabs around the bar, forward and back, and never leaves the documents.
+    #[test]
+    fn ctrl_tab_walks_the_tabs() {
+        let mut a = typed();
+        for _ in 0..2 {
+            a.run("file.new", json!({})).unwrap();
+            a.run("text.insert", json!({"text": "Tab "})).unwrap();
+        }
+        assert_eq!(a.tabs.len(), 2);
+        let ids: Vec<u64> = std::iter::once(a.session.document_id()).chain(a.tabs.iter().map(|t| t.session.document_id())).collect();
+        a.cycle_tab(false);
+        assert_eq!(a.active_slot, 0);
+        a.cycle_tab(false);
+        assert_eq!(a.active_slot, 1);
+        a.cycle_tab(false);
+        assert_eq!(a.active_slot, 2, "around the bar");
+        a.cycle_tab(true);
+        assert_eq!(a.active_slot, 1);
+        // Every document is still itself, wherever the walk stopped.
+        let now = [a.tabs[0].session.document_id(), a.tabs[1].session.document_id(), a.session.document_id()];
+        assert!(ids.iter().all(|id| now.contains(id)), "{ids:?} vs {now:?}");
+    }
+
+    /// A saved background tab closes at once from its ✕; the active one asks about unsaved
+    /// changes, and closing the last tab shows the Home tab with no document.
+    #[test]
+    fn tabs_close_without_asking_until_the_last_one_shows_home() {
+        let dir = scratch("tab-close");
+        let path = docx_on_disk(&dir, "Kept");
+        let mut a = typed();
+        a.run("file.open", json!({"path": path.to_string_lossy()})).unwrap();
+        assert_eq!(a.tabs.len(), 1);
+        // The unsaved document kept its place (tab 0); the opened file shows as tab 1.
+        a.close_tab(1);
+        assert_eq!(a.tabs.len(), 0, "the saved tab closed without a word");
+        assert!(a.has_document() && body_text(&a).contains(UNSAVED), "the unsaved one stays");
+        // Closing it asks, and Don't Save leaves the Home tab with no document.
+        a.close_tab(a.active_slot);
+        assert_eq!(prompt(&a), Some("saveChanges"));
+        a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
+        assert!(!a.has_document());
+        assert!(a.home, "the last close shows the Home tab");
+        assert_eq!(prompt(&a), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// New and Open take the place of an untouched blank document (a new window's first one)
+    /// instead of leaving an empty tab behind.
+    #[test]
+    fn an_untouched_blank_document_is_replaced_without_a_tab() {
+        let mut a = app();
+        a.run("file.new", json!({"template": "letter"})).unwrap();
+        assert_eq!(a.tabs.len(), 0, "the untouched blank gave way");
+        assert!(!body_text(&a).trim().is_empty(), "the template was used");
+        // One letter typed makes it worth a tab of its own.
+        a.run("text.insert", json!({"text": "Dear "})).unwrap();
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(a.tabs.len(), 1, "the edited document stayed as a tab");
+    }
+
+    /// A document opening into its own tab carries the window's choices (the paper region a
+    /// user picked, the interface's editing language), as a relaunched window gets them.
+    #[test]
+    fn a_new_tab_carries_the_windows_preferences() {
+        let mut a = app();
+        a.run("file.options", json!({"region": "pl-PL"})).unwrap();
+        a.run("file.new", json!({})).unwrap();
+        assert_eq!(
+            wordcraft_geom::paper_name(a.session.doc.last_section.page_w, a.session.doc.last_section.page_h),
+            Some("A4"),
+            "the region the user chose"
+        );
     }
 
     #[test]
@@ -4753,11 +5167,13 @@ mod tests {
         assert!(a.execute("file.open", json!({"path": path.to_string_lossy()})).is_err(), "a script gets the error");
         assert_eq!(prompt(&a), None);
         a.run("file.open", json!({"path": path.to_string_lossy()})).unwrap();
-        a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
-        assert_eq!(prompt(&a), Some("password"));
-        assert!(body_text(&a).contains(UNSAVED), "nothing is replaced until the password fits");
+        assert_eq!(prompt(&a), Some("password"), "the file asks for its password in its new tab");
         let state = serde_json::to_string(&a.dialog).unwrap();
         assert!(state.contains("locked.docx") && !state.contains("sesame"));
+        // Until the password fits, the new tab stays blank and the typed document stays a tab.
+        assert!(body_text(&a).trim().is_empty());
+        assert_eq!(a.tabs.len(), 1);
+        assert!(a.tabs[0].session.dirty, "the unsaved document waits in its tab");
 
         let mut b = app();
         b.run("file.encrypt", json!({})).unwrap();
@@ -4768,20 +5184,30 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Open (after the file is picked), recent files and dropped files all go through `file.open`.
+    /// Open (after the file is picked), recent files and dropped files all go through `file.open`:
+    /// with a document open they open it as a new tab, keeping the open document's work.
     #[test]
-    fn open_asks_before_discarding_unsaved_work() {
+    fn open_keeps_unsaved_work_in_its_own_tab() {
         let dir = scratch("open");
         let path = docx_on_disk(&dir, "Signed contract");
         let mut a = typed();
         a.run("file.open", json!({"path": path.to_string_lossy()})).unwrap();
-        assert_eq!(prompt(&a), Some("saveChanges"));
-        assert!(body_text(&a).contains(UNSAVED));
-        assert_eq!(a.session.path, None);
-
-        a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
+        assert_eq!(prompt(&a), None, "nothing is replaced, so nothing is asked");
         assert!(body_text(&a).contains("Signed contract"));
         assert_eq!(a.session.path.as_deref(), Some(path.as_path()));
+        assert_eq!(a.tabs.len(), 1, "the unsaved document is a tab of its own");
+        a.activate_tab(0);
+        assert!(a.session.dirty && body_text(&a).contains(UNSAVED));
+        assert_eq!(a.session.path, None);
+        // Back and forth: the opened file is right where it was.
+        a.activate_tab(1);
+        assert!(body_text(&a).contains("Signed contract"));
+        // A file that fails to open (deleted, unreadable) returns to the document showing.
+        let missing = dir.join("gone.docx");
+        let r = a.run("file.open", json!({"path": missing.to_string_lossy()})).unwrap_err();
+        assert!(!r.is_empty());
+        assert!(body_text(&a).contains("Signed contract"));
+        assert_eq!(a.tabs.len(), 1, "the failed open left no empty tab behind");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -5383,7 +5809,7 @@ mod tests {
         let path = docx_on_disk(&dir, "Agent document");
         let ctx = egui::Context::default();
         let mut a = typed();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         assert_eq!(prompt(&a), Some("saveChanges"));
         let asked = a.dialog.clone();
         for command in [
@@ -5550,8 +5976,19 @@ mod tests {
         assert!(!egui::Popup::is_any_open(&h.ctx), "the click closed the language menu");
         type_after_click(&mut h, "language menu cancelled", " lang");
 
-        // Back on Home, a text field still takes the focus: the font size box.
-        h.get_by_role_and_label(Role::Button, "Home").click();
+        // Back on Home, a text field still takes the focus: the font size box. Two controls say
+        // "Home" now — the tab bar's Home tab (首页) and the ribbon's Home tab — so the lower of
+        // the two, the ribbon's, is the one to click.
+        let ribbon_home = h
+            .get_all_by_role_and_label(Role::Button, "Home")
+            .max_by(|a, b| a.rect().min.y.total_cmp(&b.rect().min.y))
+            .expect("the ribbon's Home tab")
+            .rect()
+            .center();
+        for pressed in [true, false] {
+            h.event(egui::Event::PointerButton { pos: ribbon_home, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
+        h.step();
         type_after_click(&mut h, "Home tab", " home");
         let before = body_text(h.state());
         let size_box = h
@@ -5912,11 +6349,11 @@ mod tests {
         let mut a = app();
         a.run("file.open", json!({"path": path.to_string_lossy()})).unwrap();
         a.run("text.insert", json!({"text": "Revised "})).unwrap();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         assert_eq!(prompt(&a), Some("saveChanges"));
         a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         assert_eq!(prompt(&a), None);
-        assert_eq!(a.session.path, None, "the new document replaced the saved one");
+        assert!(!a.has_document(), "the close ran once the save was done");
         let saved = wordcraft_engine::io::open_path(&path).unwrap();
         assert!(saved.plain_text(wordcraft_doc::StoryRef::Body).contains("Revised Draft"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -5931,7 +6368,7 @@ mod tests {
             let picked = dir.join(format!("novel.{ext}")).to_string_lossy().to_string();
             let mut a = typed();
             a.services.pick_save = Some(Box::new(move |_| Some(picked.clone())));
-            a.run("file.new", json!({})).unwrap();
+            a.run("file.close", json!({})).unwrap();
             a.status_msg = None;
             let r = a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
             assert_eq!(r["done"], false, "{ext}: the New was cancelled");
@@ -6019,9 +6456,9 @@ mod tests {
         assert!(a.execute("file.save", json!({})).is_err());
         assert!(a.session.dirty);
 
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         a.status_msg = None;
-        // A failed save is an error, not a quiet Cancel (#1445); the New doesn't run.
+        // A failed save is an error, not a quiet Cancel (#1445); the Close doesn't run.
         let err = a.run("ui.saveChanges", json!({"answer": "save"})).unwrap_err();
         assert!(err.contains("still open") && err.contains("blocked by the browser"), "{err}");
         assert!(body_text(&a).contains(UNSAVED));
@@ -6049,9 +6486,9 @@ mod tests {
     /// #1315: Save in the prompt before New waits for the picker: New runs only once the file
     /// is written and closed.
     #[test]
-    fn web_save_before_new_waits_for_the_picker_to_finish() {
+    fn web_save_before_close_waits_for_the_picker_to_finish() {
         let (mut a, saves, last) = web_picker_app();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         assert_eq!(prompt(&a), Some("saveChanges"));
         let r = a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         assert_eq!(r["pending"], "save", "{r}");
@@ -6060,7 +6497,7 @@ mod tests {
         assert!(body_text(&a).contains(UNSAVED), "nothing is replaced while the picker is open");
         saves.finish(last.get(), async_saves::SaveOutcome::Saved);
         a.settle_async_saves();
-        assert!(!body_text(&a).contains(UNSAVED), "the New ran once the save finished");
+        assert!(!body_text(&a).contains(UNSAVED), "the Close ran once the save finished");
         assert!(!a.session.dirty);
         assert_eq!(prompt(&a), None);
     }
@@ -6068,12 +6505,12 @@ mod tests {
     /// #1315: cancelling the picker, or a write/close that fails, keeps the document: its text,
     /// its undo, still unsaved, and the prompt back with the reason. Nothing is replaced.
     #[test]
-    fn web_save_before_new_that_is_cancelled_or_fails_keeps_the_document() {
+    fn web_save_before_close_that_is_cancelled_or_fails_keeps_the_document() {
         for (outcome, reason) in
             [(async_saves::SaveOutcome::Cancelled, "cancel"), (async_saves::SaveOutcome::Failed("the disk is full".into()), "the disk is full")]
         {
             let (mut a, saves, last) = web_picker_app();
-            a.run("file.new", json!({})).unwrap();
+            a.run("file.close", json!({})).unwrap();
             a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
             a.status_msg = None;
             saves.finish(last.get(), outcome.clone());
@@ -6097,7 +6534,7 @@ mod tests {
     #[test]
     fn web_overlapping_saves_hold_the_replacement() {
         let (mut a, saves, last) = web_picker_app();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         let first = last.get();
         a.run("text.insert", json!({"text": "Later edit "})).unwrap();
@@ -6114,7 +6551,7 @@ mod tests {
     #[test]
     fn web_save_that_ends_after_an_edit_asks_again() {
         let (mut a, saves, last) = web_picker_app();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         a.run("text.insert", json!({"text": "Later edit "})).unwrap();
         saves.finish(last.get(), async_saves::SaveOutcome::Saved);
@@ -6130,7 +6567,7 @@ mod tests {
     #[test]
     fn web_save_prompt_says_it_waits_and_that_a_cancel_was_a_cancel() {
         let (mut a, saves, last) = web_picker_app();
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         a.status_msg = None;
         a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         let status = a.status_msg.as_ref().map(|(m, _)| m.clone()).unwrap_or_default();
@@ -6142,43 +6579,13 @@ mod tests {
         assert!(!message.contains("Couldn't save"), "a cancel isn't a failure: {message}");
     }
 
-    /// #1315 review: a document dropped or picked on the web (`file.open` with its bytes) waits
-    /// for the save too, then opens.
-    #[test]
-    fn web_save_before_open_opens_the_file_once_saved() {
-        let dir = scratch("web-open-after-save");
-        let bytes = std::fs::read(docx_on_disk(&dir, "Picked document")).unwrap();
-        let (mut a, saves, last) = web_picker_app();
-        let data = wordcraft_engine::cmd::insert::base64_encode(&bytes);
-        a.run("file.open", json!({"path": "picked.docx", "data": data})).unwrap();
-        assert_eq!(prompt(&a), Some("saveChanges"));
-        a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
-        a.settle_async_saves();
-        assert!(body_text(&a).contains(UNSAVED), "nothing opened while the picker is open");
-        saves.finish(last.get(), async_saves::SaveOutcome::Saved);
-        a.settle_async_saves();
-        assert!(body_text(&a).contains("Picked document"), "the picked file opened: {:?}", body_text(&a));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// #1315: while the picker save is in flight the document's save isn't confirmed, so New
-    /// asks again instead of replacing it.
-    #[test]
-    fn web_new_while_a_picker_save_is_in_flight_asks_first() {
-        let (mut a, _saves, _last) = web_picker_app();
-        a.execute("file.save", json!({})).unwrap();
-        a.run("file.new", json!({})).unwrap();
-        assert_eq!(prompt(&a), Some("saveChanges"));
-        assert!(body_text(&a).contains(UNSAVED), "nothing was replaced");
-    }
-
     /// #1315: a save that ends after the document was replaced neither runs the held-back New on
     /// the new document nor marks it unsaved.
     #[test]
     fn web_picker_save_ending_after_the_document_changed_leaves_the_new_one_alone() {
         for outcome in [async_saves::SaveOutcome::Saved, async_saves::SaveOutcome::Failed("gone".into())] {
             let (mut a, saves, last) = web_picker_app();
-            a.run("file.new", json!({})).unwrap();
+            a.run("file.close", json!({})).unwrap();
             a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
             // Another document replaces it (an agent's or a script's command) while the picker is open.
             a.execute("file.new", json!({})).unwrap();
@@ -6197,7 +6604,7 @@ mod tests {
     fn save_as_cancelled_keeps_the_document() {
         let mut a = typed();
         a.services.pick_save = Some(Box::new(|_| None));
-        a.run("file.new", json!({})).unwrap();
+        a.run("file.close", json!({})).unwrap();
         a.run("ui.saveChanges", json!({"answer": "save"})).unwrap();
         assert_eq!(prompt(&a), None);
         assert!(body_text(&a).contains(UNSAVED));
@@ -6423,7 +6830,7 @@ mod tests {
             let result = body_text(&a);
             let b = a.session.document_id();
             assert!(a.session.dirty, "{id}: the result is unsaved");
-            a.run("file.new", json!({})).unwrap();
+            a.run("file.close", json!({})).unwrap();
             assert_eq!(prompt(&a), Some("saveChanges"), "{id}");
 
             a.execute("edit.undo", json!({})).unwrap();
@@ -7698,10 +8105,12 @@ mod tests {
         assert!(!a.recipient_list_pending);
         inbox.lock().unwrap().push(("notes.txt".into(), b"A plain text document.\nAnother line.\n".to_vec()));
         a.drain_inbox();
-        assert_eq!(prompt(&a), Some("saveChanges"), "the TXT opens like any document");
-        a.run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
-        assert_eq!(a.session.merge.headers, vec!["Name", "City"], "the recipients stay");
+        assert_eq!(prompt(&a), None, "the TXT opens in its own tab, like any document");
         assert!(body_text(&a).contains("A plain text document."), "the TXT opened as a document");
+        assert_eq!(a.tabs.len(), 1, "the recipients document is a tab of its own");
+        a.activate_tab(0);
+        assert_eq!(a.session.merge.headers, vec!["Name", "City"], "the recipients stay");
+        assert!(body_text(&a).contains(UNSAVED), "still unsaved in its tab");
         // A cancelled picker leaves nothing pending once the user does something else.
         a.run("ui.openRecipientList", json!({})).unwrap();
         a.run("format.bold", json!({})).unwrap();

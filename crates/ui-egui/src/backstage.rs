@@ -296,7 +296,8 @@ fn matching_templates(query: &str) -> Vec<(&'static str, &'static str)> {
 }
 
 /// Home: a greeting, Blank plus a short row of templates with a link to New, then Recent.
-fn home_page(app: &mut WordApp, ui: &mut Ui) {
+/// Also the Home tab's page ([`crate::home`]).
+pub(crate) fn home_page(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let hour = wordcraft_engine::cmd::now_iso().get(11..13).and_then(|h| h.parse::<u32>().ok()).unwrap_or(9);
     heading(
@@ -318,6 +319,8 @@ fn home_page(app: &mut WordApp, ui: &mut Ui) {
     ui.add_space(8.0);
     let more = ui.add(egui::Label::new(egui::RichText::new(tl!("More templates →")).font(medium(13.5)).color(t.accent)).sense(Sense::click()));
     if more.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+        // From the Home tab the Backstage isn't already showing, so it opens on New.
+        app.ui.backstage = true;
         app.ui.backstage_page = "new".into();
     }
     ui.add_space(24.0);
@@ -794,7 +797,10 @@ mod tests {
             click_at(&mut h, chevron);
             assert!(!h.state().ui.backstage, "the chevron closes the File page");
             assert!(h.state().canvas.focused, "and the page has the keyboard");
-            // The same spot in the editor's title bar.
+            // The same spot in the editor is the tab bar's logo button, which opens the File
+            // page again (the old File tab's job); its chevron closes it once more.
+            click_at(&mut h, chevron);
+            assert!(h.state().ui.backstage, "the logo opens the File page");
             click_at(&mut h, chevron);
             assert!(!h.state().ui.backstage);
         }
@@ -844,10 +850,10 @@ mod tests {
             }
             let back = if mac { mac_chevron(&a) } else { egui::pos2(100.0, 32.0) };
             let mut h = a11y_harness(a);
-            if !start {
-                h.state_mut().run("ui.backstage", json!({"value": true})).unwrap();
-                h.run_steps(4);
-            }
+            // From the Home tab (the Start screen's successor) or the editor, the File page is
+            // where Options lives.
+            h.state_mut().run("ui.backstage", json!({"value": true})).unwrap();
+            h.run_steps(4);
             h.get_by_role_and_label(egui::accesskit::Role::Button, "Options").click();
             h.run_steps(4);
             assert_eq!(h.state().ui.backstage_page, "options", "mac {mac} start {start}");

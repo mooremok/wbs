@@ -4567,13 +4567,18 @@ mod tests {
 
     /// #1348: New with a refused draft asks to save; Don't Save makes the new document.
     #[test]
-    fn a_refused_comment_draft_can_be_dropped_on_new() {
-        let (mut h, _) = refused_draft();
+    fn a_refused_comment_draft_is_kept_when_new_opens_a_tab() {
+        let (mut h, id) = refused_draft();
         let document = h.state().session.document_id();
+        // New opens a tab of its own instead of replacing the document, so no prompt appears:
+        // the refused draft's document just waits in its tab, draft and all.
         h.state_mut().run("file.new", json!({})).unwrap();
-        assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::SaveChanges { .. })), "the save prompt asks about it");
-        h.state_mut().run("ui.saveChanges", json!({"answer": "dontSave"})).unwrap();
-        assert_ne!(h.state().session.document_id(), document, "Don't Save made the new document");
+        assert!(h.state().dialog.is_none(), "nothing is replaced, so nothing is asked");
+        assert_ne!(h.state().session.document_id(), document, "the new document shows");
+        assert_eq!(h.state().tabs.len(), 1);
+        h.state_mut().activate_tab(0);
+        assert_eq!(h.state().session.document_id(), document, "the drafted document is back");
+        assert!(crate::panes::comment_draft(h.state(), id).is_some_and(|d| d.contains("Refused")), "the draft stayed");
     }
 
     /// #1348: Save with a refused draft saves the rest of the document, keeps the draft and says why.

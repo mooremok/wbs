@@ -274,15 +274,16 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
     {
         app.ui.tab = prev;
     }
-    // The tabs shown: File, the user's tabs in their order (Customize Ribbon, #379), then the
-    // contextual ones (the Outlining tab right after File). A contextual tab (Table, Picture
-    // Format) may be stored while the selection moved away, and a tab may have been hidden.
+    // The tabs shown: the user's tabs in their order (Customize Ribbon, #379), then the
+    // contextual ones (the Outlining tab first). A contextual tab (Table, Picture Format) may
+    // be stored while the selection moved away, and a tab may have been hidden. The file menu
+    // is the tab bar's logo button, as in WPS, not a tab of the strip.
     let user_tabs = app.session.ribbon.tabs().into_owned();
-    let mut tabs: Vec<(String, bool)> = vec![("File".to_string(), false)];
+    let mut tabs: Vec<(String, bool)> = Vec::new();
     tabs.extend(user_tabs.iter().filter(|e| !e.hidden).map(|e| (e.name.clone(), e.custom)));
     for ct in contextual_tabs(&app.session) {
         if ct == "Outlining" {
-            tabs.insert(1.min(tabs.len()), (ct.to_string(), false));
+            tabs.insert(0, (ct.to_string(), false));
         } else if !tabs.iter().any(|(n, _)| n == ct) {
             tabs.push((ct.to_string(), false));
         }
@@ -290,7 +291,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
     {
         let names: Vec<&str> = tabs.iter().map(|(n, _)| n.as_str()).collect();
         let next = resolve_tab(&app.ui.tab, &names);
-        let next = if names.contains(&next) { next } else { names.iter().copied().find(|n| *n != "File").unwrap_or(next) };
+        let next = if names.contains(&next) { next } else { names.first().copied().unwrap_or(next) };
         if next != app.ui.tab {
             app.ui.tab = next.to_string();
         }

@@ -13,10 +13,12 @@ use serde_json::Value;
 
 use crate::Registry;
 
-/// The ribbon's tabs in their default order. `File` opens Backstage: it is always first and
-/// isn't part of the customizable list.
+/// The ribbon's tabs in their default order, WPS's: 开始 Home, 插入 Insert, 页面布局 Layout,
+/// 引用 References, 审阅 Review, 视图 View, then the tabs WPS doesn't put up front. `File`
+/// stays first in the list for the order's reference only: the file menu is the tab bar's logo
+/// button, and [`RibbonLayout::tabs`] leaves it out.
 pub const TABS: [&str; 13] =
-    ["File", "Home", "Insert", "Draw", "Design", "Layout", "References", "Mailings", "Review", "View", "Developer", "Zotero", "Help"];
+    ["File", "Home", "Insert", "Layout", "References", "Review", "View", "Draw", "Design", "Mailings", "Zotero", "Developer", "Help"];
 /// Tabs that come up with the selection; custom tabs can't take their names.
 pub const CONTEXTUAL_TABS: [&str; 7] =
     ["Table Design", "Table Layout", "Picture Format", "Shape Format", "Equation", "Chart Design", "SmartArt Design"];
