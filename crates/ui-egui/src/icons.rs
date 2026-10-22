@@ -1,1493 +1,4972 @@
-//! WBS's icon set, drawn in code (original artwork; no external icon assets).
+//! WBS's icon set, drawn in code (no image or font assets; see the translate arm for the one
+//! borrowed glyph).
 //!
-//! Icons are designed on a 20×20 grid in two colours: line work (`c`) and an accent (`a`).
+//! Icons are designed on a 24×24 grid with 2 px round strokes: line work in `c`, the accent `a`
+//! marks the action's object, and red/green/yellow/orange/pink carry their fixed meanings. Fills
+//! that epaint can't feather (concave outlines) are emitted as ear-clipped triangles (`fpoly`);
+//! holes are knocked out with the surface colour (`bg`). The design sheet this set was drawn in
+//! lives in `plan/icons/redesign.html` (a gitignored local archive); this file is the source of
+//! truth.
 
-use egui::{Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
+use egui::{Color32, Mesh, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
 
+#[derive(Clone, Copy)]
 struct Pen<'a> {
     p: &'a Painter,
     r: Rect,
     c: Color32,
     a: Color32,
     w: f32,
+    g: f32,
+    caps: bool,
 }
 
 impl Pen<'_> {
     fn s(&self) -> f32 {
-        self.r.width().min(self.r.height()) / 20.0
+        self.r.width().min(self.r.height()) / self.g
     }
     fn pt(&self, x: f32, y: f32) -> Pos2 {
         let s = self.s();
-        let o = self.r.center() - vec2(10.0 * s, 10.0 * s);
+        let o = self.r.center() - vec2(self.g / 2.0 * s, self.g / 2.0 * s);
         pos2(o.x + x * s, o.y + y * s)
     }
     fn stroke(&self, c: Color32) -> Stroke {
         Stroke::new(self.w * self.s(), c)
     }
+    /// Round cap, as in the design sheet (epaint strokes end flat).
+    fn cap(&self, x: f32, y: f32, w: f32, c: Color32) {
+        if self.caps {
+            self.p.circle_filled(self.pt(x, y), w * self.s() / 2.0, c);
+        }
+    }
     fn line(&self, pts: &[(f32, f32)]) {
         self.line_c(pts, self.c);
     }
     fn line_c(&self, pts: &[(f32, f32)], c: Color32) {
+        self.line_w(pts, self.w, c);
+    }
+    fn line_w(&self, pts: &[(f32, f32)], w: f32, c: Color32) {
+        if pts.len() < 2 {
+            return;
+        }
         let v: Vec<Pos2> = pts.iter().map(|&(x, y)| self.pt(x, y)).collect();
-        self.p.add(Shape::line(v, self.stroke(c)));
+        self.p.add(Shape::line(v, Stroke::new(w * self.s(), c)));
+        if let [first, ..] = pts {
+            self.cap(first.0, first.1, w, c);
+        }
+        if let [.., last] = pts {
+            self.cap(last.0, last.1, w, c);
+        }
     }
     fn closed(&self, pts: &[(f32, f32)], c: Color32) {
         let v: Vec<Pos2> = pts.iter().map(|&(x, y)| self.pt(x, y)).collect();
         self.p.add(Shape::closed_line(v, self.stroke(c)));
     }
-    fn fill(&self, pts: &[(f32, f32)], c: Color32) {
+    fn closed_w(&self, pts: &[(f32, f32)], w: f32, c: Color32) {
         let v: Vec<Pos2> = pts.iter().map(|&(x, y)| self.pt(x, y)).collect();
-        self.p.add(Shape::convex_polygon(v, c, Stroke::NONE));
+        self.p.add(Shape::closed_line(v, Stroke::new(w * self.s(), c)));
     }
-    fn rect(&self, x0: f32, y0: f32, x1: f32, y1: f32, c: Color32) {
-        self.p.rect_stroke(Rect::from_min_max(self.pt(x0, y0), self.pt(x1, y1)), 1.0, self.stroke(c), egui::StrokeKind::Middle);
+    /// Filled polygon of arbitrary shape, pre-triangulated (epaint fills are convex-only).
+    fn fpoly(&self, pts: &[(f32, f32)], tris: &[[u32; 3]], c: Color32) {
+        if tris.is_empty() {
+            return;
+        }
+        let vertices: Vec<egui::epaint::Vertex> =
+            pts.iter().map(|&(x, y)| egui::epaint::Vertex { pos: self.pt(x, y), uv: pos2(0.0, 0.0), color: c }).collect();
+        let indices: Vec<u32> = tris.iter().flat_map(|t| t.iter().copied()).collect();
+        self.p.add(Shape::Mesh(Mesh { vertices, indices, ..Default::default() }.into()));
     }
-    fn frect(&self, x0: f32, y0: f32, x1: f32, y1: f32, c: Color32) {
-        self.p.rect_filled(Rect::from_min_max(self.pt(x0, y0), self.pt(x1, y1)), 0.5, c);
+    /// Dashed polyline; round caps turn very short dashes into dots.
+    fn dash_w(&self, pts: &[(f32, f32)], on: f32, off: f32, w: f32, c: Color32) {
+        if pts.len() < 2 {
+            return;
+        }
+        let (on, off) = (on.max(0.01), off.max(0.01));
+        let mut a = pts[0];
+        let mut drawing = true;
+        let mut remaining = on;
+        for &b in &pts[1..] {
+            let mut seg = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+            while seg > 1e-4 {
+                let step = seg.min(remaining);
+                let t = step / seg;
+                let end = (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
+                if drawing {
+                    self.line_w(&[a, end], w, c);
+                }
+                seg -= step;
+                remaining -= step;
+                a = end;
+                if remaining <= 1e-4 {
+                    drawing = !drawing;
+                    remaining = if drawing { on } else { off };
+                }
+            }
+            a = b;
+        }
+        let _ = off;
     }
     fn circle(&self, x: f32, y: f32, r: f32, c: Color32) {
-        self.p.circle_stroke(self.pt(x, y), r * self.s(), self.stroke(c));
+        self.circle_w(x, y, r, self.w, c);
+    }
+    fn circle_w(&self, x: f32, y: f32, r: f32, w: f32, c: Color32) {
+        self.p.circle_stroke(self.pt(x, y), r * self.s(), Stroke::new(w * self.s(), c));
     }
     fn fcircle(&self, x: f32, y: f32, r: f32, c: Color32) {
         self.p.circle_filled(self.pt(x, y), r * self.s(), c);
     }
-    fn text(&self, x: f32, y: f32, size: f32, t: &str, c: Color32, bold: bool) {
-        let font = if bold { crate::theme::semibold(size * self.s()) } else { FontId::proportional(size * self.s()) };
-        self.p.text(self.pt(x, y), egui::Align2::CENTER_CENTER, t, font, c);
+    fn rrect(&self, x0: f32, y0: f32, x1: f32, y1: f32, rad: f32, c: Color32) {
+        self.rrect_w(x0, y0, x1, y1, rad, self.w, c);
     }
-    /// Horizontal text lines (a paragraph).
-    fn lines(&self, x0: f32, x1: f32, ys: &[f32]) {
-        for y in ys {
-            self.line(&[(x0, *y), (x1, *y)]);
-        }
+    fn rrect_w(&self, x0: f32, y0: f32, x1: f32, y1: f32, rad: f32, w: f32, c: Color32) {
+        let r = Rect::from_min_max(self.pt(x0, y0), self.pt(x1, y1));
+        self.p.rect_stroke(r, rad * self.s(), Stroke::new(w * self.s(), c), egui::StrokeKind::Middle);
     }
-    /// A page outline with a folded corner.
-    fn page(&self, x0: f32, y0: f32, x1: f32, y1: f32) {
-        self.closed(&[(x0, y0), (x1 - 4.0, y0), (x1, y0 + 4.0), (x1, y1), (x0, y1)], self.c);
-        self.line(&[(x1 - 4.0, y0), (x1 - 4.0, y0 + 4.0), (x1, y0 + 4.0)]);
+    fn frect_r(&self, x0: f32, y0: f32, x1: f32, y1: f32, rad: f32, c: Color32) {
+        let r = Rect::from_min_max(self.pt(x0, y0), self.pt(x1, y1));
+        self.p.rect_filled(r, rad * self.s(), c);
     }
-    fn arrow_down(&self, x: f32, y: f32, c: Color32) {
-        self.fill(&[(x - 2.5, y - 1.2), (x + 2.5, y - 1.2), (x, y + 1.5)], c);
+    fn fill(&self, pts: &[(f32, f32)], c: Color32) {
+        let v: Vec<Pos2> = pts.iter().map(|&(x, y)| self.pt(x, y)).collect();
+        self.p.add(Shape::convex_polygon(v, c, Stroke::NONE));
     }
 }
 
-/// Paint icon `name` into `r`. `c` is the line colour; the accent comes from the theme.
+/// Paint icon `name` into `r`. `c` is the line colour; the accent and the surface colour come from
+/// the theme.
 pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
-    let pen = Pen { p, r, c, a: accent, w: 1.25 };
+    let bg = p.ctx().style_of(p.ctx().theme()).visuals.panel_fill;
+    let pen = Pen { p, r, c, a: accent, w: 2.0, g: 24.0, caps: true };
+    let a = accent;
     if let Some(kind) = name.strip_prefix("shape.")
         && shape(&pen, kind)
     {
         return;
     }
-    let a = accent;
     let red = Color32::from_rgb(0xD1, 0x3B, 0x3B);
     let yellow = Color32::from_rgb(0xF2, 0xC8, 0x11);
     let green = Color32::from_rgb(0x2E, 0x8B, 0x57);
     let orange = Color32::from_rgb(0xE0, 0x7B, 0x1F);
+    let pink = Color32::from_rgb(0xE8, 0x74, 0x9F);
     match name {
-        // Clipboard
         "paste" => {
-            pen.rect(4.0, 3.5, 14.0, 17.0, c);
-            pen.frect(7.0, 2.0, 11.0, 5.0, a);
-            pen.frect(9.0, 8.0, 17.5, 18.5, pen.a.linear_multiply(0.18));
-            pen.rect(9.0, 8.0, 17.5, 18.5, a);
-            pen.lines(10.8, 15.8, &[11.0, 13.5, 16.0]);
-        }
-        "cut" => {
-            pen.circle(6.0, 15.0, 2.5, c);
-            pen.circle(14.0, 15.0, 2.5, c);
-            pen.line(&[(7.5, 13.0), (14.0, 3.0)]);
-            pen.line(&[(12.5, 13.0), (6.0, 3.0)]);
-        }
-        "copy" => {
-            pen.rect(3.5, 3.0, 12.5, 14.0, c);
-            pen.frect(7.5, 6.5, 16.5, 17.5, Color32::TRANSPARENT);
-            pen.rect(7.5, 6.5, 16.5, 17.5, a);
-        }
-        "painter" => {
-            pen.frect(4.0, 3.0, 16.0, 8.0, yellow);
-            pen.rect(4.0, 3.0, 16.0, 8.0, c);
-            pen.line(&[(16.0, 5.5), (17.5, 5.5), (17.5, 10.0), (10.0, 10.0), (10.0, 12.0)]);
-            pen.frect(8.8, 12.0, 11.2, 18.0, c);
-        }
-        // Font
-        "bold" => pen.text(10.0, 10.5, 15.0, "B", c, true),
-        "italic" => pen.text(10.0, 10.5, 15.0, "I", c, false),
-        "underline" => {
-            pen.text(10.0, 9.0, 14.0, "U", c, false);
-            pen.line(&[(5.0, 17.0), (15.0, 17.0)]);
-        }
-        "strike" => {
-            pen.text(10.0, 10.0, 12.0, "ab", c, false);
-            pen.line_c(&[(3.0, 10.5), (17.0, 10.5)], c);
-        }
-        "charborder" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, a);
-            pen.text(10.0, 6.0, 9.0, "A", c, false);
-        }
-        "enclose" => {
-            pen.circle(10.0, 10.5, 7.5, a);
-            pen.text(10.0, 10.5, 9.0, "A", c, false);
-        }
-        "subscript" => {
-            pen.text(8.0, 9.0, 13.0, "x", c, false);
-            pen.text(15.0, 14.5, 8.0, "2", a, true);
-        }
-        "superscript" => {
-            pen.text(8.0, 11.0, 13.0, "x", c, false);
-            pen.text(15.0, 5.0, 8.0, "2", a, true);
-        }
-        "grow" => {
-            pen.text(8.0, 11.0, 15.0, "A", c, false);
-            pen.fill(&[(14.5, 6.0), (18.5, 6.0), (16.5, 3.0)], a);
-        }
-        "shrink" => {
-            pen.text(8.0, 12.0, 11.0, "A", c, false);
-            pen.fill(&[(14.5, 4.0), (18.5, 4.0), (16.5, 7.0)], a);
-        }
-        "case" => pen.text(10.0, 10.5, 12.0, "Aa", c, false),
-        "clear" => {
-            pen.text(8.0, 9.0, 13.0, "A", c, false);
-            pen.fill(&[(10.0, 15.0), (14.0, 11.0), (18.0, 15.0), (14.0, 19.0)], Color32::from_rgb(0xE8, 0x6F, 0xA0));
-        }
-        // Small letters over a large one: text with a reading above it.
-        "phonetic" => {
-            pen.text(10.0, 5.0, 7.5, "abc", a, false);
-            pen.text(10.0, 13.5, 12.5, "A", c, false);
-        }
-        "highlight" => {
-            pen.fill(&[(5.0, 12.0), (11.0, 4.0), (14.0, 7.0), (8.0, 15.0)], c);
-            pen.line(&[(5.0, 12.0), (3.5, 15.0), (8.0, 15.0)]);
-            pen.frect(2.0, 16.5, 18.0, 19.0, yellow);
-        }
-        "fontcolor" => {
-            pen.text(10.0, 9.0, 14.0, "A", c, false);
-            pen.frect(2.0, 16.5, 18.0, 19.0, red);
-        }
-        "effects" => {
-            pen.text(10.0, 10.0, 15.0, "A", a, true);
-            pen.text(10.5, 10.5, 15.0, "A", Color32::from_rgba_unmultiplied(0, 0, 0, 40), true);
-        }
-        "fontdialog" => pen.line(&[(13.0, 13.0), (17.0, 17.0), (17.0, 13.0)]),
-        // Paragraph
-        "bullets" => {
-            for (i, y) in [5.0, 10.0, 15.0].iter().enumerate() {
-                pen.fcircle(4.0, *y, 1.4, if i == 0 { a } else { c });
-                pen.line(&[(7.5, *y), (17.0, *y)]);
-            }
-        }
-        "numbering" => {
-            for (i, y) in [5.0, 10.0, 15.0].iter().enumerate() {
-                pen.text(4.0, *y, 6.0, &(i + 1).to_string(), if i == 0 { a } else { c }, true);
-                pen.line(&[(7.5, *y), (17.0, *y)]);
-            }
-        }
-        "multilevel" => {
-            pen.text(3.5, 4.5, 5.5, "1", a, true);
-            pen.line(&[(6.5, 4.5), (17.0, 4.5)]);
-            pen.text(6.5, 10.0, 5.5, "a", c, true);
-            pen.line(&[(9.5, 10.0), (17.0, 10.0)]);
-            pen.text(9.5, 15.5, 5.5, "i", c, true);
-            pen.line(&[(12.0, 15.5), (17.0, 15.5)]);
-        }
-        "outdent" | "indent" => {
-            pen.lines(9.0, 17.0, &[7.0, 10.0, 13.0]);
-            pen.lines(3.0, 17.0, &[3.5, 16.5]);
-            if name == "indent" {
-                pen.fill(&[(3.0, 7.0), (3.0, 13.0), (6.5, 10.0)], a);
-            } else {
-                pen.fill(&[(6.5, 7.0), (6.5, 13.0), (3.0, 10.0)], a);
-            }
-        }
-        "sort" => {
-            pen.text(6.0, 5.5, 7.0, "A", c, true);
-            pen.text(6.0, 14.5, 7.0, "Z", c, true);
-            pen.line_c(&[(14.0, 3.0), (14.0, 17.0)], a);
-            pen.line_c(&[(11.5, 14.5), (14.0, 17.0), (16.5, 14.5)], a);
-        }
-        "pilcrow" => pen.text(10.0, 10.5, 15.0, "¶", c, false),
-        "alignLeft" => {
-            pen.lines(3.0, 17.0, &[4.0, 10.0, 16.0]);
-            ().then_lines(&pen, 3.0, 12.0, &[7.0, 13.0])
-        }
-        "alignCenter" => {
-            pen.lines(3.0, 17.0, &[4.0, 10.0, 16.0]);
-            ().then_lines(&pen, 6.0, 14.0, &[7.0, 13.0])
-        }
-        "alignRight" => {
-            pen.lines(3.0, 17.0, &[4.0, 10.0, 16.0]);
-            ().then_lines(&pen, 8.0, 17.0, &[7.0, 13.0])
-        }
-        "justify" => pen.lines(3.0, 17.0, &[4.0, 7.0, 10.0, 13.0, 16.0]),
-        // Text direction: lines set from the start edge, an arrow in the reading direction.
-        "textLtr" => {
-            pen.lines(3.0, 14.0, &[4.0, 8.0]);
-            pen.lines(3.0, 10.0, &[12.0]);
-            pen.line_c(&[(3.0, 16.5), (16.5, 16.5)], a);
-            pen.line_c(&[(13.5, 14.0), (16.5, 16.5), (13.5, 19.0)], a);
-        }
-        "textRtl" => {
-            pen.lines(6.0, 17.0, &[4.0, 8.0]);
-            pen.lines(10.0, 17.0, &[12.0]);
-            pen.line_c(&[(17.0, 16.5), (3.5, 16.5)], a);
-            pen.line_c(&[(6.5, 14.0), (3.5, 16.5), (6.5, 19.0)], a);
-        }
-        "lineSpacing" => {
-            pen.lines(9.0, 17.0, &[5.0, 10.0, 15.0]);
-            pen.line_c(&[(4.5, 3.0), (4.5, 17.0)], a);
-            pen.line_c(&[(2.5, 5.0), (4.5, 3.0), (6.5, 5.0)], a);
-            pen.line_c(&[(2.5, 15.0), (4.5, 17.0), (6.5, 15.0)], a);
-        }
-        "shading" => {
-            pen.fill(&[(4.0, 9.0), (10.0, 3.0), (16.0, 9.0), (10.0, 15.0)], Color32::TRANSPARENT);
-            pen.closed(&[(4.0, 9.0), (10.0, 3.0), (16.0, 9.0), (10.0, 15.0)], c);
-            pen.fcircle(16.5, 13.5, 1.6, a);
-            pen.frect(2.0, 16.5, 18.0, 19.0, yellow);
-        }
-        "borders" => {
-            for y in [3.0, 10.0, 17.0] {
-                for x in [3.0, 6.5, 10.0, 13.5, 17.0] {
-                    pen.fcircle(x, y, 0.6, c);
-                }
-            }
-            for x in [3.0, 10.0, 17.0] {
-                for y in [6.5, 13.5] {
-                    pen.fcircle(x, y, 0.6, c);
-                }
-            }
-            pen.line_c(&[(3.0, 17.0), (17.0, 17.0)], a);
-        }
-        // Editing
-        "find" => {
-            pen.circle(8.0, 8.0, 5.0, c);
-            pen.line_c(&[(11.5, 11.5), (17.0, 17.0)], a);
-        }
-        "replace" => {
-            pen.text(6.0, 6.0, 8.0, "ab", c, false);
-            pen.text(13.0, 15.0, 8.0, "ac", a, false);
-            pen.line(&[(13.0, 3.5), (16.0, 3.5), (16.0, 8.5)]);
-            pen.line(&[(14.5, 7.0), (16.0, 8.5), (17.5, 7.0)]);
-        }
-        "select" => {
-            // Overlapping convex pieces keep the concave arrow intact without antialiasing seams.
-            pen.fill(&[(5.0, 3.0), (5.0, 16.0), (14.0, 12.0)], c);
-            pen.fill(&[(8.0, 13.0), (10.5, 18.0), (12.5, 17.0), (10.0, 12.0)], c);
-        }
-        "dictate" => {
-            pen.rect(7.5, 2.5, 12.5, 12.0, c);
-            pen.line(&[(5.0, 9.5), (5.0, 11.0), (10.0, 15.0), (15.0, 11.0), (15.0, 9.5)]);
-            pen.line(&[(10.0, 15.0), (10.0, 18.0)]);
-        }
-        "editor" | "spelling" => {
-            pen.text(8.0, 7.0, 9.0, "abc", c, true);
-            pen.line_c(&[(5.0, 13.0), (8.5, 16.5), (16.0, 9.0)], green);
-        }
-        "styles" => {
-            pen.text(10.0, 10.0, 14.0, "A", a, false);
-            pen.line(&[(13.0, 15.0), (17.0, 11.0)]);
-        }
-        "stylesPane" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.line(&[(11.0, 3.0), (11.0, 17.0)]);
-            pen.text(7.0, 10.0, 8.0, "A", a, false);
-        }
-        // Insert
-        "coverPage" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(5.5, 7.0, 14.5, 10.0, a);
-        }
-        "blankPage" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.line_c(&[(10.0, 7.0), (10.0, 13.0)], a);
-            pen.line_c(&[(7.0, 10.0), (13.0, 10.0)], a);
-        }
-        "pageBreak" => {
-            pen.line(&[(4.0, 2.0), (4.0, 7.0), (16.0, 7.0), (16.0, 2.0)]);
-            pen.line(&[(4.0, 18.0), (4.0, 13.0), (16.0, 13.0), (16.0, 18.0)]);
-            pen.line_c(&[(2.0, 10.0), (18.0, 10.0)], a);
-        }
-        "drawTable" => {
-            pen.rect(2.5, 3.0, 14.0, 14.5, c);
-            pen.line(&[(2.5, 8.5), (14.0, 8.5)]);
-            pen.line(&[(8.0, 3.0), (8.0, 14.5)]);
-            pen.line(&[(9.5, 18.0), (17.0, 10.5), (18.5, 12.0), (11.0, 19.5), (9.0, 19.8), (9.5, 18.0)]);
-            pen.fill(&[(17.0, 10.5), (18.0, 9.5), (19.5, 11.0), (18.5, 12.0)], a);
-        }
-        "table" => {
-            pen.frect(3.0, 3.0, 17.0, 7.0, a);
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.line(&[(3.0, 7.0), (17.0, 7.0)]);
-            pen.line(&[(3.0, 12.0), (17.0, 12.0)]);
-            pen.line(&[(8.0, 3.0), (8.0, 17.0)]);
-            pen.line(&[(12.5, 3.0), (12.5, 17.0)]);
-        }
-        "picture" => {
-            pen.rect(2.5, 4.0, 17.5, 16.0, c);
-            pen.fill(&[(4.0, 14.5), (8.5, 8.0), (12.0, 14.5)], a);
-            pen.fill(&[(9.5, 14.5), (13.0, 10.0), (16.0, 14.5)], green);
-            pen.fcircle(13.5, 7.0, 1.5, yellow);
-        }
-        "onlinePicture" => {
-            paint(p, Rect::from_min_size(r.min, r.size() * 0.8), "picture", c, accent);
-            pen.circle(15.0, 15.0, 3.5, a);
-        }
-        "shapes" => {
-            pen.rect(3.0, 3.0, 11.0, 11.0, c);
-            pen.fcircle(13.0, 13.0, 4.5, a);
-        }
-        // Shape Effects: a square casting a soft shadow down and to the right.
-        "shapeEffects" => {
-            for (k, alpha) in [(2.0, 30), (1.0, 50), (0.0, 80)] {
-                pen.frect(7.0 - k, 7.0 - k, 18.0 + k, 18.0 + k, Color32::from_rgba_unmultiplied(0, 0, 0, alpha));
-            }
-            pen.frect(3.0, 3.0, 14.0, 14.0, a);
-            pen.rect(3.0, 3.0, 14.0, 14.0, c);
-        }
-        "icons" => {
-            pen.circle(10.0, 10.0, 7.5, c);
-            pen.fcircle(7.5, 8.0, 1.0, c);
-            pen.fcircle(12.5, 8.0, 1.0, c);
-            pen.line_c(&[(6.5, 12.0), (10.0, 14.5), (13.5, 12.0)], a);
-        }
-        "models3d" => {
-            pen.closed(&[(10.0, 2.5), (17.0, 6.0), (17.0, 14.0), (10.0, 17.5), (3.0, 14.0), (3.0, 6.0)], c);
-            pen.line_c(&[(3.0, 6.0), (10.0, 9.5), (17.0, 6.0)], a);
-            pen.line_c(&[(10.0, 9.5), (10.0, 17.5)], a);
-        }
-        "smartArt" => {
-            pen.frect(7.0, 2.5, 13.0, 6.5, a);
-            pen.rect(2.5, 13.0, 8.0, 17.0, c);
-            pen.rect(12.0, 13.0, 17.5, 17.0, c);
-            pen.line(&[(10.0, 6.5), (10.0, 10.0), (5.0, 10.0), (5.0, 13.0)]);
-            pen.line(&[(10.0, 10.0), (15.0, 10.0), (15.0, 13.0)]);
-        }
-        "addShape" => {
-            pen.frect(2.5, 3.0, 9.5, 8.0, a);
-            pen.rect(2.5, 12.0, 9.5, 17.0, c);
-            pen.line(&[(6.0, 8.0), (6.0, 12.0)]);
-            pen.line_c(&[(14.5, 10.5), (14.5, 17.5)], green);
-            pen.line_c(&[(11.0, 14.0), (18.0, 14.0)], green);
-        }
-        "promote" => {
-            pen.lines(9.0, 17.5, &[5.0, 10.0, 15.0]);
-            pen.line_c(&[(6.5, 7.5), (3.0, 10.0), (6.5, 12.5)], a);
-        }
-        "demote" => {
-            pen.lines(9.0, 17.5, &[5.0, 10.0, 15.0]);
-            pen.line_c(&[(3.0, 7.5), (6.5, 10.0), (3.0, 12.5)], a);
-        }
-        "textPane" => {
-            pen.rect(2.5, 3.0, 17.5, 17.0, c);
-            pen.line(&[(9.0, 3.0), (9.0, 17.0)]);
-            pen.lines(4.0, 7.5, &[6.5, 10.0, 13.5]);
-            pen.frect(11.0, 6.0, 16.0, 9.0, a);
-            pen.frect(11.0, 11.5, 16.0, 14.5, a);
-        }
-        "smartArtColors" => {
-            pen.fcircle(7.0, 7.5, 4.0, a);
-            pen.fcircle(13.0, 7.5, 4.0, orange);
-            pen.fcircle(10.0, 13.0, 4.0, green);
-            pen.circle(10.0, 10.0, 8.0, c);
-        }
-        "resetGraphic" => {
-            pen.rect(7.5, 6.5, 16.5, 15.5, c);
-            pen.frect(9.5, 8.5, 14.5, 13.5, a);
-            pen.line(&[(3.5, 13.0), (3.5, 4.0), (11.0, 4.0)]);
-            pen.line(&[(1.5, 6.0), (3.5, 4.0), (5.5, 6.0)]);
-        }
-        "chart" => {
-            pen.frect(3.5, 11.0, 6.5, 17.0, a);
-            pen.frect(8.5, 6.0, 11.5, 17.0, orange);
-            pen.frect(13.5, 9.0, 16.5, 17.0, green);
-            pen.line(&[(2.0, 17.5), (18.0, 17.5)]);
-        }
-        "changeChartType" => {
-            pen.frect(3.0, 11.0, 5.5, 17.0, a);
-            pen.frect(7.0, 7.0, 9.5, 17.0, orange);
-            pen.line(&[(2.0, 17.5), (11.0, 17.5)]);
-            pen.fill(&[(15.0, 10.0), (15.0, 5.0), (19.0, 8.5)], green);
-            pen.circle(15.0, 10.0, 4.0, c);
-            pen.line_c(&[(4.0, 5.0), (9.0, 2.5), (12.0, 4.5)], a);
-        }
-        "chartData" => {
-            pen.rect(2.5, 3.0, 17.5, 17.0, c);
-            pen.frect(2.5, 3.0, 17.5, 6.5, a);
-            pen.line(&[(2.5, 10.0), (17.5, 10.0)]);
-            pen.line(&[(2.5, 13.5), (17.5, 13.5)]);
-            pen.line(&[(7.5, 3.0), (7.5, 17.0)]);
-            pen.line(&[(12.5, 3.0), (12.5, 17.0)]);
-            pen.frect(9.0, 14.5, 11.0, 16.0, orange);
-        }
-        "chartTitle" => {
-            pen.frect(5.0, 2.5, 15.0, 4.5, a);
-            pen.frect(4.0, 11.0, 7.0, 17.0, c);
-            pen.frect(8.5, 8.0, 11.5, 17.0, c);
-            pen.frect(13.0, 12.5, 16.0, 17.0, c);
-            pen.line(&[(2.5, 17.5), (17.5, 17.5)]);
-        }
-        "legend" => {
-            for (k, col) in [a, orange, green].into_iter().enumerate() {
-                let y = 5.0 + 5.0 * k as f32;
-                pen.frect(3.0, y - 1.5, 6.0, y + 1.5, col);
-                pen.line(&[(8.0, y), (17.0, y)]);
-            }
-        }
-        "dataLabels" => {
-            pen.frect(3.5, 11.0, 7.0, 17.5, a);
-            pen.frect(12.0, 8.0, 15.5, 17.5, orange);
-            pen.rect(2.5, 5.5, 8.0, 9.0, c);
-            pen.rect(11.0, 2.5, 16.5, 6.0, c);
-        }
-        "screenshot" => {
-            pen.line(&[(3.0, 7.0), (3.0, 3.0), (7.0, 3.0)]);
-            pen.line(&[(13.0, 3.0), (17.0, 3.0), (17.0, 7.0)]);
-            pen.line(&[(17.0, 13.0), (17.0, 17.0), (13.0, 17.0)]);
-            pen.line(&[(7.0, 17.0), (3.0, 17.0), (3.0, 13.0)]);
-            pen.fcircle(10.0, 10.0, 3.0, a);
-        }
-        "video" => {
-            pen.rect(2.5, 5.0, 14.0, 15.0, c);
-            pen.fill(&[(14.0, 10.0), (18.0, 6.5), (18.0, 13.5)], a);
-        }
-        "link" => {
-            pen.closed(
-                &[(3.0, 10.0), (7.0, 6.0), (9.5, 6.0), (9.5, 8.0), (7.5, 8.0), (5.0, 10.5), (7.5, 13.0), (9.5, 13.0), (9.5, 15.0), (7.0, 15.0)],
+            pen.line_c(&[(4.5, 4.5), (15.0, 4.5), (15.31, 4.55), (15.59, 4.69), (15.81, 4.91), (15.95, 5.19), (16.0, 5.5), (16.0, 8.0)], c);
+            pen.line_c(
+                &[
+                    (4.5, 4.5),
+                    (4.19, 4.55),
+                    (3.91, 4.69),
+                    (3.69, 4.91),
+                    (3.55, 5.19),
+                    (3.5, 5.5),
+                    (3.5, 20.0),
+                    (3.55, 20.31),
+                    (3.69, 20.59),
+                    (3.91, 20.81),
+                    (4.19, 20.95),
+                    (4.5, 21.0),
+                    (9.0, 21.0),
+                ],
                 c,
             );
-            pen.line_c(&[(7.5, 10.5), (12.5, 10.5)], a);
-            pen.closed(
+            pen.frect_r(7.5, 2.5, 13.5, 6.1, 1.1, a);
+            pen.rrect(9.5, 9.0, 20.5, 21.0, 1.0, a);
+            pen.line_w(&[(12.3, 12.8), (17.7, 12.8)], 1.6, a);
+            pen.line_w(&[(12.3, 15.5), (17.7, 15.5)], 1.6, a);
+            pen.line_w(&[(12.3, 18.2), (15.5, 18.2)], 1.6, a);
+        }
+        "cut" => {
+            pen.circle(6.5, 17.5, 2.6, c);
+            pen.circle(17.5, 17.5, 2.6, c);
+            pen.line_c(&[(8.4, 15.3), (15.8, 3.0)], c);
+            pen.line_c(&[(15.6, 15.3), (8.2, 3.0)], c);
+        }
+        "copy" => {
+            pen.line_c(&[(14.5, 3.5), (4.0, 3.5), (4.0, 17.0), (9.0, 17.0)], c);
+            pen.rrect(9.5, 7.0, 20.0, 20.5, 1.0, a);
+        }
+        "painter" => {
+            pen.line_c(&[(19.0, 3.0), (13.7, 8.3)], c);
+            pen.line_w(&[(13.0, 9.0), (10.9, 11.1)], 3.8, c);
+            pen.fill(&[(8.6, 10.6), (11.4, 13.4), (6.2, 15.8)], a);
+            pen.fcircle(5.4, 18.8, 1.4, a);
+        }
+        "bold" => {
+            pen.line_c(&[(10.5, 5.5), (10.5, 18.5)], c);
+            pen.line_c(
                 &[
-                    (17.0, 10.5),
-                    (13.0, 14.5),
-                    (10.5, 14.5),
-                    (10.5, 12.5),
-                    (12.5, 12.5),
-                    (15.0, 10.0),
-                    (12.5, 7.5),
-                    (10.5, 7.5),
                     (10.5, 5.5),
-                    (13.0, 5.5),
+                    (13.7, 5.5),
+                    (14.69, 5.67),
+                    (15.56, 6.18),
+                    (16.21, 6.95),
+                    (16.56, 7.9),
+                    (16.56, 8.9),
+                    (16.21, 9.85),
+                    (15.56, 10.62),
+                    (14.69, 11.13),
+                    (13.7, 11.3),
+                    (10.5, 11.3),
+                ],
+                c,
+            );
+            pen.line_c(
+                &[
+                    (10.5, 11.3),
+                    (14.2, 11.3),
+                    (15.41, 11.51),
+                    (16.48, 12.13),
+                    (17.27, 13.08),
+                    (17.7, 14.23),
+                    (17.7, 15.47),
+                    (17.27, 16.62),
+                    (16.48, 17.57),
+                    (15.41, 18.19),
+                    (14.2, 18.4),
+                    (10.5, 18.4),
                 ],
                 c,
             );
         }
+        "italic" => {
+            pen.line_c(&[(13.8, 6.0), (10.7, 6.0)], c);
+            pen.line_c(&[(12.2, 6.0), (9.3, 18.0)], c);
+            pen.line_c(&[(9.3, 18.0), (12.4, 18.0)], c);
+        }
+        "underline" => {
+            pen.line_c(
+                &[
+                    (8.5, 4.5),
+                    (8.5, 11.7),
+                    (8.71, 12.9),
+                    (9.32, 13.95),
+                    (10.25, 14.73),
+                    (11.39, 15.15),
+                    (12.61, 15.15),
+                    (13.75, 14.73),
+                    (14.68, 13.95),
+                    (15.29, 12.9),
+                    (15.5, 11.7),
+                    (15.5, 4.5),
+                ],
+                c,
+            );
+            pen.line_c(&[(6.5, 19.0), (17.5, 19.0)], c);
+        }
+        "strike" => {
+            pen.circle(8.1, 11.9, 2.3, c);
+            pen.line_c(&[(10.4, 9.5), (10.4, 14.2)], c);
+            pen.line_c(&[(13.6, 6.2), (13.6, 14.2)], c);
+            pen.closed(
+                &[
+                    (18.15, 11.85),
+                    (18.03, 11.12),
+                    (17.7, 10.47),
+                    (17.18, 9.95),
+                    (16.53, 9.62),
+                    (15.8, 9.5),
+                    (15.07, 9.62),
+                    (14.42, 9.95),
+                    (13.9, 10.47),
+                    (13.57, 11.12),
+                    (13.45, 11.85),
+                    (13.59, 12.65),
+                    (14.0, 13.36),
+                    (14.63, 13.89),
+                    (15.39, 14.16),
+                    (16.21, 14.16),
+                    (16.97, 13.89),
+                    (17.6, 13.36),
+                    (18.01, 12.65),
+                ],
+                c,
+            );
+            pen.line_c(&[(3.0, 12.0), (21.0, 12.0)], c);
+        }
+        "charborder" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.5, a);
+            pen.line_w(&[(8.98, 13.99), (11.9, 7.0), (14.81, 13.99)], 2.4, c);
+            pen.line_w(&[(10.09, 11.43), (13.7, 11.43)], 2.4, c);
+        }
+        "enclose" => {
+            pen.circle(12.0, 12.0, 8.5, a);
+            pen.line_w(&[(8.98, 14.19), (11.9, 7.2), (14.81, 14.19)], 2.4, c);
+            pen.line_w(&[(10.09, 11.63), (13.7, 11.63)], 2.4, c);
+        }
+        "subscript" => {
+            pen.line_c(&[(4.5, 5.5), (11.5, 15.5)], c);
+            pen.line_c(&[(11.5, 5.5), (4.5, 15.5)], c);
+            pen.line_w(
+                &[
+                    (15.1, 13.5),
+                    (15.24, 13.2),
+                    (15.46, 12.94),
+                    (15.73, 12.72),
+                    (16.04, 12.56),
+                    (16.38, 12.45),
+                    (16.74, 12.39),
+                    (17.09, 12.38),
+                    (17.43, 12.44),
+                    (17.73, 12.56),
+                    (17.99, 12.74),
+                    (18.18, 12.99),
+                    (18.3, 13.3),
+                    (18.32, 13.56),
+                    (18.29, 13.81),
+                    (18.21, 14.04),
+                    (18.1, 14.26),
+                    (17.94, 14.46),
+                    (17.76, 14.65),
+                    (17.56, 14.83),
+                    (17.34, 15.01),
+                    (17.1, 15.18),
+                    (16.87, 15.36),
+                    (16.63, 15.53),
+                    (16.4, 15.7),
+                    (16.27, 15.85),
+                    (16.14, 16.0),
+                    (16.0, 16.16),
+                    (15.87, 16.32),
+                    (15.74, 16.49),
+                    (15.61, 16.66),
+                    (15.5, 16.85),
+                    (15.4, 17.05),
+                    (15.32, 17.26),
+                    (15.25, 17.49),
+                    (15.21, 17.74),
+                    (15.2, 18.0),
+                    (18.5, 18.0),
+                ],
+                1.8,
+                a,
+            );
+        }
+        "superscript" => {
+            pen.line_c(&[(4.5, 8.5), (11.5, 18.5)], c);
+            pen.line_c(&[(11.5, 8.5), (4.5, 18.5)], c);
+            pen.line_w(
+                &[
+                    (15.1, 4.5),
+                    (15.24, 4.2),
+                    (15.46, 3.94),
+                    (15.73, 3.72),
+                    (16.04, 3.56),
+                    (16.38, 3.45),
+                    (16.74, 3.39),
+                    (17.09, 3.38),
+                    (17.43, 3.44),
+                    (17.73, 3.56),
+                    (17.99, 3.74),
+                    (18.18, 3.99),
+                    (18.3, 4.3),
+                    (18.32, 4.56),
+                    (18.29, 4.81),
+                    (18.21, 5.04),
+                    (18.1, 5.26),
+                    (17.94, 5.46),
+                    (17.76, 5.65),
+                    (17.56, 5.83),
+                    (17.34, 6.01),
+                    (17.1, 6.18),
+                    (16.87, 6.36),
+                    (16.63, 6.53),
+                    (16.4, 6.7),
+                    (16.27, 6.85),
+                    (16.14, 7.0),
+                    (16.0, 7.16),
+                    (15.87, 7.32),
+                    (15.74, 7.49),
+                    (15.61, 7.66),
+                    (15.5, 7.85),
+                    (15.4, 8.05),
+                    (15.32, 8.26),
+                    (15.25, 8.49),
+                    (15.21, 8.74),
+                    (15.2, 9.0),
+                    (18.5, 9.0),
+                ],
+                1.8,
+                a,
+            );
+        }
+        "grow" => {
+            pen.line_c(&[(4.33, 16.99), (8.5, 7.0), (12.66, 16.99)], c);
+            pen.line_c(&[(5.91, 13.33), (11.08, 13.33)], c);
+            pen.line_c(&[(18.5, 15.5), (18.5, 6.5)], a);
+            pen.line_c(&[(15.3, 9.7), (18.5, 6.5), (21.7, 9.7)], a);
+        }
+        "shrink" => {
+            pen.line_c(&[(3.87, 15.41), (7.2, 7.4), (10.54, 15.41)], c);
+            pen.line_c(&[(5.14, 12.47), (9.27, 12.47)], c);
+            pen.line_c(&[(18.5, 12.5), (18.5, 21.5)], a);
+            pen.line_c(&[(15.3, 18.3), (18.5, 21.5), (21.7, 18.3)], a);
+        }
+        "case" => {
+            pen.line_c(&[(4.5, 17.0), (7.75, 8.0), (11.0, 17.0)], c);
+            pen.line_c(&[(6.1, 14.3), (9.4, 14.3)], c);
+            pen.circle(15.3, 14.6, 2.5, c);
+            pen.line_c(&[(17.8, 12.1), (17.8, 17.1)], c);
+        }
+        "clear" => {
+            pen.closed(&[(6.2, 13.7), (14.7, 5.2), (18.8, 9.3), (10.3, 17.8)], c);
+            pen.line_w(&[(10.0, 9.9), (14.1, 14.0)], 1.6, c);
+            pen.fill(&[(6.2, 13.7), (10.0, 9.9), (14.1, 14.0), (10.3, 17.8)], pink);
+            pen.line_w(&[(3.5, 21.0), (6.9, 21.0)], 1.6, c);
+            pen.dash_w(&[(10.2, 21.0), (13.6, 21.0)], 1.8, 2.0, 1.6, c.linear_multiply(0.5));
+        }
+        "phonetic" => {
+            pen.circle_w(7.4, 4.6, 1.5, 1.6, c);
+            pen.line_w(&[(8.9, 3.1), (8.9, 7.1)], 1.6, c);
+            pen.line_w(&[(11.9, 3.1), (11.9, 8.1)], 1.6, c);
+            pen.closed_w(
+                &[
+                    (16.1, 5.3),
+                    (16.0, 4.65),
+                    (15.7, 4.07),
+                    (15.23, 3.6),
+                    (14.65, 3.3),
+                    (14.0, 3.2),
+                    (13.35, 3.3),
+                    (12.77, 3.6),
+                    (12.3, 4.07),
+                    (12.0, 4.65),
+                    (11.9, 5.3),
+                    (12.03, 6.02),
+                    (12.39, 6.65),
+                    (12.95, 7.12),
+                    (13.64, 7.37),
+                    (14.36, 7.37),
+                    (15.05, 7.12),
+                    (15.61, 6.65),
+                    (15.97, 6.02),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_c(&[(9.48, 16.89), (12.4, 9.9), (15.31, 16.89)], c);
+            pen.line_c(&[(10.59, 14.33), (14.2, 14.33)], c);
+        }
+        "highlight" => {
+            pen.fill(&[(13.55, 12.55), (9.45, 14.39), (7.6, 12.55), (9.45, 8.45)], a);
+            pen.closed(&[(15.5, 2.5), (19.5, 6.5), (13.5, 12.5), (9.5, 8.5)], c);
+            pen.line_w(&[(4.0, 20.7), (20.0, 20.7)], 3.0, yellow);
+        }
+        "fontcolor" => {
+            pen.line_c(&[(7.0, 16.0), (12.0, 4.0), (17.0, 16.0)], c);
+            pen.line_c(&[(8.9, 11.6), (15.1, 11.6)], c);
+            pen.line_w(&[(4.0, 20.5), (20.0, 20.5)], 3.0, red);
+        }
+        "effects" => {
+            pen.line_c(&[(8.6, 19.6), (13.6, 7.6), (18.6, 19.6)], c.linear_multiply(0.4));
+            pen.line_c(&[(10.5, 15.2), (16.7, 15.2)], c.linear_multiply(0.4));
+            pen.line_c(&[(7.0, 18.0), (12.0, 6.0), (17.0, 18.0)], a);
+            pen.line_c(&[(8.9, 13.6), (15.1, 13.6)], a);
+        }
+        "fontdialog" => {
+            pen.line_c(&[(12.5, 11.5), (20.1, 19.1)], c);
+            pen.line_c(&[(20.5, 13.0), (20.5, 19.2), (14.3, 19.2)], c);
+        }
+        "bullets" => {
+            pen.fcircle(5.0, 6.0, 1.5, a);
+            pen.fcircle(5.0, 12.0, 1.5, c);
+            pen.fcircle(5.0, 18.0, 1.5, c);
+            pen.line_c(&[(9.5, 6.0), (19.0, 6.0)], c);
+            pen.line_c(&[(9.5, 12.0), (19.0, 12.0)], c);
+            pen.line_c(&[(9.5, 18.0), (19.0, 18.0)], c);
+        }
+        "numbering" => {
+            pen.line_w(&[(4.0, 4.2), (5.8, 3.0), (5.8, 10.4)], 1.7, c);
+            pen.line_w(
+                &[
+                    (3.1, 10.5),
+                    (3.24, 10.2),
+                    (3.46, 9.94),
+                    (3.73, 9.72),
+                    (4.04, 9.56),
+                    (4.38, 9.45),
+                    (4.74, 9.39),
+                    (5.09, 9.38),
+                    (5.43, 9.44),
+                    (5.73, 9.56),
+                    (5.99, 9.74),
+                    (6.18, 9.99),
+                    (6.3, 10.3),
+                    (6.32, 10.56),
+                    (6.29, 10.81),
+                    (6.21, 11.04),
+                    (6.1, 11.26),
+                    (5.94, 11.46),
+                    (5.76, 11.65),
+                    (5.56, 11.83),
+                    (5.34, 12.01),
+                    (5.1, 12.18),
+                    (4.87, 12.36),
+                    (4.63, 12.53),
+                    (4.4, 12.7),
+                    (4.27, 12.85),
+                    (4.14, 13.0),
+                    (4.0, 13.16),
+                    (3.87, 13.32),
+                    (3.74, 13.49),
+                    (3.61, 13.66),
+                    (3.5, 13.85),
+                    (3.4, 14.05),
+                    (3.32, 14.26),
+                    (3.25, 14.49),
+                    (3.21, 14.74),
+                    (3.2, 15.0),
+                    (6.5, 15.0),
+                ],
+                1.7,
+                c,
+            );
+            pen.line_w(
+                &[
+                    (3.3, 16.0),
+                    (3.54, 15.82),
+                    (3.81, 15.68),
+                    (4.09, 15.59),
+                    (4.38, 15.53),
+                    (4.67, 15.52),
+                    (4.95, 15.55),
+                    (5.22, 15.62),
+                    (5.46, 15.73),
+                    (5.66, 15.89),
+                    (5.83, 16.08),
+                    (5.94, 16.32),
+                    (6.0, 16.6),
+                    (6.0, 16.84),
+                    (5.96, 17.05),
+                    (5.89, 17.24),
+                    (5.78, 17.41),
+                    (5.65, 17.55),
+                    (5.49, 17.68),
+                    (5.31, 17.78),
+                    (5.12, 17.86),
+                    (4.92, 17.92),
+                    (4.71, 17.97),
+                    (4.5, 17.99),
+                    (4.3, 18.0),
+                    (4.53, 18.01),
+                    (4.76, 18.04),
+                    (4.99, 18.08),
+                    (5.21, 18.15),
+                    (5.43, 18.24),
+                    (5.62, 18.35),
+                    (5.8, 18.49),
+                    (5.95, 18.65),
+                    (6.07, 18.84),
+                    (6.16, 19.06),
+                    (6.2, 19.32),
+                    (6.2, 19.6),
+                    (6.14, 19.88),
+                    (6.01, 20.12),
+                    (5.83, 20.33),
+                    (5.6, 20.49),
+                    (5.33, 20.62),
+                    (5.04, 20.7),
+                    (4.72, 20.74),
+                    (4.4, 20.74),
+                    (4.08, 20.7),
+                    (3.76, 20.61),
+                    (3.47, 20.48),
+                    (3.2, 20.3),
+                ],
+                1.7,
+                c,
+            );
+            pen.line_c(&[(9.5, 6.0), (20.0, 6.0)], c);
+            pen.line_c(&[(9.5, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(9.5, 18.0), (20.0, 18.0)], c);
+        }
+        "multilevel" => {
+            pen.line_w(&[(4.2, 3.7), (6.0, 2.5), (6.0, 9.9)], 1.7, c);
+            pen.circle_w(4.3, 11.7, 1.5, 1.7, c);
+            pen.line_w(&[(5.8, 10.2), (5.8, 13.2)], 1.7, c);
+            pen.line_w(&[(8.8, 11.6), (9.8, 10.7), (9.8, 13.5)], 1.7, c);
+            pen.line_c(&[(8.0, 6.0), (20.0, 6.0)], c);
+            pen.line_c(&[(10.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(12.0, 18.0), (20.0, 18.0)], c);
+        }
+        "indent" => {
+            pen.line_c(&[(10.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(10.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(10.0, 18.5), (20.0, 18.5)], c);
+            pen.line_c(&[(4.0, 3.5), (4.0, 6.5)], c);
+            pen.line_c(&[(4.0, 17.5), (4.0, 20.5)], c);
+            pen.fill(&[(9.2, 12.0), (4.0, 15.8), (4.0, 8.2)], a);
+        }
+        "outdent" => {
+            pen.line_c(&[(10.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(10.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(10.0, 18.5), (20.0, 18.5)], c);
+            pen.line_c(&[(4.0, 3.5), (4.0, 6.5)], c);
+            pen.line_c(&[(4.0, 17.5), (4.0, 20.5)], c);
+            pen.fill(&[(9.2, 8.2), (9.2, 15.8), (4.0, 12.0)], a);
+        }
+        "sort" => {
+            pen.line_w(&[(5.48, 8.89), (8.4, 1.9), (11.31, 8.89)], 2.2, c);
+            pen.line_w(&[(6.59, 6.33), (10.2, 6.33)], 2.2, c);
+            pen.line_w(&[(6.0, 11.5), (10.8, 11.5), (6.0, 17.5), (10.8, 17.5)], 1.8, c);
+            pen.line_c(&[(17.5, 4.0), (17.5, 17.5)], a);
+            pen.line_c(&[(14.3, 14.3), (17.5, 18.2), (20.7, 14.3)], a);
+        }
+        "pilcrow" => {
+            pen.line_c(
+                &[
+                    (8.7, 19.5),
+                    (8.7, 9.3),
+                    (8.9, 8.17),
+                    (9.47, 7.18),
+                    (10.35, 6.44),
+                    (11.43, 6.05),
+                    (12.57, 6.05),
+                    (13.65, 6.44),
+                    (14.53, 7.18),
+                    (15.1, 8.17),
+                    (15.3, 9.3),
+                    (15.3, 19.5),
+                ],
+                c,
+            );
+            pen.line_c(&[(15.3, 19.5), (15.3, 4.5)], c);
+        }
+        "alignLeft" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(4.0, 10.8), (14.0, 10.8)], c);
+            pen.line_c(&[(4.0, 16.1), (20.0, 16.1)], c);
+            pen.line_c(&[(4.0, 21.4), (14.0, 21.4)], c);
+        }
+        "alignCenter" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(7.0, 10.8), (17.0, 10.8)], c);
+            pen.line_c(&[(4.0, 16.1), (20.0, 16.1)], c);
+            pen.line_c(&[(7.0, 21.4), (17.0, 21.4)], c);
+        }
+        "alignRight" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(10.0, 10.8), (20.0, 10.8)], c);
+            pen.line_c(&[(4.0, 16.1), (20.0, 16.1)], c);
+            pen.line_c(&[(10.0, 21.4), (20.0, 21.4)], c);
+        }
+        "justify" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(4.0, 10.8), (20.0, 10.8)], c);
+            pen.line_c(&[(4.0, 16.1), (20.0, 16.1)], c);
+            pen.line_c(&[(4.0, 21.4), (20.0, 21.4)], c);
+        }
+        "textLtr" => {
+            pen.line_c(&[(4.0, 5.5), (16.0, 5.5)], c);
+            pen.line_c(&[(4.0, 10.5), (12.0, 10.5)], c);
+            pen.line_c(&[(4.0, 17.5), (17.5, 17.5)], a);
+            pen.line_c(&[(14.0, 14.8), (16.8, 17.5), (14.0, 20.2)], a);
+        }
+        "textRtl" => {
+            pen.line_c(&[(8.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(12.0, 10.5), (20.0, 10.5)], c);
+            pen.line_c(&[(20.0, 17.5), (6.5, 17.5)], a);
+            pen.line_c(&[(10.0, 14.8), (7.2, 17.5), (10.0, 20.2)], a);
+        }
+        "lineSpacing" => {
+            pen.line_c(&[(9.5, 5.0), (20.0, 5.0)], c);
+            pen.line_c(&[(9.5, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(9.5, 19.0), (20.0, 19.0)], c);
+            pen.line_c(&[(4.5, 3.5), (4.5, 20.5)], a);
+            pen.line_c(&[(2.2, 5.8), (4.5, 3.5), (6.8, 5.8)], a);
+            pen.line_c(&[(2.2, 18.2), (4.5, 20.5), (6.8, 18.2)], a);
+        }
+        "shading" => {
+            pen.line_c(&[(4.0, 6.0), (20.0, 6.0)], c);
+            pen.line_c(&[(4.0, 11.0), (20.0, 11.0)], c);
+            pen.frect_r(4.0, 14.2, 20.0, 18.2, 0.0, yellow);
+            pen.line_c(&[(4.0, 21.0), (20.0, 21.0)], c);
+        }
+        "borders" => {
+            pen.rrect_w(4.5, 4.5, 19.5, 19.5, 0.0, 1.6, c);
+            pen.line_w(&[(4.5, 19.5), (19.5, 19.5)], 2.6, a);
+        }
+        "find" => {
+            pen.circle(10.5, 10.5, 6.3, c);
+            pen.line_c(&[(15.2, 15.2), (20.0, 20.0)], a);
+        }
+        "replace" => {
+            pen.circle(6.46, 9.76, 1.95, c);
+            pen.line_c(&[(8.42, 7.71), (8.42, 11.71)], c);
+            pen.line_c(&[(11.14, 4.91), (11.14, 11.71)], c);
+            pen.closed(
+                &[
+                    (15.01, 9.71),
+                    (14.91, 9.1),
+                    (14.63, 8.54),
+                    (14.18, 8.1),
+                    (13.63, 7.81),
+                    (13.01, 7.71),
+                    (12.39, 7.81),
+                    (11.84, 8.1),
+                    (11.39, 8.54),
+                    (11.11, 9.1),
+                    (11.01, 9.71),
+                    (11.13, 10.4),
+                    (11.48, 11.0),
+                    (12.01, 11.44),
+                    (12.66, 11.68),
+                    (13.36, 11.68),
+                    (14.01, 11.44),
+                    (14.54, 11.0),
+                    (14.89, 10.4),
+                ],
+                c,
+            );
+            pen.circle(6.46, 18.36, 1.95, a);
+            pen.line_c(&[(8.42, 16.32), (8.42, 20.31)], a);
+            pen.line_c(&[(11.14, 13.51), (11.14, 20.31)], a);
+            pen.closed(
+                &[
+                    (15.01, 18.31),
+                    (14.91, 17.7),
+                    (14.63, 17.14),
+                    (14.18, 16.7),
+                    (13.63, 16.41),
+                    (13.01, 16.31),
+                    (12.39, 16.41),
+                    (11.84, 16.7),
+                    (11.39, 17.14),
+                    (11.11, 17.7),
+                    (11.01, 18.31),
+                    (11.13, 19.0),
+                    (11.48, 19.6),
+                    (12.01, 20.04),
+                    (12.66, 20.28),
+                    (13.36, 20.28),
+                    (14.01, 20.04),
+                    (14.54, 19.6),
+                    (14.89, 19.0),
+                ],
+                a,
+            );
+            pen.line_c(&[(20.0, 4.5), (20.0, 10.8)], a);
+            pen.line_c(&[(17.6, 8.6), (20.0, 11.0), (22.4, 8.6)], a);
+        }
+        "select" => {
+            pen.fpoly(
+                &[(6.5, 3.5), (18.0, 13.3), (12.8, 14.1), (15.7, 19.5), (13.0, 20.9), (10.1, 15.4), (6.5, 18.6)],
+                &[[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 6]],
+                c,
+            );
+        }
+        "dictate" => {
+            pen.rrect(9.5, 3.0, 14.5, 12.5, 2.5, c);
+            pen.line_c(
+                &[
+                    (6.0, 10.5),
+                    (6.05, 11.46),
+                    (6.19, 12.35),
+                    (6.43, 13.16),
+                    (6.76, 13.89),
+                    (7.16, 14.53),
+                    (7.65, 15.1),
+                    (8.21, 15.58),
+                    (8.84, 15.98),
+                    (9.54, 16.29),
+                    (10.31, 16.52),
+                    (11.13, 16.65),
+                    (12.0, 16.7),
+                    (12.87, 16.65),
+                    (13.69, 16.52),
+                    (14.46, 16.29),
+                    (15.16, 15.98),
+                    (15.79, 15.58),
+                    (16.35, 15.1),
+                    (16.84, 14.53),
+                    (17.24, 13.89),
+                    (17.57, 13.16),
+                    (17.81, 12.35),
+                    (17.95, 11.46),
+                    (18.0, 10.5),
+                ],
+                a,
+            );
+            pen.line_c(&[(12.0, 16.7), (12.0, 20.0)], c);
+            pen.line_c(&[(9.0, 20.0), (15.0, 20.0)], c);
+        }
+        "spelling" | "editor" => {
+            pen.circle_w(8.3, 17.3, 2.3, 1.7, c);
+            pen.line_w(&[(10.6, 14.9), (10.6, 19.6)], 1.7, c);
+            pen.line_w(&[(13.8, 11.6), (13.8, 19.6)], 1.7, c);
+            pen.closed_w(
+                &[
+                    (18.35, 17.25),
+                    (18.23, 16.52),
+                    (17.9, 15.87),
+                    (17.38, 15.35),
+                    (16.73, 15.02),
+                    (16.0, 14.9),
+                    (15.27, 15.02),
+                    (14.62, 15.35),
+                    (14.1, 15.87),
+                    (13.77, 16.52),
+                    (13.65, 17.25),
+                    (13.79, 18.05),
+                    (14.2, 18.76),
+                    (14.83, 19.29),
+                    (15.59, 19.56),
+                    (16.41, 19.56),
+                    (17.17, 19.29),
+                    (17.8, 18.76),
+                    (18.21, 18.05),
+                ],
+                1.7,
+                c,
+            );
+            pen.line_c(&[(4.5, 14.5), (7.9, 17.9), (15.9, 9.5)], green);
+        }
+        "styles" => {
+            pen.line_c(&[(4.83, 14.99), (9.0, 5.0), (13.16, 14.99)], a);
+            pen.line_c(&[(6.41, 11.33), (11.58, 11.33)], a);
+            pen.closed(&[(13.8, 17.6), (19.1, 12.3), (21.7, 14.9), (16.4, 20.2), (13.8, 20.2)], c);
+        }
+        "stylesPane" => {
+            pen.rrect(3.5, 4.0, 20.5, 20.0, 1.0, c);
+            pen.line_c(&[(11.5, 4.0), (11.5, 20.0)], c);
+            pen.line_c(&[(2.95, 9.7), (5.2, 4.3), (7.45, 9.7)], a);
+            pen.line_c(&[(3.8, 7.72), (6.6, 7.72)], a);
+            pen.line_w(&[(14.0, 8.5), (18.5, 8.5)], 1.6, c);
+            pen.line_w(&[(14.0, 12.0), (18.5, 12.0)], 1.6, c);
+            pen.line_w(&[(14.0, 15.5), (17.0, 15.5)], 1.6, c);
+        }
+        "coverPage" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.frect_r(8.5, 8.0, 15.5, 11.2, 0.6, a);
+            pen.line_w(&[(8.5, 14.0), (13.5, 14.0)], 1.6, c);
+            pen.line_w(&[(8.5, 17.0), (12.5, 17.0)], 1.6, c);
+        }
+        "blankPage" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(12.0, 9.0), (12.0, 15.0)], a);
+            pen.line_c(&[(9.0, 12.0), (15.0, 12.0)], a);
+        }
+        "pageBreak" => {
+            pen.closed(&[(5.5, 3.0), (13.5, 3.0), (17.5, 7.0), (17.5, 9.5), (5.5, 9.5)], c);
+            pen.closed(&[(5.5, 14.5), (17.5, 14.5), (17.5, 21.0), (5.5, 21.0)], c);
+            pen.dash_w(&[(3.5, 12.0), (20.5, 12.0)], 0.1, 3.4, 2.0, a);
+        }
+        "table" => {
+            pen.rrect(3.5, 4.5, 20.5, 19.5, 1.0, c);
+            pen.frect_r(3.5, 4.5, 20.5, 9.1, 1.0, a);
+            pen.line_w(&[(9.2, 9.1), (9.2, 19.5)], 1.5, c);
+            pen.line_w(&[(14.8, 9.1), (14.8, 19.5)], 1.5, c);
+            pen.line_w(&[(3.5, 13.2), (20.5, 13.2)], 1.5, c);
+            pen.line_w(&[(3.5, 16.4), (20.5, 16.4)], 1.5, c);
+        }
+        "drawTable" => {
+            pen.rrect(3.0, 3.5, 15.0, 15.5, 1.0, c);
+            pen.line_w(&[(3.0, 9.5), (15.0, 9.5)], 1.5, c);
+            pen.line_w(&[(9.0, 3.5), (9.0, 15.5)], 1.5, c);
+            pen.closed(&[(13.2, 18.3), (19.5, 12.0), (22.0, 14.5), (15.7, 20.8), (13.2, 20.8)], a);
+            pen.fill(&[(15.7, 20.8), (12.6, 21.4), (13.2, 18.3)], a);
+        }
+        "picture" => {
+            pen.rrect(3.0, 4.5, 21.0, 19.5, 1.2, c);
+            pen.fpoly(&[(5.5, 17.0), (9.3, 11.4), (12.2, 15.3), (14.1, 12.9), (18.0, 17.0)], &[[0, 1, 2], [4, 0, 2], [2, 3, 4]], a);
+            pen.fpoly(&[(8.6, 17.0), (11.3, 13.4), (13.4, 16.0), (14.8, 14.4), (17.5, 17.0)], &[[0, 1, 2], [4, 0, 2], [2, 3, 4]], green);
+            pen.fcircle(15.8, 9.0, 1.7, yellow);
+        }
+        "onlinePicture" => {
+            pen.rrect(3.0, 3.5, 16.5, 15.0, 1.0, c);
+            pen.fpoly(&[(5.0, 13.0), (7.9, 8.8), (10.0, 11.7), (11.5, 9.9), (14.0, 13.0)], &[[0, 1, 2], [4, 0, 2], [2, 3, 4]], a);
+            pen.closed(
+                &[
+                    (17.5, 20.5),
+                    (16.39, 20.39),
+                    (15.38, 19.91),
+                    (14.6, 19.12),
+                    (14.14, 18.1),
+                    (14.06, 16.99),
+                    (14.35, 15.92),
+                    (15.0, 15.01),
+                    (15.92, 14.38),
+                    (17.0, 14.1),
+                    (17.71, 13.03),
+                    (18.72, 12.25),
+                    (19.93, 11.82),
+                    (21.21, 11.8),
+                    (22.43, 12.19),
+                    (23.47, 12.94),
+                    (24.22, 13.98),
+                    (24.6, 15.2),
+                    (25.39, 15.56),
+                    (26.02, 16.16),
+                    (26.43, 16.92),
+                    (26.58, 17.77),
+                    (26.45, 18.63),
+                    (26.05, 19.4),
+                    (25.44, 20.0),
+                    (24.66, 20.39),
+                    (23.8, 20.5),
+                ],
+                a,
+            );
+        }
+        "shapes" => {
+            pen.rrect(3.5, 3.5, 15.0, 15.0, 1.0, c);
+            pen.fcircle(15.8, 15.8, 5.2, a);
+        }
+        "shapeEffects" => {
+            pen.frect_r(7.0, 7.0, 20.5, 20.5, 1.0, c.linear_multiply(0.28));
+            pen.frect_r(3.5, 3.5, 17.0, 17.0, 1.0, a);
+        }
+        "icons" => {
+            pen.circle(12.0, 12.0, 8.5, c);
+            pen.fcircle(9.0, 10.0, 1.1, c);
+            pen.fcircle(15.0, 10.0, 1.1, c);
+            pen.line_c(&[(8.2, 13.5), (9.22, 14.58), (10.54, 15.27), (12.0, 15.51), (13.46, 15.27), (14.78, 14.58), (15.8, 13.5)], a);
+        }
+        "models3d" => {
+            pen.closed(&[(12.0, 3.0), (19.5, 7.2), (19.5, 16.8), (12.0, 21.0), (4.5, 16.8), (4.5, 7.2)], c);
+            pen.line_c(&[(4.5, 7.2), (12.0, 11.4), (19.5, 7.2)], a);
+            pen.line_c(&[(12.0, 11.4), (12.0, 21.0)], a);
+        }
+        "smartArt" => {
+            pen.frect_r(8.0, 3.0, 16.0, 7.6, 0.8, a);
+            pen.line_c(&[(12.0, 7.6), (12.0, 10.6)], c);
+            pen.line_c(&[(12.0, 10.6), (6.0, 10.6), (6.0, 13.4)], c);
+            pen.line_c(&[(12.0, 10.6), (18.0, 10.6), (18.0, 13.4)], c);
+            pen.rrect(3.0, 13.4, 9.6, 17.8, 0.8, c);
+            pen.rrect(14.4, 13.4, 21.0, 17.8, 0.8, c);
+        }
+        "addShape" => {
+            pen.frect_r(3.5, 3.5, 13.0, 13.0, 1.0, a);
+            pen.rrect(3.5, 13.5, 13.0, 20.5, 1.0, c);
+            pen.line_c(&[(17.5, 10.5), (17.5, 19.5)], a);
+            pen.line_c(&[(13.0, 15.0), (22.0, 15.0)], a);
+        }
+        "promote" => {
+            pen.line_c(&[(9.5, 5.0), (20.0, 5.0)], c);
+            pen.line_c(&[(9.5, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(9.5, 19.0), (20.0, 19.0)], c);
+            pen.line_c(&[(6.0, 7.5), (2.5, 12.0), (6.0, 16.5)], a);
+        }
+        "demote" => {
+            pen.line_c(&[(12.0, 5.0), (20.0, 5.0)], c);
+            pen.line_c(&[(12.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(12.0, 19.0), (20.0, 19.0)], c);
+            pen.line_c(&[(4.0, 7.5), (7.5, 12.0), (4.0, 16.5)], a);
+            pen.line_c(&[(8.5, 7.5), (12.0, 12.0), (8.5, 16.5)], a);
+        }
+        "textPane" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.line_c(&[(9.5, 3.5), (9.5, 20.5)], c);
+            pen.line_w(&[(5.5, 7.0), (8.0, 7.0)], 1.5, c);
+            pen.line_w(&[(5.5, 10.5), (8.0, 10.5)], 1.5, c);
+            pen.line_w(&[(5.5, 14.0), (8.0, 14.0)], 1.5, c);
+            pen.frect_r(12.0, 6.5, 18.0, 9.9, 0.6, a);
+            pen.frect_r(12.0, 12.0, 18.0, 15.4, 0.6, a);
+        }
+        "smartArtColors" => {
+            pen.fcircle(8.2, 8.6, 4.1, a);
+            pen.fcircle(15.8, 8.6, 4.1, orange);
+            pen.fcircle(12.0, 14.8, 4.1, green);
+            pen.circle(12.0, 11.2, 8.6, c);
+        }
+        "resetGraphic" => {
+            pen.rrect(9.5, 8.5, 20.0, 19.5, 1.0, c);
+            pen.frect_r(12.0, 11.0, 17.5, 17.0, 0.6, a);
+            pen.line_c(&[(10.5, 4.5), (4.0, 4.5), (4.0, 16.0)], a);
+            pen.line_c(&[(8.0, 2.0), (10.5, 4.5), (8.0, 7.0)], a);
+        }
+        "chart" => {
+            pen.frect_r(4.5, 13.0, 8.1, 20.0, 0.0, a);
+            pen.frect_r(10.2, 7.5, 13.8, 20.0, 0.0, orange);
+            pen.frect_r(15.9, 10.5, 19.5, 20.0, 0.0, green);
+            pen.line_c(&[(3.0, 20.8), (21.0, 20.8)], c);
+        }
+        "changeChartType" => {
+            pen.frect_r(3.0, 13.0, 6.0, 19.5, 0.0, a);
+            pen.frect_r(7.5, 9.0, 10.5, 19.5, 0.0, orange);
+            pen.line_c(&[(2.5, 20.0), (11.0, 20.0)], c);
+            pen.circle(16.5, 9.5, 5.0, c);
+            pen.fill(&[(16.5, 9.5), (16.5, 4.5), (18.01, 4.73), (19.37, 5.41), (20.47, 6.46), (21.2, 7.8)], a);
+            pen.line_w(&[(12.5, 21.5), (19.0, 15.0)], 1.8, green);
+            pen.line_w(&[(19.0, 15.0), (18.8, 15.0)], 1.8, green);
+            pen.line_w(&[(19.0, 15.0), (19.2, 15.0)], 1.8, green);
+            pen.line_w(&[(19.0, 15.0), (19.1, 18.4)], 1.8, green);
+            pen.line_w(&[(19.0, 15.0), (22.4, 15.1)], 1.8, green);
+        }
+        "chartData" => {
+            pen.rrect(3.0, 3.5, 21.0, 20.5, 1.0, c);
+            pen.frect_r(3.0, 3.5, 21.0, 7.9, 1.0, a);
+            pen.line_w(&[(9.0, 8.0), (9.0, 20.5)], 1.5, c);
+            pen.line_w(&[(15.0, 8.0), (15.0, 20.5)], 1.5, c);
+            pen.line_w(&[(3.0, 14.5), (21.0, 14.5)], 1.5, c);
+            pen.frect_r(9.6, 15.0, 14.4, 18.0, 0.0, orange);
+        }
+        "chartTitle" => {
+            pen.frect_r(5.0, 3.0, 19.0, 6.6, 0.8, a);
+            pen.rrect(4.0, 11.0, 7.8, 19.5, 0.6, c);
+            pen.rrect(10.1, 7.5, 13.9, 19.5, 0.6, c);
+            pen.rrect(16.2, 10.0, 20.0, 19.5, 0.6, c);
+        }
+        "legend" => {
+            pen.frect_r(4.0, 4.6, 8.0, 7.4, 0.6, a);
+            pen.frect_r(4.0, 10.6, 8.0, 13.4, 0.6, orange);
+            pen.frect_r(4.0, 16.6, 8.0, 19.4, 0.6, green);
+            pen.line_c(&[(11.0, 6.0), (20.0, 6.0)], c);
+            pen.line_c(&[(11.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(11.0, 18.0), (20.0, 18.0)], c);
+        }
+        "dataLabels" => {
+            pen.rrect(3.5, 4.5, 10.0, 10.0, 0.8, c);
+            pen.rrect(13.0, 3.5, 19.5, 9.0, 0.8, c);
+            pen.frect_r(4.5, 13.5, 8.5, 20.0, 0.0, a);
+            pen.frect_r(13.8, 10.5, 17.8, 20.0, 0.0, orange);
+        }
+        "screenshot" => {
+            pen.line_c(&[(4.0, 9.0), (4.0, 5.5), (4.07, 5.04), (4.29, 4.62), (4.62, 4.29), (5.04, 4.07), (5.5, 4.0), (9.0, 4.0)], c);
+            pen.line_c(&[(15.0, 4.0), (18.5, 4.0), (18.96, 4.07), (19.38, 4.29), (19.71, 4.62), (19.93, 5.04), (20.0, 5.5), (20.0, 9.0)], c);
+            pen.line_c(&[(20.0, 15.0), (20.0, 18.5), (19.93, 18.96), (19.71, 19.38), (19.38, 19.71), (18.96, 19.93), (18.5, 20.0), (15.0, 20.0)], c);
+            pen.line_c(&[(9.0, 20.0), (5.5, 20.0), (5.04, 19.93), (4.62, 19.71), (4.29, 19.38), (4.07, 18.96), (4.0, 18.5), (4.0, 15.0)], c);
+            pen.fcircle(12.0, 12.0, 3.2, a);
+        }
+        "video" => {
+            pen.rrect(3.0, 5.0, 16.5, 19.0, 1.2, c);
+            pen.line_c(&[(17.5, 9.5), (21.5, 7.0), (21.5, 17.0), (17.5, 14.5)], c);
+            pen.fill(&[(12.7, 12.0), (7.6, 15.0), (7.6, 9.0)], a);
+        }
+        "link" => {
+            pen.line_c(
+                &[
+                    (10.2, 13.2),
+                    (11.34, 14.27),
+                    (12.76, 14.89),
+                    (14.32, 15.0),
+                    (15.82, 14.59),
+                    (17.1, 13.7),
+                    (19.8, 11.0),
+                    (20.65, 9.69),
+                    (21.01, 8.18),
+                    (20.84, 6.63),
+                    (20.17, 5.23),
+                    (19.07, 4.13),
+                    (17.67, 3.46),
+                    (16.12, 3.29),
+                    (14.61, 3.65),
+                    (13.3, 4.5),
+                    (11.7, 6.1),
+                ],
+                c,
+            );
+            pen.line_c(
+                &[
+                    (13.8, 10.8),
+                    (12.66, 9.73),
+                    (11.24, 9.11),
+                    (9.68, 9.0),
+                    (8.18, 9.41),
+                    (6.9, 10.3),
+                    (4.2, 13.0),
+                    (3.35, 14.31),
+                    (2.99, 15.82),
+                    (3.16, 17.37),
+                    (3.83, 18.77),
+                    (4.93, 19.87),
+                    (6.33, 20.54),
+                    (7.88, 20.71),
+                    (9.39, 20.35),
+                    (10.7, 19.5),
+                    (12.3, 17.9),
+                ],
+                a,
+            );
+        }
         "bookmark" => {
-            pen.closed(&[(5.5, 2.5), (14.5, 2.5), (14.5, 17.5), (10.0, 13.5), (5.5, 17.5)], c);
-            pen.fill(&[(7.0, 4.0), (13.0, 4.0), (13.0, 8.0), (7.0, 8.0)], a);
+            pen.closed(&[(7.0, 3.5), (17.0, 3.5), (17.0, 21.0), (12.0, 16.8), (7.0, 21.0)], c);
+            pen.fill(&[(9.2, 5.8), (14.8, 5.8), (14.8, 9.8), (9.2, 9.8)], a);
         }
         "crossRef" => {
-            pen.page(3.0, 2.0, 12.0, 14.0);
-            pen.line_c(&[(9.0, 12.0), (17.0, 17.0)], a);
-            pen.line_c(&[(14.0, 17.5), (17.0, 17.0), (16.5, 14.0)], a);
+            pen.closed(&[(4.0, 4.0), (11.0, 4.0), (14.0, 7.0), (14.0, 16.0), (4.0, 16.0)], c);
+            pen.line_c(&[(11.0, 4.0), (11.0, 7.0), (14.0, 7.0)], c);
+            pen.line_c(&[(10.5, 15.5), (19.0, 20.0)], a);
+            pen.line_c(&[(15.8, 20.3), (19.0, 20.0), (18.6, 16.8)], a);
         }
-        "comment" | "newComment" => {
-            pen.closed(&[(2.5, 3.5), (17.5, 3.5), (17.5, 13.5), (9.0, 13.5), (5.0, 17.0), (5.0, 13.5), (2.5, 13.5)], c);
-            if name == "newComment" {
-                pen.line_c(&[(10.0, 6.0), (10.0, 11.0)], a);
-                pen.line_c(&[(7.5, 8.5), (12.5, 8.5)], a);
-            } else {
-                pen.lines(5.5, 14.5, &[7.0, 10.0]);
-            }
+        "comment" => {
+            pen.closed(
+                &[
+                    (4.0, 6.0),
+                    (4.1, 5.38),
+                    (4.38, 4.82),
+                    (4.82, 4.38),
+                    (5.38, 4.1),
+                    (6.0, 4.0),
+                    (18.0, 4.0),
+                    (18.62, 4.1),
+                    (19.18, 4.38),
+                    (19.62, 4.82),
+                    (19.9, 5.38),
+                    (20.0, 6.0),
+                    (20.0, 12.5),
+                    (19.9, 13.12),
+                    (19.62, 13.68),
+                    (19.18, 14.12),
+                    (18.62, 14.4),
+                    (18.0, 14.5),
+                    (10.5, 14.5),
+                    (7.0, 18.0),
+                    (7.0, 14.5),
+                    (6.0, 14.5),
+                    (5.38, 14.4),
+                    (4.82, 14.12),
+                    (4.38, 13.68),
+                    (4.1, 13.12),
+                    (4.0, 12.5),
+                ],
+                c,
+            );
+            pen.line_w(&[(8.0, 8.0), (16.0, 8.0)], 1.6, c);
+            pen.line_w(&[(8.0, 11.0), (13.0, 11.0)], 1.6, c);
+        }
+        "newComment" => {
+            pen.closed(
+                &[
+                    (3.5, 5.5),
+                    (3.6, 4.88),
+                    (3.88, 4.32),
+                    (4.32, 3.88),
+                    (4.88, 3.6),
+                    (5.5, 3.5),
+                    (14.5, 3.5),
+                    (15.12, 3.6),
+                    (15.68, 3.88),
+                    (16.12, 4.32),
+                    (16.4, 4.88),
+                    (16.5, 5.5),
+                    (16.5, 11.0),
+                    (16.4, 11.62),
+                    (16.12, 12.18),
+                    (15.68, 12.62),
+                    (15.12, 12.9),
+                    (14.5, 13.0),
+                    (9.0, 13.0),
+                    (5.5, 16.0),
+                    (5.5, 13.0),
+                    (4.88, 12.9),
+                    (4.32, 12.62),
+                    (3.88, 12.18),
+                    (3.6, 11.62),
+                    (3.5, 11.0),
+                ],
+                c,
+            );
+            pen.line_c(&[(17.5, 12.5), (17.5, 18.5)], a);
+            pen.line_c(&[(14.5, 15.5), (20.5, 15.5)], a);
         }
         "header" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(5.5, 5.0, 14.5, 7.5, a);
-            pen.lines(6.0, 14.0, &[11.0, 13.5]);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.frect_r(8.5, 6.5, 15.5, 9.5, 0.6, a);
+            pen.line_w(&[(8.5, 12.5), (15.5, 12.5)], 1.5, c);
+            pen.line_w(&[(8.5, 15.5), (15.5, 15.5)], 1.5, c);
         }
         "footer" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.lines(6.0, 14.0, &[6.5, 9.0]);
-            pen.frect(5.5, 13.0, 14.5, 15.5, a);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(8.5, 8.0), (15.5, 8.0)], 1.5, c);
+            pen.line_w(&[(8.5, 11.0), (15.5, 11.0)], 1.5, c);
+            pen.frect_r(8.5, 14.5, 15.5, 17.5, 0.6, a);
         }
         "pageNumber" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.text(10.0, 13.0, 7.0, "#", a, true);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(11.6, 12.2), (10.8, 18.8)], 1.6, a);
+            pen.line_w(&[(15.2, 12.2), (14.4, 18.8)], 1.6, a);
+            pen.line_w(&[(10.2, 14.0), (16.2, 14.0)], 1.6, a);
+            pen.line_w(&[(9.9, 16.6), (15.9, 16.6)], 1.6, a);
         }
         "textBox" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.text(10.0, 10.0, 10.0, "A", a, false);
+            pen.rrect(3.0, 4.5, 21.0, 19.5, 1.0, c);
+            pen.line_c(&[(8.68, 12.89), (11.6, 5.9), (14.51, 12.89)], a);
+            pen.line_c(&[(9.79, 10.33), (13.4, 10.33)], a);
         }
         "quickParts" => {
-            pen.rect(3.0, 3.0, 9.0, 9.0, c);
-            pen.frect(11.0, 3.0, 17.0, 9.0, a);
-            pen.rect(3.0, 11.0, 9.0, 17.0, c);
-            pen.rect(11.0, 11.0, 17.0, 17.0, c);
+            pen.rrect(3.5, 3.5, 11.0, 11.0, 1.0, c);
+            pen.rrect(13.0, 3.5, 20.5, 11.0, 1.0, c);
+            pen.rrect(3.5, 13.0, 11.0, 20.5, 1.0, c);
+            pen.frect_r(13.0, 13.0, 20.5, 20.5, 1.0, a);
         }
         "wordArt" => {
-            pen.text(10.0, 10.5, 15.0, "A", a, true);
-            pen.line_c(&[(3.0, 17.5), (17.0, 17.5)], orange);
+            pen.line_c(&[(7.0, 16.5), (12.0, 4.5), (17.0, 16.5)], a);
+            pen.line_c(&[(8.9, 12.1), (15.1, 12.1)], a);
+            pen.line_c(
+                &[
+                    (3.5, 19.5),
+                    (4.2, 19.08),
+                    (4.91, 18.89),
+                    (5.62, 18.88),
+                    (6.33, 19.01),
+                    (7.04, 19.23),
+                    (7.75, 19.5),
+                    (8.46, 19.77),
+                    (9.17, 19.99),
+                    (9.88, 20.12),
+                    (10.59, 20.11),
+                    (11.3, 19.92),
+                    (12.0, 19.5),
+                    (12.7, 19.08),
+                    (13.41, 18.89),
+                    (14.12, 18.88),
+                    (14.83, 19.01),
+                    (15.54, 19.23),
+                    (16.25, 19.5),
+                    (16.96, 19.77),
+                    (17.67, 19.99),
+                    (18.38, 20.12),
+                    (19.09, 20.11),
+                    (19.8, 19.92),
+                    (20.5, 19.5),
+                ],
+                orange,
+            );
         }
         "textFill" => {
-            pen.text(10.0, 8.5, 13.0, "A", c, true);
-            pen.frect(3.0, 15.0, 17.0, 18.5, a);
+            pen.line_c(&[(6.3, 13.7), (10.8, 2.9), (15.3, 13.7)], c);
+            pen.line_c(&[(8.01, 9.74), (13.59, 9.74)], c);
+            pen.line_w(&[(4.5, 20.5), (19.5, 20.5)], 3.0, a);
         }
         "textOutline" => {
-            pen.text(10.0, 8.5, 13.0, "A", a, false);
-            pen.rect(3.0, 15.0, 17.0, 18.5, c);
+            pen.line_c(&[(6.3, 13.7), (10.8, 2.9), (15.3, 13.7)], a);
+            pen.line_c(&[(8.01, 9.74), (13.59, 9.74)], a);
+            pen.line_c(&[(4.5, 20.5), (19.5, 20.5)], c);
         }
         "transform" => {
-            // Letters along an arch.
-            let arc: Vec<(f32, f32)> = (0..=12)
-                .map(|i| {
-                    let t = std::f32::consts::PI * (1.0 - i as f32 / 12.0);
-                    (10.0 + 7.5 * t.cos(), 15.0 - 9.0 * t.sin())
-                })
-                .collect();
-            pen.line_c(&arc, a);
-            pen.text(10.0, 13.0, 8.0, "A", c, true);
-            pen.line(&[(2.5, 17.5), (17.5, 17.5)]);
+            pen.line_c(
+                &[
+                    (4.5, 15.5),
+                    (4.95, 12.59),
+                    (6.25, 10.04),
+                    (8.25, 8.14),
+                    (10.7, 7.13),
+                    (13.3, 7.13),
+                    (15.75, 8.14),
+                    (17.75, 10.04),
+                    (19.05, 12.59),
+                    (19.5, 15.5),
+                ],
+                a,
+            );
+            pen.line_c(&[(9.38, 15.09), (12.3, 8.1), (15.21, 15.09)], c);
+            pen.line_c(&[(10.49, 12.53), (14.1, 12.53)], c);
+            pen.line_c(&[(3.5, 19.5), (20.5, 19.5)], c);
         }
         "dropCap" => {
-            pen.text(6.0, 8.0, 12.0, "A", a, true);
-            pen.lines(11.0, 17.0, &[4.0, 8.0, 12.0]);
-            pen.lines(3.0, 17.0, &[16.0]);
+            pen.line_c(&[(3.92, 16.51), (8.5, 5.5), (13.09, 16.51)], a);
+            pen.line_c(&[(5.66, 12.47), (11.35, 12.47)], a);
+            pen.line_w(&[(13.5, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(13.5, 10.5), (20.0, 10.5)], 1.7, c);
+            pen.line_w(&[(4.0, 16.0), (20.0, 16.0)], 1.7, c);
+            pen.line_w(&[(4.0, 20.5), (20.0, 20.5)], 1.7, c);
         }
         "signature" => {
-            pen.line_c(&[(3.0, 13.0), (6.0, 7.0), (8.0, 12.0), (11.0, 6.0), (13.0, 12.0)], a);
-            pen.line(&[(3.0, 16.5), (17.0, 16.5)]);
+            pen.line_c(
+                &[
+                    (3.5, 14.5),
+                    (3.81, 13.21),
+                    (4.13, 12.09),
+                    (4.46, 11.16),
+                    (4.79, 10.43),
+                    (5.12, 9.89),
+                    (5.45, 9.56),
+                    (5.77, 9.45),
+                    (6.08, 9.57),
+                    (6.37, 9.93),
+                    (6.64, 10.53),
+                    (6.88, 11.38),
+                    (7.1, 12.5),
+                    (7.29, 13.53),
+                    (7.51, 14.37),
+                    (7.76, 15.02),
+                    (8.03, 15.48),
+                    (8.31, 15.75),
+                    (8.61, 15.81),
+                    (8.92, 15.68),
+                    (9.24, 15.35),
+                    (9.56, 14.82),
+                    (9.88, 14.09),
+                    (10.19, 13.15),
+                    (10.5, 12.0),
+                    (10.76, 11.09),
+                    (11.04, 10.36),
+                    (11.34, 9.8),
+                    (11.64, 9.41),
+                    (11.94, 9.2),
+                    (12.24, 9.15),
+                    (12.53, 9.27),
+                    (12.8, 9.56),
+                    (13.05, 10.0),
+                    (13.27, 10.61),
+                    (13.45, 11.38),
+                    (13.6, 12.3),
+                    (13.72, 13.04),
+                    (13.87, 13.65),
+                    (14.06, 14.14),
+                    (14.28, 14.5),
+                    (14.53, 14.74),
+                    (14.81, 14.86),
+                    (15.12, 14.86),
+                    (15.45, 14.73),
+                    (15.81, 14.48),
+                    (16.19, 14.11),
+                    (16.58, 13.61),
+                    (17.0, 13.0),
+                ],
+                a,
+            );
+            pen.line_c(&[(3.5, 20.0), (20.5, 20.0)], c);
         }
         "dateTime" => {
-            pen.rect(3.0, 4.0, 17.0, 17.0, c);
-            pen.frect(3.0, 4.0, 17.0, 7.5, a);
-            pen.lines(5.0, 15.0, &[11.0, 14.0]);
+            pen.rrect(3.5, 4.5, 20.5, 20.0, 1.0, c);
+            pen.frect_r(3.5, 4.5, 20.5, 8.9, 1.0, a);
+            pen.line_c(&[(7.5, 2.5), (7.5, 6.5)], c);
+            pen.line_c(&[(16.5, 2.5), (16.5, 6.5)], c);
+            pen.fcircle(7.7, 13.0, 1.0, c);
+            pen.fcircle(12.0, 13.0, 1.0, c);
+            pen.fcircle(16.3, 13.0, 1.0, c);
+            pen.fcircle(7.7, 16.6, 1.0, c);
+            pen.fcircle(12.0, 16.6, 1.0, c);
         }
         "object" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.fcircle(10.0, 10.0, 3.5, a);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.5, c);
+            pen.fcircle(12.0, 12.0, 4.0, a);
         }
-        "equation" => pen.text(10.0, 10.0, 17.0, "π", a, false),
-        "symbol" => pen.text(10.0, 10.0, 17.0, "Ω", c, false),
-        // Draw
+        "equation" => {
+            pen.line_c(
+                &[
+                    (4.5, 9.0),
+                    (5.64, 8.7),
+                    (6.82, 8.46),
+                    (8.02, 8.27),
+                    (9.22, 8.13),
+                    (10.43, 8.05),
+                    (11.62, 8.03),
+                    (12.8, 8.05),
+                    (13.94, 8.13),
+                    (15.05, 8.27),
+                    (16.1, 8.46),
+                    (17.09, 8.7),
+                    (18.0, 9.0),
+                ],
+                a,
+            );
+            pen.line_c(&[(8.4, 8.6), (8.4, 19.6)], a);
+            pen.line_c(
+                &[
+                    (15.6, 8.6),
+                    (15.61, 9.71),
+                    (15.63, 10.8),
+                    (15.68, 11.87),
+                    (15.76, 12.9),
+                    (15.87, 13.89),
+                    (16.02, 14.85),
+                    (16.22, 15.77),
+                    (16.47, 16.64),
+                    (16.78, 17.46),
+                    (17.15, 18.23),
+                    (17.59, 18.94),
+                    (18.1, 19.6),
+                ],
+                a,
+            );
+        }
+        "symbol" => {
+            pen.line_c(
+                &[
+                    (7.4, 18.7),
+                    (5.49, 16.81),
+                    (4.32, 14.39),
+                    (4.01, 11.73),
+                    (4.6, 9.11),
+                    (6.03, 6.83),
+                    (8.12, 5.16),
+                    (10.66, 4.27),
+                    (13.34, 4.27),
+                    (15.88, 5.16),
+                    (17.97, 6.83),
+                    (19.4, 9.11),
+                    (19.99, 11.73),
+                    (19.68, 14.39),
+                    (18.51, 16.81),
+                    (16.6, 18.7),
+                ],
+                c,
+            );
+            pen.line_c(&[(6.5, 20.5), (17.5, 20.5)], c);
+        }
         "pen" => {
-            pen.line(&[(4.0, 16.0), (14.0, 6.0), (16.0, 8.0), (6.0, 18.0), (3.5, 18.5), (4.0, 16.0)]);
-            pen.fill(&[(14.0, 6.0), (15.5, 4.5), (17.5, 6.5), (16.0, 8.0)], a);
+            pen.closed(&[(14.0, 3.5), (20.5, 10.0), (11.2, 19.3), (4.5, 20.5), (5.7, 13.8)], c);
+            pen.line_w(&[(8.8, 15.2), (11.3, 12.7)], 1.6, c);
+            pen.fill(&[(5.4, 17.1), (7.9, 19.6), (4.5, 20.5)], a);
         }
         "pencil" => {
-            pen.line(&[(4.0, 16.0), (14.0, 6.0), (16.0, 8.0), (6.0, 18.0), (3.5, 18.5), (4.0, 16.0)]);
-            pen.fill(&[(14.0, 6.0), (15.5, 4.5), (17.5, 6.5), (16.0, 8.0)], orange);
+            pen.closed(&[(14.5, 3.5), (20.5, 9.5), (8.5, 21.5), (3.0, 21.5), (3.0, 16.0)], c);
+            pen.fill(&[(4.6, 16.0), (8.5, 19.9), (3.0, 21.5)], orange);
+            pen.line_w(&[(12.7, 5.3), (18.7, 11.3)], 1.6, c);
         }
         "eraser" => {
-            pen.closed(&[(3.0, 13.0), (11.0, 5.0), (17.0, 11.0), (11.0, 17.0), (7.0, 17.0)], c);
-            pen.fill(&[(3.0, 13.0), (7.0, 9.0), (13.0, 15.0), (11.0, 17.0), (7.0, 17.0)], Color32::from_rgb(0xE8, 0x6F, 0xA0));
+            pen.closed(&[(12.4, 6.6), (19.0, 13.2), (10.7, 21.5), (7.0, 21.5), (4.1, 18.6)], c);
+            pen.line_w(&[(8.2, 10.8), (14.8, 17.4)], 1.6, c);
+            pen.fill(&[(10.7, 21.5), (7.0, 21.5), (4.1, 18.6), (7.4, 15.3)], pink);
         }
-        // Ink thickness: three strokes, thin to thick.
         "thickness" => {
-            pen.frect(3.0, 4.5, 17.0, 5.5, c);
-            pen.frect(3.0, 9.0, 17.0, 11.0, c);
-            pen.frect(3.0, 14.0, 17.0, 17.0, a);
+            pen.line_w(&[(4.0, 5.5), (20.0, 5.5)], 1.3, c);
+            pen.line_w(&[(4.0, 12.0), (20.0, 12.0)], 2.2, c);
+            pen.line_w(&[(4.0, 18.5), (20.0, 18.5)], 3.2, a);
         }
         "lasso" => {
-            pen.closed(&[(4.0, 7.0), (9.0, 3.0), (16.0, 5.0), (16.0, 11.0), (10.0, 13.0), (4.0, 11.0)], c);
-            pen.line_c(&[(6.0, 12.5), (5.0, 17.5)], a);
+            pen.closed(
+                &[
+                    (12.0, 3.8),
+                    (13.22, 3.84),
+                    (14.37, 3.97),
+                    (15.45, 4.17),
+                    (16.45, 4.44),
+                    (17.36, 4.78),
+                    (18.18, 5.18),
+                    (18.88, 5.63),
+                    (19.48, 6.13),
+                    (19.96, 6.67),
+                    (20.31, 7.25),
+                    (20.53, 7.86),
+                    (20.6, 8.5),
+                    (20.53, 9.14),
+                    (20.31, 9.75),
+                    (19.96, 10.33),
+                    (19.48, 10.87),
+                    (18.88, 11.37),
+                    (18.18, 11.82),
+                    (17.36, 12.22),
+                    (16.45, 12.56),
+                    (15.45, 12.83),
+                    (14.37, 13.03),
+                    (13.22, 13.16),
+                    (12.0, 13.2),
+                    (10.78, 13.16),
+                    (9.63, 13.03),
+                    (8.55, 12.83),
+                    (7.55, 12.56),
+                    (6.64, 12.22),
+                    (5.83, 11.82),
+                    (5.12, 11.37),
+                    (4.52, 10.87),
+                    (4.04, 10.33),
+                    (3.69, 9.75),
+                    (3.47, 9.14),
+                    (3.4, 8.5),
+                    (3.47, 7.86),
+                    (3.69, 7.25),
+                    (4.04, 6.67),
+                    (4.52, 6.13),
+                    (5.12, 5.63),
+                    (5.83, 5.17),
+                    (6.64, 4.78),
+                    (7.55, 4.44),
+                    (8.55, 4.17),
+                    (9.63, 3.97),
+                    (10.78, 3.84),
+                ],
+                c,
+            );
+            pen.line_c(
+                &[
+                    (16.8, 12.7),
+                    (17.06, 13.3),
+                    (17.24, 13.88),
+                    (17.34, 14.45),
+                    (17.36, 15.01),
+                    (17.32, 15.55),
+                    (17.2, 16.07),
+                    (17.02, 16.58),
+                    (16.77, 17.06),
+                    (16.46, 17.51),
+                    (16.1, 17.94),
+                    (15.67, 18.33),
+                    (15.2, 18.7),
+                ],
+                a,
+            );
+            pen.circle(13.4, 19.5, 1.4, a);
         }
         "inkToShape" => {
-            pen.line_c(&[(3.0, 10.0), (5.0, 6.0), (8.0, 12.0), (10.0, 7.0)], a);
-            pen.rect(11.0, 9.0, 17.0, 15.0, c);
+            pen.line_c(
+                &[
+                    (2.5, 14.5),
+                    (2.76, 13.42),
+                    (3.04, 12.45),
+                    (3.34, 11.6),
+                    (3.66, 10.87),
+                    (3.98, 10.3),
+                    (4.3, 9.88),
+                    (4.62, 9.63),
+                    (4.94, 9.56),
+                    (5.26, 9.69),
+                    (5.56, 10.03),
+                    (5.84, 10.6),
+                    (6.1, 11.4),
+                    (6.35, 12.23),
+                    (6.61, 12.86),
+                    (6.87, 13.31),
+                    (7.13, 13.59),
+                    (7.39, 13.7),
+                    (7.66, 13.65),
+                    (7.93, 13.45),
+                    (8.2, 13.11),
+                    (8.48, 12.64),
+                    (8.75, 12.04),
+                    (9.03, 11.32),
+                    (9.3, 10.5),
+                ],
+                a,
+            );
+            pen.rrect(11.5, 7.5, 21.0, 17.0, 1.0, c);
         }
         "inkToMath" => {
-            pen.line_c(&[(3.0, 12.0), (5.0, 7.0), (7.0, 12.0)], a);
-            pen.text(13.5, 10.0, 11.0, "√", c, false);
+            pen.line_c(
+                &[
+                    (2.5, 13.5),
+                    (2.76, 12.43),
+                    (3.03, 11.49),
+                    (3.31, 10.67),
+                    (3.6, 10.0),
+                    (3.9, 9.48),
+                    (4.2, 9.12),
+                    (4.5, 8.94),
+                    (4.8, 8.93),
+                    (5.09, 9.11),
+                    (5.37, 9.5),
+                    (5.64, 10.09),
+                    (5.9, 10.9),
+                    (6.15, 11.72),
+                    (6.4, 12.33),
+                    (6.65, 12.75),
+                    (6.9, 13.0),
+                    (7.15, 13.07),
+                    (7.4, 12.99),
+                    (7.65, 12.76),
+                    (7.9, 12.4),
+                    (8.15, 11.93),
+                    (8.4, 11.34),
+                    (8.65, 10.66),
+                    (8.9, 9.9),
+                ],
+                a,
+            );
+            pen.line_c(&[(11.0, 14.5), (12.9, 19.1), (16.5, 9.5), (21.5, 9.5)], c);
         }
         "canvas" => {
-            pen.rect(2.5, 4.0, 17.5, 16.0, c);
-            pen.line_c(&[(5.0, 13.0), (9.0, 8.0), (12.0, 11.0), (15.0, 7.0)], a);
+            pen.rrect(3.0, 4.5, 21.0, 19.5, 1.2, c);
+            pen.line_c(
+                &[
+                    (5.8, 15.5),
+                    (6.15, 14.64),
+                    (6.51, 13.88),
+                    (6.87, 13.22),
+                    (7.23, 12.67),
+                    (7.59, 12.23),
+                    (7.96, 11.91),
+                    (8.33, 11.72),
+                    (8.7, 11.66),
+                    (9.08, 11.75),
+                    (9.45, 11.97),
+                    (9.83, 12.36),
+                    (10.2, 12.9),
+                    (10.57, 13.44),
+                    (10.94, 13.83),
+                    (11.31, 14.06),
+                    (11.67, 14.16),
+                    (12.04, 14.12),
+                    (12.4, 13.95),
+                    (12.76, 13.67),
+                    (13.13, 13.28),
+                    (13.49, 12.79),
+                    (13.86, 12.21),
+                    (14.23, 11.54),
+                    (14.6, 10.8),
+                    (14.97, 10.11),
+                    (15.34, 9.58),
+                    (15.7, 9.2),
+                    (16.04, 8.96),
+                    (16.38, 8.84),
+                    (16.7, 8.84),
+                    (17.0, 8.93),
+                    (17.29, 9.1),
+                    (17.55, 9.35),
+                    (17.79, 9.66),
+                    (18.01, 10.01),
+                    (18.2, 10.4),
+                ],
+                a,
+            );
         }
         "replay" => {
-            pen.circle(10.0, 10.0, 6.5, c);
-            pen.fill(&[(8.5, 7.0), (8.5, 13.0), (13.0, 10.0)], a);
+            pen.circle(12.0, 12.0, 8.5, c);
+            pen.fill(&[(16.2, 12.0), (10.0, 15.7), (10.0, 8.3)], a);
         }
-        // Add Pen: a pen with a plus.
         "addPen" => {
-            pen.line(&[(3.0, 17.0), (11.0, 9.0), (13.0, 11.0), (5.0, 19.0), (2.5, 19.5), (3.0, 17.0)]);
-            pen.fill(&[(11.0, 9.0), (12.5, 7.5), (14.5, 9.5), (13.0, 11.0)], a);
-            pen.line_c(&[(15.0, 2.0), (15.0, 8.0)], a);
-            pen.line_c(&[(12.0, 5.0), (18.0, 5.0)], a);
+            pen.closed(&[(3.5, 20.5), (4.7, 16.2), (11.8, 9.1), (14.8, 12.1), (7.7, 19.2)], c);
+            pen.line_c(&[(17.5, 3.5), (17.5, 10.5)], a);
+            pen.line_c(&[(14.0, 7.0), (21.0, 7.0)], a);
         }
-        // Ink Replay's controls.
         "replayRewind" => {
-            pen.frect(4.0, 5.0, 5.5, 15.0, c);
-            pen.fill(&[(16.0, 5.0), (16.0, 15.0), (6.5, 10.0)], c);
+            pen.frect_r(4.5, 5.5, 7.1, 18.5, 0.8, c);
+            pen.fill(&[(18.5, 5.5), (18.5, 18.5), (8.5, 12.0)], c);
         }
-        "replayPlay" => pen.fill(&[(6.0, 4.0), (6.0, 16.0), (16.0, 10.0)], a),
+        "replayPlay" => {
+            pen.fill(&[(19.0, 12.0), (8.0, 19.0), (8.0, 5.0)], a);
+        }
         "replayPause" => {
-            pen.frect(5.5, 4.5, 8.5, 15.5, a);
-            pen.frect(11.5, 4.5, 14.5, 15.5, a);
+            pen.frect_r(6.5, 5.5, 9.5, 18.5, 0.8, a);
+            pen.frect_r(14.5, 5.5, 17.5, 18.5, 0.8, a);
         }
         "replayForward" => {
-            pen.fill(&[(4.0, 5.0), (4.0, 15.0), (13.5, 10.0)], c);
-            pen.frect(14.5, 5.0, 16.0, 15.0, c);
+            pen.frect_r(16.9, 5.5, 19.5, 18.5, 0.8, c);
+            pen.fill(&[(15.5, 12.0), (5.5, 18.5), (5.5, 5.5)], c);
         }
-        // Design
         "themes" => {
-            pen.frect(3.0, 3.0, 10.0, 10.0, a);
-            pen.frect(10.0, 3.0, 17.0, 10.0, orange);
-            pen.frect(3.0, 10.0, 10.0, 17.0, green);
-            pen.frect(10.0, 10.0, 17.0, 17.0, yellow);
+            pen.frect_r(4.0, 4.0, 11.4, 11.4, 1.2, a);
+            pen.frect_r(12.6, 4.0, 20.0, 11.4, 1.2, orange);
+            pen.frect_r(4.0, 12.6, 11.4, 20.0, 1.2, green);
+            pen.frect_r(12.6, 12.6, 20.0, 20.0, 1.2, yellow);
         }
         "colors" => {
-            pen.fcircle(7.0, 7.5, 3.5, red);
-            pen.fcircle(13.0, 7.5, 3.5, a);
-            pen.fcircle(10.0, 13.0, 3.5, green);
+            pen.fcircle(7.8, 8.2, 3.4, red);
+            pen.fcircle(16.2, 8.2, 3.4, a);
+            pen.fcircle(12.0, 15.6, 3.4, green);
         }
-        "fonts" => pen.text(10.0, 10.0, 13.0, "Aa", a, false),
+        "fonts" => {
+            pen.line_c(&[(4.5, 17.0), (7.75, 8.0), (11.0, 17.0)], c);
+            pen.line_c(&[(6.1, 14.3), (9.4, 14.3)], c);
+            pen.circle(15.3, 14.6, 2.5, c);
+            pen.line_c(&[(17.8, 12.1), (17.8, 17.1)], c);
+        }
         "paraSpacing" => {
-            pen.lines(8.0, 17.0, &[4.0, 7.0, 13.0, 16.0]);
-            pen.line_c(&[(4.0, 8.0), (4.0, 12.0)], a);
-            pen.line_c(&[(2.5, 9.5), (4.0, 8.0), (5.5, 9.5)], a);
-            pen.line_c(&[(2.5, 10.5), (4.0, 12.0), (5.5, 10.5)], a);
+            pen.line_w(&[(9.0, 5.0), (20.0, 5.0)], 1.7, c);
+            pen.line_w(&[(9.0, 10.5), (20.0, 10.5)], 1.7, c);
+            pen.line_w(&[(9.0, 16.0), (20.0, 16.0)], 1.7, c);
+            pen.line_w(&[(9.0, 21.0), (20.0, 21.0)], 1.7, c);
+            pen.line_w(&[(4.5, 7.5), (4.5, 16.5)], 1.7, a);
+            pen.line_w(&[(2.4, 9.6), (4.5, 7.5), (6.6, 9.6)], 1.7, a);
+            pen.line_w(&[(2.4, 14.4), (4.5, 16.5), (6.6, 14.4)], 1.7, a);
         }
         "effectsDesign" => {
-            pen.fcircle(10.0, 10.0, 6.0, a.linear_multiply(0.5));
-            pen.circle(10.0, 10.0, 6.0, c);
+            pen.circle(12.0, 12.0, 6.5, c);
+            pen.fcircle(12.0, 12.0, 3.1, a);
         }
         "setDefault" => {
-            pen.line_c(&[(4.0, 10.5), (8.5, 15.0), (16.5, 5.0)], green);
+            pen.line_w(&[(4.5, 12.5), (9.5, 17.5), (19.5, 6.5)], 2.4, green);
         }
         "watermark" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.text(10.0, 11.0, 7.0, "W", a.linear_multiply(0.6), true);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(7.6, 9.2), (9.3, 15.8), (12.0, 10.6), (14.7, 15.8), (16.4, 9.2)], a.linear_multiply(0.55));
         }
         "pageColor" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(5.0, 9.0, 15.0, 17.0, a.linear_multiply(0.5));
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.fill(&[(6.9, 12.5), (17.1, 12.5), (17.1, 20.0), (6.9, 20.0)], a.linear_multiply(0.35));
         }
         "pageBorders" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.rect(6.0, 6.5, 14.0, 15.5, a);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.rrect_w(9.0, 7.5, 15.0, 17.0, 0.0, 1.6, a);
         }
-        // Layout
         "margins" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(6.0, 4.5, 14.0, 15.5, a.linear_multiply(0.3));
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.dash_w(&[(9.5, 7.0), (14.5, 7.0), (14.5, 17.0), (9.5, 17.0), (9.5, 7.0)], 2.4, 2.2, 1.6, a);
         }
         "orientation" => {
-            pen.page(3.0, 3.0, 11.0, 15.0);
-            pen.rect(9.0, 10.0, 18.0, 17.0, a);
+            pen.closed(&[(3.5, 4.5), (10.0, 4.5), (12.0, 6.5), (12.0, 17.0), (3.5, 17.0)], c);
+            pen.line_c(&[(10.0, 4.5), (10.0, 7.0), (12.0, 7.0)], c);
+            pen.rrect(11.0, 11.0, 20.5, 17.5, 1.0, a);
         }
         "size" => {
-            pen.page(5.0, 2.0, 15.0, 18.0);
-            pen.line_c(&[(2.5, 2.5), (2.5, 17.5)], a);
-            pen.line_c(&[(5.0, 19.0), (15.0, 19.0)], a);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(3.0, 4.0), (3.0, 20.0)], 1.6, a);
+            pen.line_w(&[(3.0, 4.0), (4.8, 4.0)], 1.6, a);
+            pen.line_w(&[(3.0, 20.0), (4.8, 20.0)], 1.6, a);
+            pen.line_w(&[(5.5, 21.5), (18.5, 21.5)], 1.6, a);
+            pen.line_w(&[(18.5, 21.5), (18.5, 19.7)], 1.6, a);
+            pen.line_w(&[(5.5, 21.5), (5.5, 19.7)], 1.6, a);
         }
         "columns" => {
-            pen.lines(3.0, 9.0, &[4.0, 7.0, 10.0, 13.0, 16.0]);
-            pen.lines(11.0, 17.0, &[4.0, 7.0, 10.0, 13.0]);
+            pen.line_w(&[(3.5, 4.5), (11.0, 4.5)], 1.7, c);
+            pen.line_w(&[(3.5, 8.0), (11.0, 8.0)], 1.7, c);
+            pen.line_w(&[(3.5, 11.5), (11.0, 11.5)], 1.7, c);
+            pen.line_w(&[(3.5, 15.0), (11.0, 15.0)], 1.7, c);
+            pen.line_w(&[(3.5, 18.5), (11.0, 18.5)], 1.7, c);
+            pen.line_w(&[(13.0, 4.5), (20.5, 4.5)], 1.7, c);
+            pen.line_w(&[(13.0, 8.0), (20.5, 8.0)], 1.7, c);
+            pen.line_w(&[(13.0, 11.5), (20.5, 11.5)], 1.7, c);
+            pen.line_w(&[(13.0, 15.0), (20.5, 15.0)], 1.7, c);
+            pen.line_w(&[(13.0, 18.5), (20.5, 18.5)], 1.7, c);
         }
         "breaks" => {
-            pen.page(4.0, 1.5, 16.0, 8.5);
-            pen.page(4.0, 11.5, 16.0, 18.5);
-            pen.line_c(&[(2.0, 10.0), (18.0, 10.0)], a);
+            pen.closed(&[(5.5, 2.5), (12.5, 2.5), (16.0, 6.0), (16.0, 9.0), (5.5, 9.0)], c);
+            pen.closed(&[(5.5, 15.0), (16.5, 15.0), (16.5, 21.5), (5.5, 21.5)], c);
+            pen.dash_w(&[(3.0, 12.0), (21.0, 12.0)], 0.1, 3.4, 2.0, a);
         }
         "lineNumbers" => {
-            for (i, y) in [4.0, 8.0, 12.0, 16.0].iter().enumerate() {
-                pen.text(4.0, *y, 5.0, &(i + 1).to_string(), a, true);
-                pen.line(&[(7.0, *y), (17.0, *y)]);
-            }
+            pen.line_w(&[(3.8, 3.7), (5.6, 2.5), (5.6, 9.9)], 1.6, c);
+            pen.line_w(
+                &[
+                    (2.9, 10.0),
+                    (3.04, 9.7),
+                    (3.26, 9.44),
+                    (3.53, 9.22),
+                    (3.84, 9.06),
+                    (4.18, 8.95),
+                    (4.54, 8.89),
+                    (4.89, 8.88),
+                    (5.23, 8.94),
+                    (5.53, 9.06),
+                    (5.79, 9.24),
+                    (5.98, 9.49),
+                    (6.1, 9.8),
+                    (6.12, 10.06),
+                    (6.09, 10.31),
+                    (6.01, 10.54),
+                    (5.9, 10.76),
+                    (5.74, 10.96),
+                    (5.56, 11.15),
+                    (5.36, 11.33),
+                    (5.14, 11.51),
+                    (4.9, 11.68),
+                    (4.67, 11.86),
+                    (4.43, 12.03),
+                    (4.2, 12.2),
+                    (4.07, 12.35),
+                    (3.94, 12.5),
+                    (3.8, 12.66),
+                    (3.67, 12.82),
+                    (3.54, 12.99),
+                    (3.41, 13.16),
+                    (3.3, 13.35),
+                    (3.2, 13.55),
+                    (3.12, 13.76),
+                    (3.05, 13.99),
+                    (3.01, 14.24),
+                    (3.0, 14.5),
+                    (6.3, 14.5),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_w(
+                &[
+                    (3.1, 15.5),
+                    (3.34, 15.32),
+                    (3.61, 15.18),
+                    (3.89, 15.09),
+                    (4.18, 15.03),
+                    (4.47, 15.02),
+                    (4.75, 15.05),
+                    (5.02, 15.12),
+                    (5.26, 15.23),
+                    (5.46, 15.39),
+                    (5.63, 15.58),
+                    (5.74, 15.82),
+                    (5.8, 16.1),
+                    (5.8, 16.34),
+                    (5.76, 16.55),
+                    (5.69, 16.74),
+                    (5.58, 16.91),
+                    (5.45, 17.05),
+                    (5.29, 17.18),
+                    (5.11, 17.28),
+                    (4.92, 17.36),
+                    (4.72, 17.42),
+                    (4.51, 17.47),
+                    (4.3, 17.49),
+                    (4.1, 17.5),
+                    (4.33, 17.51),
+                    (4.56, 17.54),
+                    (4.79, 17.58),
+                    (5.01, 17.65),
+                    (5.23, 17.74),
+                    (5.43, 17.85),
+                    (5.6, 17.99),
+                    (5.75, 18.15),
+                    (5.87, 18.34),
+                    (5.96, 18.56),
+                    (6.0, 18.82),
+                    (6.0, 19.1),
+                    (5.94, 19.38),
+                    (5.81, 19.62),
+                    (5.63, 19.83),
+                    (5.4, 19.99),
+                    (5.13, 20.12),
+                    (4.84, 20.2),
+                    (4.52, 20.24),
+                    (4.2, 20.24),
+                    (3.88, 20.2),
+                    (3.56, 20.11),
+                    (3.27, 19.98),
+                    (3.0, 19.8),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_w(&[(3.8, 21.5), (5.6, 20.3), (5.6, 27.7)], 1.4, c);
+            pen.line_w(&[(9.5, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(9.5, 11.5), (20.0, 11.5)], 1.7, c);
+            pen.line_w(&[(9.5, 17.5), (20.0, 17.5)], 1.7, c);
         }
         "hyphenation" => {
-            pen.text(7.0, 7.0, 8.0, "ab-", c, false);
-            pen.text(9.0, 14.5, 8.0, "cd", a, false);
+            pen.line_c(&[(4.0, 6.5), (15.5, 6.5)], c);
+            pen.line_c(&[(15.5, 6.5), (20.0, 6.5)], a);
+            pen.line_c(&[(6.5, 12.5), (20.0, 12.5)], c);
+            pen.line_c(&[(4.0, 18.5), (8.5, 18.5)], a);
+            pen.line_c(&[(8.5, 18.5), (20.0, 18.5)], c);
         }
-        "position" | "wrapText" => {
-            pen.lines(3.0, 17.0, &[3.0, 17.0]);
-            pen.lines(3.0, 6.0, &[7.0, 10.0, 13.0]);
-            pen.frect(7.5, 6.0, 12.5, 14.0, a);
-            pen.lines(14.0, 17.0, &[7.0, 10.0, 13.0]);
+        "wrapText" | "position" => {
+            pen.line_c(&[(3.5, 4.5), (20.5, 4.5)], c);
+            pen.frect_r(9.0, 8.5, 15.0, 15.5, 1.0, a);
+            pen.line_w(&[(3.5, 10.0), (7.0, 10.0)], 1.7, c);
+            pen.line_w(&[(17.0, 10.0), (20.5, 10.0)], 1.7, c);
+            pen.line_w(&[(3.5, 14.0), (7.0, 14.0)], 1.7, c);
+            pen.line_w(&[(17.0, 14.0), (20.5, 14.0)], 1.7, c);
+            pen.line_w(&[(3.5, 19.5), (20.5, 19.5)], 1.7, c);
         }
         "bringForward" => {
-            pen.rect(3.0, 3.0, 12.0, 12.0, c);
-            pen.frect(8.0, 8.0, 17.0, 17.0, a);
+            pen.rrect(3.5, 3.5, 14.5, 14.5, 1.0, c);
+            pen.frect_r(10.0, 10.0, 20.5, 20.5, 1.0, a);
         }
         "sendBackward" => {
-            pen.frect(3.0, 3.0, 12.0, 12.0, a);
-            pen.rect(8.0, 8.0, 17.0, 17.0, c);
+            pen.frect_r(3.5, 3.5, 14.5, 14.5, 1.0, a);
+            pen.rrect(10.0, 10.0, 20.5, 20.5, 1.0, c);
         }
         "selectionPane" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.lines(6.0, 14.0, &[7.0, 10.0, 13.0]);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(6.5, 7.0, 8.9, 9.4, 0.0, a);
+            pen.frect_r(6.5, 11.0, 8.9, 13.4, 0.0, c);
+            pen.frect_r(6.5, 15.0, 8.9, 17.4, 0.0, c);
+            pen.line_w(&[(11.0, 8.2), (17.5, 8.2)], 1.5, c);
+            pen.line_w(&[(11.0, 12.2), (17.5, 12.2)], 1.5, c);
+            pen.line_w(&[(11.0, 16.2), (17.5, 16.2)], 1.5, c);
         }
         "align" => {
-            pen.line_c(&[(3.0, 2.0), (3.0, 18.0)], a);
-            pen.rect(4.5, 4.0, 15.0, 8.0, c);
-            pen.rect(4.5, 11.0, 11.0, 15.0, c);
+            pen.line_c(&[(4.5, 3.5), (4.5, 20.5)], a);
+            pen.rrect(6.5, 5.0, 19.5, 9.6, 0.8, c);
+            pen.rrect(6.5, 14.0, 15.5, 18.6, 0.8, c);
         }
         "group" => {
-            pen.rect(2.5, 2.5, 17.5, 17.5, a);
-            pen.rect(5.0, 5.0, 11.0, 11.0, c);
-            pen.fcircle(13.0, 13.0, 3.0, c);
+            pen.dash_w(
+                &[
+                    (19.0, 3.5),
+                    (19.57, 3.61),
+                    (20.06, 3.94),
+                    (20.39, 4.43),
+                    (20.5, 5.0),
+                    (20.5, 19.0),
+                    (20.39, 19.57),
+                    (20.06, 20.06),
+                    (19.57, 20.39),
+                    (19.0, 20.5),
+                    (5.0, 20.5),
+                    (4.43, 20.39),
+                    (3.94, 20.06),
+                    (3.61, 19.57),
+                    (3.5, 19.0),
+                    (3.5, 5.0),
+                    (3.61, 4.43),
+                    (3.94, 3.94),
+                    (4.43, 3.61),
+                    (5.0, 3.5),
+                    (19.0, 3.5),
+                ],
+                3.0,
+                2.4,
+                2.0,
+                c,
+            );
+            pen.rrect(6.5, 6.5, 13.0, 13.0, 0.8, c);
+            pen.fcircle(16.0, 16.0, 3.2, a);
         }
         "rotate" => {
-            pen.circle(10.0, 10.0, 6.0, c);
-            pen.fill(&[(14.5, 3.0), (17.5, 6.0), (13.5, 7.0)], a);
+            pen.line_c(
+                &[
+                    (19.2, 8.5),
+                    (17.61, 6.29),
+                    (15.36, 4.73),
+                    (12.73, 4.02),
+                    (10.0, 4.24),
+                    (7.52, 5.36),
+                    (5.55, 7.26),
+                    (4.33, 9.7),
+                    (4.01, 12.41),
+                    (4.62, 15.07),
+                    (6.09, 17.38),
+                    (8.24, 19.05),
+                    (10.84, 19.9),
+                    (13.57, 19.83),
+                    (16.11, 18.85),
+                    (18.18, 17.06),
+                    (19.53, 14.69),
+                    (20.0, 12.0),
+                ],
+                c,
+            );
+            pen.fill(&[(17.2, 3.2), (20.8, 7.6), (15.2, 8.6)], a);
         }
-        "indentLeft" | "indentRight" | "spaceBefore" | "spaceAfter" => {
-            pen.lines(3.0, 17.0, &[6.0, 10.0, 14.0]);
-            pen.fcircle(if name.contains("Right") { 15.0 } else { 5.0 }, 10.0, 1.6, a);
+        "indentLeft" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(4.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(4.0, 18.5), (20.0, 18.5)], c);
+            pen.fcircle(5.0, 12.0, 1.7, a);
         }
-        // References
+        "indentRight" => {
+            pen.line_c(&[(4.0, 5.5), (20.0, 5.5)], c);
+            pen.line_c(&[(4.0, 12.0), (20.0, 12.0)], c);
+            pen.line_c(&[(4.0, 18.5), (20.0, 18.5)], c);
+            pen.fcircle(19.0, 12.0, 1.7, a);
+        }
+        "spaceBefore" => {
+            pen.line_w(&[(4.0, 9.0), (20.0, 9.0)], 1.7, c);
+            pen.line_w(&[(4.0, 13.5), (20.0, 13.5)], 1.7, c);
+            pen.line_w(&[(4.0, 18.0), (20.0, 18.0)], 1.7, c);
+            pen.dash_w(&[(4.0, 5.0), (20.0, 5.0)], 2.6, 2.4, 1.7, a);
+        }
+        "spaceAfter" => {
+            pen.line_w(&[(4.0, 5.0), (20.0, 5.0)], 1.7, c);
+            pen.line_w(&[(4.0, 9.5), (20.0, 9.5)], 1.7, c);
+            pen.line_w(&[(4.0, 14.0), (20.0, 14.0)], 1.7, c);
+            pen.dash_w(&[(4.0, 18.5), (20.0, 18.5)], 2.6, 2.4, 1.7, a);
+        }
         "toc" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.lines(6.0, 11.0, &[7.0, 10.0, 13.0]);
-            for y in [7.0, 10.0, 13.0] {
-                pen.fcircle(13.5, y, 0.8, a);
-            }
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(8.5, 8.0), (13.5, 8.0)], 1.5, c);
+            pen.line_w(&[(8.5, 11.5), (13.5, 11.5)], 1.5, c);
+            pen.line_w(&[(8.5, 15.0), (13.5, 15.0)], 1.5, c);
+            pen.fcircle(16.0, 8.0, 1.0, a);
+            pen.fcircle(16.0, 11.5, 1.0, a);
+            pen.fcircle(16.0, 15.0, 1.0, a);
         }
         "addText" => {
-            pen.lines(3.0, 13.0, &[5.0, 9.0, 13.0]);
-            pen.line_c(&[(15.0, 11.0), (15.0, 17.0)], a);
-            pen.line_c(&[(12.0, 14.0), (18.0, 14.0)], a);
+            pen.line_w(&[(4.0, 5.5), (17.0, 5.5)], 1.7, c);
+            pen.line_w(&[(4.0, 10.0), (17.0, 10.0)], 1.7, c);
+            pen.line_w(&[(4.0, 14.5), (13.0, 14.5)], 1.7, c);
+            pen.line_c(&[(17.5, 13.0), (17.5, 20.0)], a);
+            pen.line_c(&[(14.0, 16.5), (21.0, 16.5)], a);
         }
-        "updateTable" | "update" => {
-            pen.circle(10.0, 10.0, 6.0, c);
-            pen.fill(&[(14.5, 3.0), (17.5, 6.0), (13.5, 7.0)], green);
+        "update" | "updateTable" => {
+            pen.line_c(
+                &[
+                    (19.5, 12.0),
+                    (19.06, 14.53),
+                    (17.8, 16.76),
+                    (15.86, 18.44),
+                    (13.47, 19.36),
+                    (10.91, 19.43),
+                    (8.47, 18.62),
+                    (6.45, 17.05),
+                    (5.07, 14.88),
+                    (4.51, 12.38),
+                    (4.82, 9.83),
+                    (5.97, 7.54),
+                    (7.83, 5.77),
+                    (10.17, 4.73),
+                    (12.73, 4.54),
+                    (15.2, 5.22),
+                    (17.3, 6.7),
+                ],
+                green,
+            );
+            pen.fill(&[(20.8, 3.2), (21.3, 8.8), (15.9, 7.1)], green);
         }
         "footnote" => {
-            pen.text(6.5, 7.0, 10.0, "ab", c, false);
-            pen.text(13.5, 4.5, 6.0, "1", a, true);
-            pen.line(&[(3.0, 13.0), (9.0, 13.0)]);
-            pen.lines(3.0, 17.0, &[16.0]);
+            pen.circle_w(7.7, 13.3, 2.3, 1.6, c);
+            pen.line_w(&[(10.0, 10.9), (10.0, 15.6)], 1.6, c);
+            pen.line_w(&[(13.2, 7.6), (13.2, 15.6)], 1.6, c);
+            pen.closed_w(
+                &[
+                    (17.75, 13.25),
+                    (17.63, 12.52),
+                    (17.3, 11.87),
+                    (16.78, 11.35),
+                    (16.13, 11.02),
+                    (15.4, 10.9),
+                    (14.67, 11.02),
+                    (14.02, 11.35),
+                    (13.5, 11.87),
+                    (13.17, 12.52),
+                    (13.05, 13.25),
+                    (13.19, 14.05),
+                    (13.6, 14.76),
+                    (14.23, 15.29),
+                    (14.99, 15.56),
+                    (15.81, 15.56),
+                    (16.57, 15.29),
+                    (17.2, 14.76),
+                    (17.61, 14.05),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_w(&[(14.0, 3.0), (15.8, 1.8), (15.8, 9.2)], 1.6, a);
+            pen.line_w(&[(3.5, 13.5), (14.0, 13.5)], 1.4, c);
+            pen.line_w(&[(3.5, 17.5), (20.5, 17.5)], 1.7, c);
+            pen.line_w(&[(3.5, 21.0), (20.5, 21.0)], 1.7, c);
         }
         "endnote" => {
-            pen.text(6.5, 7.0, 10.0, "ab", c, false);
-            pen.text(13.5, 4.5, 6.0, "i", a, true);
-            pen.lines(3.0, 17.0, &[13.0, 16.0]);
+            pen.circle_w(7.7, 13.3, 2.3, 1.6, c);
+            pen.line_w(&[(10.0, 10.9), (10.0, 15.6)], 1.6, c);
+            pen.line_w(&[(13.2, 7.6), (13.2, 15.6)], 1.6, c);
+            pen.closed_w(
+                &[
+                    (17.75, 13.25),
+                    (17.63, 12.52),
+                    (17.3, 11.87),
+                    (16.78, 11.35),
+                    (16.13, 11.02),
+                    (15.4, 10.9),
+                    (14.67, 11.02),
+                    (14.02, 11.35),
+                    (13.5, 11.87),
+                    (13.17, 12.52),
+                    (13.05, 13.25),
+                    (13.19, 14.05),
+                    (13.6, 14.76),
+                    (14.23, 15.29),
+                    (14.99, 15.56),
+                    (15.81, 15.56),
+                    (16.57, 15.29),
+                    (17.2, 14.76),
+                    (17.61, 14.05),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_w(&[(14.3, 2.6), (14.3, 7.6)], 1.6, a);
+            pen.line_w(&[(3.5, 13.5), (20.5, 13.5)], 1.4, c);
+            pen.line_w(&[(3.5, 17.5), (20.5, 17.5)], 1.7, c);
+            pen.line_w(&[(3.5, 21.0), (20.5, 21.0)], 1.7, c);
         }
         "nextFootnote" => {
-            pen.text(7.0, 7.0, 8.0, "ab", c, false);
-            pen.text(13.0, 5.0, 6.0, "1", a, true);
-            pen.line_c(&[(6.0, 15.0), (14.0, 15.0)], a);
-            pen.line_c(&[(11.5, 12.5), (14.0, 15.0), (11.5, 17.5)], a);
+            pen.circle_w(6.47, 12.61, 2.07, 1.6, c);
+            pen.line_w(&[(8.54, 10.45), (8.54, 14.68)], 1.6, c);
+            pen.line_w(&[(11.42, 7.48), (11.42, 14.68)], 1.6, c);
+            pen.closed_w(
+                &[
+                    (15.51, 12.57),
+                    (15.41, 11.91),
+                    (15.11, 11.32),
+                    (14.64, 10.85),
+                    (14.05, 10.55),
+                    (13.4, 10.45),
+                    (12.75, 10.55),
+                    (12.16, 10.85),
+                    (11.69, 11.32),
+                    (11.39, 11.91),
+                    (11.29, 12.57),
+                    (11.41, 13.29),
+                    (11.78, 13.92),
+                    (12.34, 14.4),
+                    (13.03, 14.65),
+                    (13.77, 14.65),
+                    (14.46, 14.4),
+                    (15.02, 13.92),
+                    (15.39, 13.29),
+                ],
+                1.6,
+                c,
+            );
+            pen.line_w(&[(13.4, 2.2), (15.2, 1.0), (15.2, 8.4)], 1.6, a);
+            pen.line_c(&[(8.0, 14.0), (8.0, 20.0)], a);
+            pen.line_c(&[(5.4, 17.4), (8.0, 20.0), (10.6, 17.4)], a);
         }
         "showNotes" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(5.5, 13.0, 14.5, 16.5, a.linear_multiply(0.5));
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.frect_r(6.9, 14.5, 17.1, 18.5, 0.0, a.linear_multiply(0.45));
         }
         "researcher" => {
-            pen.circle(9.0, 9.0, 5.0, c);
-            pen.line_c(&[(12.5, 12.5), (17.0, 17.0)], a);
-            pen.lines(6.5, 11.5, &[8.0, 10.0]);
+            pen.circle(10.0, 9.5, 5.8, c);
+            pen.line_w(&[(8.0, 8.0), (12.0, 8.0)], 1.5, c);
+            pen.line_w(&[(8.0, 11.0), (10.6, 11.0)], 1.5, c);
+            pen.line_c(&[(14.3, 13.8), (19.5, 19.0)], a);
         }
-        // Zotero
         "docPrefs" => {
-            pen.page(3.0, 2.5, 13.0, 17.5);
-            pen.lines(5.0, 10.0, &[7.5, 10.0]);
-            // A small gear: ring and teeth.
-            pen.circle(14.0, 14.0, 2.2, a);
-            for k in 0..6 {
-                let t = k as f32 * std::f32::consts::PI / 3.0;
-                let (dx, dy) = (t.cos(), t.sin());
-                pen.line_c(&[(14.0 + 2.8 * dx, 14.0 + 2.8 * dy), (14.0 + 4.2 * dx, 14.0 + 4.2 * dy)], a);
-            }
+            pen.closed(&[(3.5, 4.0), (10.5, 4.0), (13.0, 6.5), (13.0, 19.0), (3.5, 19.0)], c);
+            pen.line_w(&[(5.5, 8.5), (9.5, 8.5)], 1.5, c);
+            pen.line_w(&[(5.5, 11.5), (8.5, 11.5)], 1.5, c);
+            pen.circle_w(17.3, 16.8, 2.6, 1.6, a);
+            pen.line_w(&[(17.3, 12.6), (17.3, 11.1)], 1.6, a);
+            pen.line_w(&[(17.3, 21.0), (17.3, 19.5)], 1.6, a);
+            pen.line_w(&[(21.5, 16.8), (20.0, 16.8)], 1.6, a);
+            pen.line_w(&[(14.6, 16.8), (13.1, 16.8)], 1.6, a);
+            pen.line_w(&[(20.3, 13.8), (19.2, 14.9)], 1.6, a);
+            pen.line_w(&[(15.4, 18.7), (14.3, 19.8)], 1.6, a);
+            pen.line_w(&[(20.3, 19.8), (19.2, 18.7)], 1.6, a);
+            pen.line_w(&[(15.4, 14.9), (14.3, 13.8)], 1.6, a);
         }
         "unlinkCitations" => {
-            // Two chain links pulled apart, with a break between them.
-            pen.closed(
-                &[(2.5, 12.5), (6.0, 9.0), (8.5, 9.0), (8.5, 10.8), (6.8, 10.8), (4.6, 13.0), (6.8, 15.2), (8.5, 15.2), (8.5, 17.0), (6.0, 17.0)],
-                c,
-            );
-            pen.closed(
-                &[(17.5, 7.5), (14.0, 11.0), (11.5, 11.0), (11.5, 9.2), (13.2, 9.2), (15.4, 7.0), (13.2, 4.8), (11.5, 4.8), (11.5, 3.0), (14.0, 3.0)],
-                c,
-            );
-            pen.line_c(&[(9.0, 6.5), (7.5, 5.0)], a);
-            pen.line_c(&[(11.0, 13.5), (12.5, 15.0)], a);
-            pen.line_c(&[(10.0, 5.5), (10.0, 3.5)], a);
-            pen.line_c(&[(10.0, 14.5), (10.0, 16.5)], a);
+            pen.rrect(2.5, 9.5, 9.5, 14.5, 2.4, c);
+            pen.rrect(14.5, 9.5, 21.5, 14.5, 2.4, c);
+            pen.line_c(&[(12.9, 6.8), (11.1, 17.2)], a);
         }
         "addNote" => {
-            pen.closed(&[(3.0, 3.0), (17.0, 3.0), (17.0, 12.5), (12.5, 17.0), (3.0, 17.0)], c);
-            pen.line(&[(12.5, 17.0), (12.5, 12.5), (17.0, 12.5)]);
-            pen.line_c(&[(6.0, 8.0), (11.0, 8.0)], a);
-            pen.line_c(&[(8.5, 5.5), (8.5, 10.5)], a);
-            pen.lines(6.0, 11.0, &[13.5]);
+            pen.closed(&[(4.5, 3.5), (18.5, 3.5), (18.5, 14.3), (12.5, 20.5), (4.5, 20.5)], c);
+            pen.line_w(&[(12.5, 20.5), (12.5, 14.5), (18.5, 14.5)], 1.6, c);
+            pen.line_c(&[(9.0, 8.5), (9.0, 13.5)], a);
+            pen.line_c(&[(6.5, 11.0), (11.5, 11.0)], a);
         }
         "citation" => {
-            pen.text(6.0, 9.0, 14.0, "“", a, true);
-            pen.lines(9.0, 17.0, &[6.0, 10.0, 14.0]);
+            pen.fpoly(
+                &[
+                    (4.6, 11.0),
+                    (4.6, 7.4),
+                    (4.63, 6.94),
+                    (4.71, 6.5),
+                    (4.83, 6.1),
+                    (5.01, 5.72),
+                    (5.23, 5.37),
+                    (5.49, 5.06),
+                    (5.79, 4.79),
+                    (6.13, 4.55),
+                    (6.5, 4.35),
+                    (6.9, 4.19),
+                    (7.34, 4.07),
+                    (7.8, 4.0),
+                    (7.8, 6.5),
+                    (7.56, 6.56),
+                    (7.34, 6.63),
+                    (7.14, 6.72),
+                    (6.96, 6.83),
+                    (6.8, 6.95),
+                    (6.66, 7.09),
+                    (6.54, 7.24),
+                    (6.44, 7.4),
+                    (6.35, 7.58),
+                    (6.29, 7.78),
+                    (6.23, 7.98),
+                    (6.2, 8.2),
+                    (7.8, 8.2),
+                    (7.8, 11.0),
+                ],
+                &[
+                    [28, 0, 1],
+                    [28, 1, 2],
+                    [28, 2, 3],
+                    [28, 3, 4],
+                    [4, 5, 6],
+                    [4, 6, 7],
+                    [4, 7, 8],
+                    [4, 8, 9],
+                    [4, 9, 10],
+                    [4, 10, 11],
+                    [4, 11, 12],
+                    [4, 12, 13],
+                    [4, 13, 14],
+                    [4, 14, 15],
+                    [4, 15, 16],
+                    [4, 16, 17],
+                    [4, 17, 18],
+                    [4, 18, 19],
+                    [4, 19, 20],
+                    [4, 20, 21],
+                    [4, 21, 22],
+                    [4, 22, 23],
+                    [4, 23, 24],
+                    [4, 24, 25],
+                    [4, 25, 26],
+                    [28, 4, 26],
+                    [26, 27, 28],
+                ],
+                a,
+            );
+            pen.fpoly(
+                &[
+                    (10.2, 11.0),
+                    (10.2, 7.4),
+                    (10.23, 6.94),
+                    (10.31, 6.5),
+                    (10.43, 6.1),
+                    (10.61, 5.72),
+                    (10.83, 5.37),
+                    (11.09, 5.06),
+                    (11.39, 4.79),
+                    (11.73, 4.55),
+                    (12.1, 4.35),
+                    (12.5, 4.19),
+                    (12.94, 4.07),
+                    (13.4, 4.0),
+                    (13.4, 6.5),
+                    (13.16, 6.56),
+                    (12.94, 6.63),
+                    (12.74, 6.72),
+                    (12.56, 6.83),
+                    (12.4, 6.95),
+                    (12.26, 7.09),
+                    (12.14, 7.24),
+                    (12.04, 7.4),
+                    (11.95, 7.58),
+                    (11.88, 7.78),
+                    (11.83, 7.98),
+                    (11.8, 8.2),
+                    (13.4, 8.2),
+                    (13.4, 11.0),
+                ],
+                &[
+                    [28, 0, 1],
+                    [28, 1, 2],
+                    [28, 2, 3],
+                    [28, 3, 4],
+                    [4, 5, 6],
+                    [4, 6, 7],
+                    [4, 7, 8],
+                    [4, 8, 9],
+                    [4, 9, 10],
+                    [4, 10, 11],
+                    [4, 11, 12],
+                    [4, 12, 13],
+                    [4, 13, 14],
+                    [4, 14, 15],
+                    [4, 15, 16],
+                    [4, 16, 17],
+                    [4, 17, 18],
+                    [4, 18, 19],
+                    [4, 19, 20],
+                    [4, 20, 21],
+                    [4, 21, 22],
+                    [4, 22, 23],
+                    [4, 23, 24],
+                    [4, 24, 25],
+                    [4, 25, 26],
+                    [28, 4, 26],
+                    [26, 27, 28],
+                ],
+                a,
+            );
+            pen.line_w(&[(9.0, 15.5), (20.0, 15.5)], 1.7, c);
+            pen.line_w(&[(9.0, 19.5), (17.0, 19.5)], 1.7, c);
         }
         "sources" | "bibliography" => {
-            pen.rect(4.0, 3.0, 9.0, 17.0, c);
-            pen.rect(9.0, 3.0, 13.0, 17.0, a);
-            pen.closed(&[(13.5, 4.0), (16.5, 3.5), (18.0, 16.5), (15.0, 17.0)], c);
+            pen.closed(
+                &[
+                    (5.0, 4.7),
+                    (5.58, 4.45),
+                    (6.16, 4.24),
+                    (6.74, 4.08),
+                    (7.33, 3.97),
+                    (7.91, 3.9),
+                    (8.5, 3.88),
+                    (9.09, 3.9),
+                    (9.67, 3.97),
+                    (10.26, 4.08),
+                    (10.84, 4.24),
+                    (11.42, 4.45),
+                    (12.0, 4.7),
+                    (12.58, 4.45),
+                    (13.16, 4.24),
+                    (13.74, 4.08),
+                    (14.33, 3.97),
+                    (14.91, 3.9),
+                    (15.5, 3.88),
+                    (16.09, 3.9),
+                    (16.67, 3.97),
+                    (17.26, 4.08),
+                    (17.84, 4.24),
+                    (18.42, 4.45),
+                    (19.0, 4.7),
+                    (19.0, 19.0),
+                    (18.42, 18.75),
+                    (17.84, 18.54),
+                    (17.26, 18.38),
+                    (16.67, 18.27),
+                    (16.09, 18.2),
+                    (15.5, 18.17),
+                    (14.91, 18.2),
+                    (14.33, 18.27),
+                    (13.74, 18.38),
+                    (13.16, 18.54),
+                    (12.58, 18.75),
+                    (12.0, 19.0),
+                    (11.42, 18.75),
+                    (10.84, 18.54),
+                    (10.26, 18.38),
+                    (9.67, 18.27),
+                    (9.09, 18.2),
+                    (8.5, 18.17),
+                    (7.91, 18.2),
+                    (7.33, 18.27),
+                    (6.74, 18.38),
+                    (6.16, 18.54),
+                    (5.58, 18.75),
+                    (5.0, 19.0),
+                ],
+                c,
+            );
+            pen.line_c(&[(12.0, 4.7), (12.0, 19.0)], c);
+            pen.fpoly(&[(19.5, 3.6), (19.5, 9.4), (17.6, 8.0), (15.7, 9.4), (15.7, 3.6)], &[[4, 0, 1], [4, 1, 2], [2, 3, 4]], a);
         }
         "caption" => {
-            pen.rect(3.0, 2.5, 17.0, 11.5, c);
-            pen.fill(&[(4.5, 10.0), (8.0, 5.5), (11.0, 10.0)], a);
-            pen.lines(3.0, 13.0, &[15.0, 17.5]);
+            pen.rrect(3.5, 3.0, 20.5, 13.5, 1.0, c);
+            pen.fpoly(&[(5.3, 11.5), (8.7, 6.7), (11.2, 10.1), (12.8, 8.1), (16.0, 11.5)], &[[0, 1, 2], [4, 0, 2], [2, 3, 4]], a);
+            pen.line_w(&[(3.5, 17.5), (20.5, 17.5)], 1.7, c);
+            pen.line_w(&[(3.5, 21.0), (13.0, 21.0)], 1.7, c);
         }
         "tableOfFigures" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(6.0, 5.0, 10.0, 8.0, a);
-            pen.lines(6.0, 14.0, &[11.0, 14.0]);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.rrect_w(8.5, 6.5, 13.1, 10.5, 0.6, 1.5, a);
+            pen.line_w(&[(8.5, 14.0), (15.5, 14.0)], 1.5, c);
+            pen.line_w(&[(8.5, 17.5), (15.5, 17.5)], 1.5, c);
         }
-        "markEntry" | "index" | "markCitation" | "tableOfAuthorities" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.text(10.0, 10.0, 8.0, if name == "index" || name == "markEntry" { "A" } else { "§" }, a, true);
+        "index" | "markEntry" | "markCitation" | "tableOfAuthorities" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(8.68, 13.29), (11.6, 6.3), (14.51, 13.29)], a);
+            pen.line_c(&[(9.79, 10.73), (13.4, 10.73)], a);
         }
-        // Mailings
         "envelope" => {
-            pen.rect(2.5, 5.0, 17.5, 15.5, c);
-            pen.line_c(&[(2.5, 5.0), (10.0, 11.0), (17.5, 5.0)], a);
+            pen.rrect(3.0, 5.0, 21.0, 19.0, 1.2, c);
+            pen.line_c(&[(3.5, 6.0), (12.0, 12.8), (20.5, 6.0)], a);
         }
         "labels" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.frect(5.0, 5.0, 9.5, 9.0, a);
-            pen.frect(10.5, 5.0, 15.0, 9.0, a);
-            pen.frect(5.0, 11.0, 9.5, 15.0, a);
-            pen.frect(10.5, 11.0, 15.0, 15.0, a);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(6.0, 6.0, 11.4, 10.4, 0.6, a);
+            pen.frect_r(12.6, 6.0, 18.0, 10.4, 0.6, a);
+            pen.frect_r(6.0, 13.6, 11.4, 18.0, 0.6, a);
+            pen.frect_r(12.6, 13.6, 18.0, 18.0, 0.6, a);
         }
         "mailMerge" | "recipients" | "editRecipients" => {
-            pen.fcircle(7.0, 7.0, 2.5, a);
-            pen.line(&[(3.0, 15.0), (3.0, 13.0), (7.0, 10.5), (11.0, 13.0), (11.0, 15.0)]);
-            pen.fcircle(13.5, 6.0, 2.0, c);
-            pen.line(&[(11.5, 10.0), (13.5, 9.0), (17.0, 11.0), (17.0, 14.0)]);
+            pen.fcircle(7.5, 6.5, 3.0, a);
+            pen.fill(
+                &[
+                    (2.5, 20.0),
+                    (2.54, 18.99),
+                    (2.68, 18.06),
+                    (2.89, 17.21),
+                    (3.17, 16.45),
+                    (3.53, 15.77),
+                    (3.95, 15.18),
+                    (4.43, 14.67),
+                    (4.96, 14.25),
+                    (5.54, 13.93),
+                    (6.16, 13.69),
+                    (6.81, 13.55),
+                    (7.5, 13.5),
+                    (8.19, 13.55),
+                    (8.84, 13.69),
+                    (9.46, 13.93),
+                    (10.04, 14.25),
+                    (10.57, 14.67),
+                    (11.05, 15.18),
+                    (11.47, 15.77),
+                    (11.83, 16.45),
+                    (12.11, 17.21),
+                    (12.32, 18.06),
+                    (12.46, 18.99),
+                    (12.5, 20.0),
+                ],
+                a,
+            );
+            pen.rrect(14.0, 8.5, 21.5, 14.5, 0.8, c);
+            pen.line_w(&[(14.2, 9.0), (17.75, 12.0), (21.3, 9.0)], 1.5, c);
         }
-        "mergeField" | "addressBlock" | "greetingLine" | "rules" | "matchFields" | "highlightFields" => {
-            pen.rect(2.5, 6.0, 17.5, 14.0, c);
-            pen.text(10.0, 10.0, 7.0, "«»", a, true);
+        "mergeField" | "addressBlock" | "greetingLine" | "matchFields" | "highlightFields" | "rules" => {
+            pen.rrect(3.0, 5.5, 21.0, 18.5, 1.2, c);
+            pen.line_c(&[(9.3, 9.5), (6.8, 12.0), (9.3, 14.5)], a);
+            pen.line_c(&[(14.7, 9.5), (17.2, 12.0), (14.7, 14.5)], a);
         }
-        "preview" => {
-            pen.text(10.0, 10.0, 8.0, "ABC", a, true);
-            pen.rect(2.5, 5.0, 17.5, 15.0, c);
+        "previewResults" | "preview" => {
+            pen.rrect(3.0, 4.5, 17.0, 15.5, 1.0, c);
+            pen.line_w(&[(3.4, 5.2), (10.0, 10.5), (16.6, 5.2)], 1.5, c);
+            pen.circle(16.8, 16.8, 4.0, a);
+            pen.line_c(&[(19.8, 19.8), (22.0, 22.0)], a);
         }
-        "next" | "previous" | "first" | "last" => {
-            let pts: &[(f32, f32)] =
-                if name == "next" || name == "last" { &[(7.0, 4.0), (13.0, 10.0), (7.0, 16.0)] } else { &[(13.0, 4.0), (7.0, 10.0), (13.0, 16.0)] };
-            pen.line_c(pts, a);
+        "nextRecord" | "next" | "last" => {
+            pen.line_c(&[(8.5, 4.5), (16.0, 12.0), (8.5, 19.5)], a);
+        }
+        "previousRecord" | "previous" | "first" => {
+            pen.line_c(&[(15.5, 4.5), (8.0, 12.0), (15.5, 19.5)], a);
         }
         "finish" => {
-            pen.page(3.0, 2.0, 13.0, 15.0);
-            pen.line_c(&[(10.0, 15.0), (13.0, 18.0), (18.0, 11.0)], green);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(10.5, 15.5), (13.7, 18.7), (19.7, 11.9)], green);
         }
         "checkErrors" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.fcircle(14.0, 14.0, 3.5, red);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.fcircle(15.8, 15.8, 3.6, red);
+            pen.line_w(&[(15.8, 13.9), (15.8, 16.1)], 1.5, bg);
+            pen.fcircle(15.8, 17.6, 0.9, bg);
         }
-        // Review
         "thesaurus" => {
-            pen.rect(3.5, 2.5, 16.5, 17.5, c);
-            pen.text(10.0, 9.5, 8.0, "Aa", a, true);
+            pen.rrect(4.5, 3.5, 19.5, 20.5, 1.6, c);
+            pen.line_w(&[(8.5, 3.5), (8.5, 20.5)], 1.5, c);
+            pen.line_c(&[(4.69, 12.24), (6.71, 6.66), (8.72, 12.24)], a);
+            pen.line_c(&[(5.68, 10.57), (7.73, 10.57)], a);
+            pen.circle(11.39, 10.75, 1.55, a);
+            pen.line_c(&[(12.94, 9.2), (12.94, 12.3)], a);
         }
-        "wordCount" => pen.text(10.0, 10.0, 9.0, "123", a, true),
+        "wordCount" => {
+            pen.line_w(&[(4.38, 9.67), (6.45, 8.29), (6.45, 16.8)], 1.9, c);
+            pen.line_w(
+                &[
+                    (9.97, 10.02),
+                    (10.14, 9.67),
+                    (10.38, 9.37),
+                    (10.7, 9.12),
+                    (11.06, 8.93),
+                    (11.45, 8.8),
+                    (11.86, 8.74),
+                    (12.26, 8.73),
+                    (12.65, 8.8),
+                    (13.0, 8.93),
+                    (13.29, 9.14),
+                    (13.52, 9.42),
+                    (13.66, 9.79),
+                    (13.68, 10.09),
+                    (13.64, 10.37),
+                    (13.56, 10.64),
+                    (13.42, 10.88),
+                    (13.25, 11.12),
+                    (13.04, 11.34),
+                    (12.8, 11.55),
+                    (12.55, 11.75),
+                    (12.28, 11.95),
+                    (12.01, 12.15),
+                    (11.73, 12.35),
+                    (11.47, 12.54),
+                    (11.32, 12.72),
+                    (11.17, 12.89),
+                    (11.01, 13.07),
+                    (10.86, 13.26),
+                    (10.71, 13.45),
+                    (10.56, 13.65),
+                    (10.43, 13.87),
+                    (10.32, 14.1),
+                    (10.22, 14.34),
+                    (10.15, 14.6),
+                    (10.11, 14.89),
+                    (10.09, 15.19),
+                    (13.88, 15.19),
+                ],
+                1.9,
+                c,
+            );
+            pen.line_w(
+                &[
+                    (17.0, 9.44),
+                    (17.28, 9.23),
+                    (17.59, 9.08),
+                    (17.91, 8.97),
+                    (18.24, 8.9),
+                    (18.58, 8.89),
+                    (18.9, 8.92),
+                    (19.21, 9.0),
+                    (19.48, 9.13),
+                    (19.72, 9.31),
+                    (19.91, 9.54),
+                    (20.04, 9.81),
+                    (20.11, 10.13),
+                    (20.11, 10.4),
+                    (20.07, 10.65),
+                    (19.98, 10.87),
+                    (19.86, 11.06),
+                    (19.7, 11.22),
+                    (19.52, 11.37),
+                    (19.32, 11.48),
+                    (19.1, 11.58),
+                    (18.86, 11.65),
+                    (18.63, 11.7),
+                    (18.39, 11.73),
+                    (18.15, 11.74),
+                    (18.42, 11.75),
+                    (18.68, 11.78),
+                    (18.95, 11.83),
+                    (19.21, 11.91),
+                    (19.45, 12.01),
+                    (19.68, 12.14),
+                    (19.88, 12.3),
+                    (20.05, 12.49),
+                    (20.19, 12.71),
+                    (20.29, 12.96),
+                    (20.34, 13.25),
+                    (20.34, 13.58),
+                    (20.27, 13.9),
+                    (20.12, 14.18),
+                    (19.91, 14.42),
+                    (19.65, 14.61),
+                    (19.34, 14.75),
+                    (19.0, 14.84),
+                    (18.64, 14.89),
+                    (18.27, 14.89),
+                    (17.9, 14.84),
+                    (17.54, 14.74),
+                    (17.2, 14.59),
+                    (16.89, 14.38),
+                ],
+                1.9,
+                c,
+            );
+        }
         "readAloud" => {
-            pen.text(6.0, 10.0, 10.0, "A", c, false);
-            pen.line_c(&[(12.0, 7.0), (13.5, 10.0), (12.0, 13.0)], a);
-            pen.line_c(&[(14.5, 5.0), (17.0, 10.0), (14.5, 15.0)], a);
+            pen.line_c(&[(3.63, 14.99), (7.8, 5.0), (11.96, 14.99)], c);
+            pen.line_c(&[(5.21, 11.33), (10.38, 11.33)], c);
+            pen.line_c(&[(14.7, 9.2), (15.45, 10.51), (15.71, 12.0), (15.45, 13.49), (14.7, 14.8)], a);
+            pen.line_c(&[(17.6, 6.8), (18.81, 8.7), (19.44, 10.87), (19.44, 13.13), (18.81, 15.3), (17.6, 17.2)], a);
         }
         "accessibility" => {
-            pen.fcircle(10.0, 4.0, 1.6, a);
-            pen.line(&[(4.0, 7.0), (16.0, 7.0)]);
-            pen.line(&[(10.0, 7.0), (10.0, 12.0), (7.0, 17.5)]);
-            pen.line(&[(10.0, 12.0), (13.0, 17.5)]);
+            pen.fcircle(12.0, 4.8, 2.2, a);
+            pen.line_c(&[(4.5, 9.5), (19.5, 9.5)], c);
+            pen.line_c(&[(12.0, 9.5), (12.0, 14.7)], c);
+            pen.line_c(&[(12.0, 14.7), (8.3, 20.7)], c);
+            pen.line_c(&[(12.0, 14.7), (15.7, 20.7)], c);
         }
         "altText" => {
-            // A small picture with lines of text beside and below it.
-            pen.rect(2.5, 3.5, 11.5, 11.0, c);
-            pen.line_c(&[(3.5, 10.0), (6.0, 6.5), (8.0, 8.5), (9.0, 7.5), (10.5, 10.0)], a);
-            for (x0, x1, y) in [(13.5, 17.5, 5.0), (13.5, 17.5, 8.0), (2.5, 17.5, 14.0), (2.5, 13.0, 17.0)] {
-                pen.line_c(&[(x0, y), (x1, y)], c);
-            }
+            pen.rrect(3.0, 3.5, 13.0, 11.5, 0.8, c);
+            pen.fpoly(&[(4.6, 9.8), (7.0, 6.5), (8.8, 8.9), (9.9, 7.5), (11.9, 9.8)], &[[0, 1, 2], [4, 0, 2], [2, 3, 4]], a);
+            pen.line_w(&[(15.5, 5.5), (20.5, 5.5)], 1.6, c);
+            pen.line_w(&[(15.5, 9.0), (20.5, 9.0)], 1.6, c);
+            pen.line_w(&[(3.0, 15.5), (21.0, 15.5)], 1.7, c);
+            pen.line_w(&[(3.0, 20.0), (14.0, 20.0)], 1.7, c);
         }
         "translate" | "language" => {
-            pen.text(6.5, 7.0, 9.0, "A", c, true);
-            pen.text(13.5, 13.5, 9.0, "あ", a, false);
+            // The glyph follows a user-supplied iconfont.cn design (recoulored to our
+            // two-colour spec); its licence on iconfont.cn is still to be verified.
+            pen.fpoly(
+                &[
+                    (14.25, 9.75),
+                    (21.0, 9.75),
+                    (21.2, 9.76),
+                    (21.4, 9.8),
+                    (21.58, 9.87),
+                    (21.76, 9.95),
+                    (21.92, 10.06),
+                    (22.06, 10.19),
+                    (22.19, 10.33),
+                    (22.3, 10.49),
+                    (22.38, 10.66),
+                    (22.45, 10.85),
+                    (22.49, 11.05),
+                    (22.5, 11.25),
+                    (22.5, 21.0),
+                    (22.49, 21.2),
+                    (22.45, 21.4),
+                    (22.38, 21.58),
+                    (22.3, 21.76),
+                    (22.19, 21.92),
+                    (22.06, 22.06),
+                    (21.92, 22.19),
+                    (21.76, 22.3),
+                    (21.59, 22.38),
+                    (21.4, 22.45),
+                    (21.2, 22.49),
+                    (21.0, 22.5),
+                    (11.25, 22.5),
+                    (11.05, 22.49),
+                    (10.85, 22.45),
+                    (10.67, 22.38),
+                    (10.49, 22.3),
+                    (10.33, 22.19),
+                    (10.19, 22.06),
+                    (10.06, 21.92),
+                    (9.95, 21.76),
+                    (9.87, 21.59),
+                    (9.8, 21.4),
+                    (9.76, 21.2),
+                    (9.75, 21.0),
+                    (9.75, 14.25),
+                    (3.0, 14.25),
+                    (2.8, 14.24),
+                    (2.6, 14.2),
+                    (2.42, 14.13),
+                    (2.24, 14.05),
+                    (2.08, 13.94),
+                    (1.94, 13.81),
+                    (1.81, 13.67),
+                    (1.7, 13.51),
+                    (1.62, 13.34),
+                    (1.55, 13.15),
+                    (1.51, 12.95),
+                    (1.5, 12.75),
+                    (1.5, 3.0),
+                    (1.51, 2.8),
+                    (1.55, 2.6),
+                    (1.62, 2.42),
+                    (1.7, 2.24),
+                    (1.81, 2.08),
+                    (1.94, 1.94),
+                    (2.08, 1.81),
+                    (2.24, 1.7),
+                    (2.41, 1.62),
+                    (2.6, 1.55),
+                    (2.8, 1.51),
+                    (3.0, 1.5),
+                    (12.75, 1.5),
+                    (12.95, 1.51),
+                    (13.15, 1.55),
+                    (13.33, 1.62),
+                    (13.51, 1.7),
+                    (13.67, 1.81),
+                    (13.81, 1.94),
+                    (13.94, 2.08),
+                    (14.05, 2.24),
+                    (14.13, 2.41),
+                    (14.2, 2.6),
+                    (14.24, 2.8),
+                    (14.25, 3.0),
+                ],
+                &[
+                    [0, 1, 2],
+                    [0, 2, 3],
+                    [0, 3, 4],
+                    [0, 4, 5],
+                    [0, 5, 6],
+                    [0, 6, 7],
+                    [0, 7, 8],
+                    [0, 8, 9],
+                    [0, 9, 10],
+                    [0, 10, 11],
+                    [0, 11, 12],
+                    [0, 12, 13],
+                    [0, 13, 14],
+                    [0, 14, 15],
+                    [0, 15, 16],
+                    [0, 16, 17],
+                    [0, 17, 18],
+                    [0, 18, 19],
+                    [0, 19, 20],
+                    [0, 20, 21],
+                    [0, 21, 22],
+                    [0, 22, 23],
+                    [0, 23, 24],
+                    [0, 24, 25],
+                    [0, 25, 26],
+                    [0, 26, 27],
+                    [79, 0, 27],
+                    [79, 27, 28],
+                    [79, 28, 29],
+                    [79, 29, 30],
+                    [79, 30, 31],
+                    [79, 31, 32],
+                    [79, 32, 33],
+                    [79, 33, 34],
+                    [79, 34, 35],
+                    [79, 35, 36],
+                    [79, 36, 37],
+                    [79, 37, 38],
+                    [79, 38, 39],
+                    [79, 39, 40],
+                    [79, 40, 41],
+                    [79, 41, 42],
+                    [79, 42, 43],
+                    [79, 43, 44],
+                    [79, 44, 45],
+                    [79, 45, 46],
+                    [79, 46, 47],
+                    [79, 47, 48],
+                    [79, 48, 49],
+                    [79, 49, 50],
+                    [79, 50, 51],
+                    [79, 51, 52],
+                    [79, 52, 53],
+                    [79, 53, 54],
+                    [79, 54, 55],
+                    [79, 55, 56],
+                    [79, 56, 57],
+                    [79, 57, 58],
+                    [79, 58, 59],
+                    [79, 59, 60],
+                    [79, 60, 61],
+                    [79, 61, 62],
+                    [79, 62, 63],
+                    [79, 63, 64],
+                    [79, 64, 65],
+                    [79, 65, 66],
+                    [79, 66, 67],
+                    [79, 67, 68],
+                    [79, 68, 69],
+                    [79, 69, 70],
+                    [79, 70, 71],
+                    [79, 71, 72],
+                    [79, 72, 73],
+                    [79, 73, 74],
+                    [79, 74, 75],
+                    [79, 75, 76],
+                    [79, 76, 77],
+                    [77, 78, 79],
+                ],
+                bg,
+            );
+            pen.fpoly(
+                &[
+                    (14.25, 11.25),
+                    (20.25, 11.25),
+                    (20.48, 11.29),
+                    (20.69, 11.39),
+                    (20.86, 11.56),
+                    (20.96, 11.77),
+                    (21.0, 12.0),
+                    (21.0, 20.25),
+                    (20.96, 20.48),
+                    (20.86, 20.69),
+                    (20.69, 20.86),
+                    (20.48, 20.96),
+                    (20.25, 21.0),
+                    (12.0, 21.0),
+                    (11.9, 20.99),
+                    (11.8, 20.97),
+                    (11.71, 20.94),
+                    (11.62, 20.9),
+                    (11.54, 20.84),
+                    (11.47, 20.78),
+                    (11.41, 20.71),
+                    (11.35, 20.63),
+                    (11.31, 20.54),
+                    (11.28, 20.45),
+                    (11.26, 20.35),
+                    (11.25, 20.25),
+                    (11.25, 14.25),
+                    (12.75, 14.25),
+                    (12.95, 14.24),
+                    (13.15, 14.2),
+                    (13.34, 14.13),
+                    (13.51, 14.05),
+                    (13.67, 13.94),
+                    (13.81, 13.81),
+                    (13.94, 13.67),
+                    (14.05, 13.51),
+                    (14.13, 13.33),
+                    (14.2, 13.15),
+                    (14.24, 12.95),
+                    (14.25, 12.75),
+                    (14.25, 11.25),
+                ],
+                &[
+                    [0, 1, 2],
+                    [0, 2, 3],
+                    [0, 3, 4],
+                    [0, 4, 5],
+                    [0, 5, 6],
+                    [0, 6, 7],
+                    [0, 7, 8],
+                    [0, 8, 9],
+                    [0, 9, 10],
+                    [0, 10, 11],
+                    [0, 11, 12],
+                    [12, 13, 14],
+                    [12, 14, 15],
+                    [12, 15, 16],
+                    [12, 16, 17],
+                    [12, 17, 18],
+                    [12, 18, 19],
+                    [12, 19, 20],
+                    [12, 20, 21],
+                    [12, 21, 22],
+                    [12, 22, 23],
+                    [12, 23, 24],
+                    [12, 24, 25],
+                    [12, 25, 26],
+                    [12, 26, 27],
+                    [12, 27, 28],
+                    [12, 28, 29],
+                    [12, 29, 30],
+                    [12, 30, 31],
+                    [12, 31, 32],
+                    [12, 32, 33],
+                    [12, 33, 34],
+                    [12, 34, 35],
+                    [12, 35, 36],
+                    [12, 36, 37],
+                    [12, 37, 38],
+                    [12, 38, 39],
+                    [0, 12, 39],
+                    [0, 39, 40],
+                ],
+                c,
+            );
+            pen.fill(
+                &[
+                    (3.04, 3.52),
+                    (3.15, 3.31),
+                    (3.31, 3.15),
+                    (3.52, 3.04),
+                    (3.75, 3.0),
+                    (12.0, 3.0),
+                    (12.23, 3.04),
+                    (12.44, 3.15),
+                    (12.61, 3.31),
+                    (12.71, 3.52),
+                    (12.75, 3.75),
+                    (12.75, 12.0),
+                    (12.71, 12.23),
+                    (12.61, 12.44),
+                    (12.44, 12.61),
+                    (12.23, 12.71),
+                    (12.0, 12.75),
+                    (3.75, 12.75),
+                    (3.65, 12.74),
+                    (3.55, 12.72),
+                    (3.46, 12.69),
+                    (3.37, 12.65),
+                    (3.29, 12.59),
+                    (3.22, 12.53),
+                    (3.16, 12.46),
+                    (3.1, 12.38),
+                    (3.06, 12.29),
+                    (3.03, 12.2),
+                    (3.01, 12.1),
+                    (3.0, 12.0),
+                    (3.0, 3.75),
+                ],
+                bg,
+            );
+            pen.fpoly(
+                &[
+                    (4.5, 9.47),
+                    (4.5, 5.7),
+                    (7.14, 5.7),
+                    (7.14, 4.12),
+                    (8.24, 4.12),
+                    (8.27, 4.13),
+                    (8.31, 4.14),
+                    (8.34, 4.14),
+                    (8.36, 4.15),
+                    (8.39, 4.15),
+                    (8.41, 4.16),
+                    (8.42, 4.16),
+                    (8.44, 4.17),
+                    (8.45, 4.17),
+                    (8.46, 4.18),
+                    (8.46, 4.18),
+                    (8.46, 4.19),
+                    (8.46, 4.21),
+                    (8.45, 4.24),
+                    (8.44, 4.26),
+                    (8.43, 4.29),
+                    (8.42, 4.33),
+                    (8.4, 4.37),
+                    (8.39, 4.42),
+                    (8.38, 4.47),
+                    (8.37, 4.52),
+                    (8.36, 4.57),
+                    (8.35, 4.62),
+                    (8.35, 4.67),
+                    (8.34, 4.73),
+                    (8.34, 4.78),
+                    (8.34, 4.84),
+                    (8.33, 4.9),
+                    (8.33, 5.7),
+                    (11.14, 5.7),
+                    (11.14, 9.38),
+                    (9.95, 9.38),
+                    (9.95, 8.89),
+                    (8.33, 8.89),
+                    (8.33, 11.67),
+                    (7.17, 11.67),
+                    (7.17, 8.89),
+                    (5.6, 8.89),
+                    (5.6, 9.47),
+                ],
+                &[
+                    [43, 0, 1],
+                    [2, 3, 4],
+                    [2, 4, 5],
+                    [2, 5, 6],
+                    [2, 6, 7],
+                    [2, 7, 8],
+                    [2, 8, 9],
+                    [2, 9, 10],
+                    [2, 10, 11],
+                    [2, 11, 12],
+                    [2, 12, 13],
+                    [2, 13, 14],
+                    [2, 14, 15],
+                    [2, 15, 16],
+                    [2, 16, 17],
+                    [2, 17, 18],
+                    [2, 18, 19],
+                    [2, 19, 20],
+                    [2, 20, 21],
+                    [2, 21, 22],
+                    [2, 22, 23],
+                    [2, 23, 24],
+                    [2, 24, 25],
+                    [2, 25, 26],
+                    [2, 26, 27],
+                    [2, 27, 28],
+                    [2, 28, 29],
+                    [2, 29, 30],
+                    [2, 30, 31],
+                    [2, 31, 32],
+                    [2, 32, 33],
+                    [33, 34, 35],
+                    [2, 33, 35],
+                    [1, 2, 35],
+                    [35, 36, 37],
+                    [1, 35, 37],
+                    [1, 37, 38],
+                    [38, 39, 40],
+                    [38, 40, 41],
+                    [1, 38, 41],
+                    [1, 41, 42],
+                    [1, 42, 43],
+                ],
+                c,
+            );
+            pen.fpoly(&[(5.6, 6.61), (7.17, 6.61), (7.17, 8.02), (5.59, 8.02), (5.59, 6.61)], &[[0, 1, 2], [0, 2, 3], [0, 3, 4]], bg);
+            pen.fill(&[(9.95, 8.03), (8.33, 8.03), (8.33, 6.61), (9.95, 6.61), (9.95, 8.02)], bg);
+            pen.fpoly(
+                &[
+                    (14.72, 19.46),
+                    (13.5, 19.46),
+                    (15.66, 13.5),
+                    (17.17, 13.5),
+                    (19.27, 19.46),
+                    (17.98, 19.46),
+                    (17.53, 18.2),
+                    (15.18, 18.2),
+                    (14.72, 19.46),
+                ],
+                &[[0, 1, 2], [8, 0, 2], [2, 3, 4], [4, 5, 6], [2, 4, 6], [2, 6, 7], [2, 7, 8]],
+                c,
+            );
+            pen.fill(&[(16.37, 14.66), (16.4, 14.66), (17.21, 17.21), (15.5, 17.21)], bg);
+            pen.fpoly(
+                &[
+                    (21.0, 7.5),
+                    (19.5, 7.5),
+                    (19.35, 6.57),
+                    (18.93, 5.74),
+                    (18.26, 5.07),
+                    (17.43, 4.65),
+                    (16.5, 4.5),
+                    (16.5, 3.0),
+                    (17.89, 3.22),
+                    (19.15, 3.86),
+                    (20.14, 4.85),
+                    (20.78, 6.11),
+                ],
+                &[[11, 0, 1], [11, 1, 2], [11, 2, 3], [11, 3, 4], [11, 4, 5], [5, 6, 7], [11, 5, 7], [11, 7, 8], [11, 8, 9], [9, 10, 11]],
+                a,
+            );
+            pen.fpoly(
+                &[
+                    (3.0, 16.5),
+                    (4.5, 16.5),
+                    (4.65, 17.43),
+                    (5.07, 18.26),
+                    (5.74, 18.93),
+                    (6.57, 19.35),
+                    (7.5, 19.5),
+                    (7.5, 21.0),
+                    (6.11, 20.78),
+                    (4.85, 20.14),
+                    (3.86, 19.15),
+                    (3.22, 17.89),
+                ],
+                &[[11, 0, 1], [11, 1, 2], [11, 2, 3], [11, 3, 4], [11, 4, 5], [5, 6, 7], [11, 5, 7], [11, 7, 8], [11, 8, 9], [9, 10, 11]],
+                a,
+            );
         }
         "deleteComment" => {
-            pen.closed(&[(2.5, 3.5), (17.5, 3.5), (17.5, 13.5), (9.0, 13.5), (5.0, 17.0), (5.0, 13.5), (2.5, 13.5)], c);
-            pen.line_c(&[(7.5, 6.0), (12.5, 11.0)], red);
-            pen.line_c(&[(12.5, 6.0), (7.5, 11.0)], red);
+            pen.closed(
+                &[
+                    (4.0, 6.0),
+                    (4.1, 5.38),
+                    (4.38, 4.82),
+                    (4.82, 4.38),
+                    (5.38, 4.1),
+                    (6.0, 4.0),
+                    (18.0, 4.0),
+                    (18.62, 4.1),
+                    (19.18, 4.38),
+                    (19.62, 4.82),
+                    (19.9, 5.38),
+                    (20.0, 6.0),
+                    (20.0, 12.5),
+                    (19.9, 13.12),
+                    (19.62, 13.68),
+                    (19.18, 14.12),
+                    (18.62, 14.4),
+                    (18.0, 14.5),
+                    (10.5, 14.5),
+                    (7.0, 18.0),
+                    (7.0, 14.5),
+                    (6.0, 14.5),
+                    (5.38, 14.4),
+                    (4.82, 14.12),
+                    (4.38, 13.68),
+                    (4.1, 13.12),
+                    (4.0, 12.5),
+                ],
+                c,
+            );
+            pen.line_c(&[(9.3, 6.8), (14.7, 12.2)], red);
+            pen.line_c(&[(14.7, 6.8), (9.3, 12.2)], red);
         }
-        "prevComment" | "nextComment" => {
-            pen.closed(&[(2.5, 3.5), (17.5, 3.5), (17.5, 13.5), (9.0, 13.5), (5.0, 17.0), (5.0, 13.5), (2.5, 13.5)], c);
-            let pts: &[(f32, f32)] =
-                if name == "nextComment" { &[(8.0, 6.0), (12.0, 8.5), (8.0, 11.0)] } else { &[(12.0, 6.0), (8.0, 8.5), (12.0, 11.0)] };
-            pen.line_c(pts, a);
+        "prevComment" => {
+            pen.closed_w(
+                &[
+                    (4.0, 6.0),
+                    (4.1, 5.38),
+                    (4.38, 4.82),
+                    (4.82, 4.38),
+                    (5.38, 4.1),
+                    (6.0, 4.0),
+                    (18.0, 4.0),
+                    (18.62, 4.1),
+                    (19.18, 4.38),
+                    (19.62, 4.82),
+                    (19.9, 5.38),
+                    (20.0, 6.0),
+                    (20.0, 12.5),
+                    (19.9, 13.12),
+                    (19.62, 13.68),
+                    (19.18, 14.12),
+                    (18.62, 14.4),
+                    (18.0, 14.5),
+                    (10.5, 14.5),
+                    (7.0, 18.0),
+                    (7.0, 14.5),
+                    (6.0, 14.5),
+                    (5.38, 14.4),
+                    (4.82, 14.12),
+                    (4.38, 13.68),
+                    (4.1, 13.12),
+                    (4.0, 12.5),
+                ],
+                1.7,
+                c,
+            );
+            pen.line_c(&[(13.5, 7.5), (10.0, 10.2), (13.5, 12.9)], a);
+        }
+        "nextComment" => {
+            pen.closed_w(
+                &[
+                    (4.0, 6.0),
+                    (4.1, 5.38),
+                    (4.38, 4.82),
+                    (4.82, 4.38),
+                    (5.38, 4.1),
+                    (6.0, 4.0),
+                    (18.0, 4.0),
+                    (18.62, 4.1),
+                    (19.18, 4.38),
+                    (19.62, 4.82),
+                    (19.9, 5.38),
+                    (20.0, 6.0),
+                    (20.0, 12.5),
+                    (19.9, 13.12),
+                    (19.62, 13.68),
+                    (19.18, 14.12),
+                    (18.62, 14.4),
+                    (18.0, 14.5),
+                    (10.5, 14.5),
+                    (7.0, 18.0),
+                    (7.0, 14.5),
+                    (6.0, 14.5),
+                    (5.38, 14.4),
+                    (4.82, 14.12),
+                    (4.38, 13.68),
+                    (4.1, 13.12),
+                    (4.0, 12.5),
+                ],
+                1.7,
+                c,
+            );
+            pen.line_c(&[(10.5, 7.5), (14.0, 10.2), (10.5, 12.9)], a);
         }
         "showComments" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.frect(12.0, 3.0, 17.0, 17.0, a.linear_multiply(0.4));
+            pen.fpoly(
+                &[
+                    (9.5, 5.0),
+                    (9.59, 4.44),
+                    (9.84, 3.94),
+                    (10.24, 3.54),
+                    (10.74, 3.29),
+                    (11.3, 3.2),
+                    (19.2, 3.2),
+                    (19.76, 3.29),
+                    (20.26, 3.54),
+                    (20.66, 3.94),
+                    (20.91, 4.44),
+                    (21.0, 5.0),
+                    (21.0, 10.4),
+                    (20.91, 10.96),
+                    (20.66, 11.46),
+                    (20.26, 11.86),
+                    (19.76, 12.11),
+                    (19.2, 12.2),
+                    (18.3, 12.2),
+                    (18.3, 14.8),
+                    (15.2, 12.2),
+                    (11.3, 12.2),
+                    (10.74, 12.11),
+                    (10.24, 11.86),
+                    (9.84, 11.46),
+                    (9.59, 10.96),
+                    (9.5, 10.4),
+                ],
+                &[
+                    [26, 0, 1],
+                    [26, 1, 2],
+                    [26, 2, 3],
+                    [26, 3, 4],
+                    [26, 4, 5],
+                    [26, 5, 6],
+                    [26, 6, 7],
+                    [26, 7, 8],
+                    [26, 8, 9],
+                    [26, 9, 10],
+                    [26, 10, 11],
+                    [26, 11, 12],
+                    [26, 12, 13],
+                    [26, 13, 14],
+                    [26, 14, 15],
+                    [26, 15, 16],
+                    [26, 16, 17],
+                    [26, 17, 18],
+                    [18, 19, 20],
+                    [26, 18, 20],
+                    [26, 20, 21],
+                    [26, 21, 22],
+                    [26, 22, 23],
+                    [26, 23, 24],
+                    [24, 25, 26],
+                ],
+                a,
+            );
+            pen.closed_w(
+                &[
+                    (3.0, 9.8),
+                    (3.09, 9.24),
+                    (3.34, 8.74),
+                    (3.74, 8.34),
+                    (4.24, 8.09),
+                    (4.8, 8.0),
+                    (12.2, 8.0),
+                    (12.2, 13.8),
+                    (12.29, 14.36),
+                    (12.54, 14.86),
+                    (12.94, 15.26),
+                    (13.44, 15.51),
+                    (14.0, 15.6),
+                    (14.4, 15.6),
+                    (14.4, 19.0),
+                    (10.6, 15.6),
+                    (4.8, 15.6),
+                    (4.24, 15.51),
+                    (3.74, 15.26),
+                    (3.34, 14.86),
+                    (3.09, 14.36),
+                    (3.0, 13.8),
+                ],
+                1.7,
+                c,
+            );
         }
         "resolve" => {
-            pen.closed(&[(2.5, 3.5), (17.5, 3.5), (17.5, 13.5), (9.0, 13.5), (5.0, 17.0), (5.0, 13.5), (2.5, 13.5)], c);
-            pen.line_c(&[(6.5, 8.5), (9.0, 11.0), (13.5, 6.0)], green);
+            pen.closed(
+                &[
+                    (4.0, 6.0),
+                    (4.1, 5.38),
+                    (4.38, 4.82),
+                    (4.82, 4.38),
+                    (5.38, 4.1),
+                    (6.0, 4.0),
+                    (18.0, 4.0),
+                    (18.62, 4.1),
+                    (19.18, 4.38),
+                    (19.62, 4.82),
+                    (19.9, 5.38),
+                    (20.0, 6.0),
+                    (20.0, 12.5),
+                    (19.9, 13.12),
+                    (19.62, 13.68),
+                    (19.18, 14.12),
+                    (18.62, 14.4),
+                    (18.0, 14.5),
+                    (10.5, 14.5),
+                    (7.0, 18.0),
+                    (7.0, 14.5),
+                    (6.0, 14.5),
+                    (5.38, 14.4),
+                    (4.82, 14.12),
+                    (4.38, 13.68),
+                    (4.1, 13.12),
+                    (4.0, 12.5),
+                ],
+                c,
+            );
+            pen.line_c(&[(8.6, 9.6), (11.3, 12.3), (16.0, 7.1)], green);
         }
         "trackChanges" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.line_c(&[(6.0, 7.0), (14.0, 7.0)], red);
-            pen.line_c(&[(6.0, 11.0), (14.0, 11.0)], a);
-            pen.lines(6.0, 11.0, &[15.0]);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(7.5, 7.5), (16.5, 7.5)], red);
+            pen.line_c(&[(7.5, 11.5), (16.5, 11.5)], a);
+            pen.line_w(&[(7.5, 15.5), (13.0, 15.5)], 1.5, c);
         }
-        "markup" | "reviewingPane" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.line_c(&[(6.0, 8.0), (13.0, 8.0)], red);
-            pen.lines(6.0, 13.0, &[12.0]);
+        "reviewingPane" | "markup" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(7.5, 7.5), (16.5, 7.5)], red);
+            pen.line_w(&[(7.5, 11.5), (13.5, 11.5)], 1.5, c);
+            pen.line_w(&[(7.5, 15.5), (14.5, 15.5)], 1.5, c);
         }
         "accept" => {
-            pen.page(4.0, 2.0, 15.0, 17.0);
-            pen.line_c(&[(10.0, 14.5), (12.5, 17.0), (18.0, 11.0)], green);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(10.0, 14.5), (13.4, 17.9), (20.0, 10.5)], green);
         }
         "reject" => {
-            pen.page(4.0, 2.0, 15.0, 17.0);
-            pen.line_c(&[(11.0, 12.0), (17.0, 18.0)], red);
-            pen.line_c(&[(17.0, 12.0), (11.0, 18.0)], red);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(11.0, 12.5), (17.5, 19.0)], red);
+            pen.line_c(&[(17.5, 12.5), (11.0, 19.0)], red);
         }
-        "prevChange" | "nextChange" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            let pts: &[(f32, f32)] =
-                if name == "nextChange" { &[(8.5, 7.0), (11.5, 10.0), (8.5, 13.0)] } else { &[(11.5, 7.0), (8.5, 10.0), (11.5, 13.0)] };
-            pen.line_c(pts, a);
+        "prevChange" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(13.5, 8.5), (10.0, 12.0), (13.5, 15.5)], a);
+        }
+        "nextChange" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(10.5, 8.5), (14.0, 12.0), (10.5, 15.5)], a);
         }
         "compare" | "combine" => {
-            pen.page(2.0, 3.0, 10.0, 15.0);
-            pen.page(10.0, 5.0, 18.0, 17.0);
-            pen.line_c(&[(6.0, 18.5), (14.0, 18.5)], a);
+            pen.closed(&[(3.0, 5.5), (10.0, 5.5), (12.0, 7.5), (12.0, 17.0), (3.0, 17.0)], c);
+            pen.line_c(&[(10.0, 5.5), (10.0, 8.0), (12.0, 8.0)], c);
+            pen.closed(&[(12.5, 8.0), (18.0, 8.0), (20.0, 10.0), (20.0, 19.5), (12.5, 19.5)], c);
+            pen.line_c(&[(18.0, 8.0), (18.0, 10.5), (20.0, 10.5)], c);
+            pen.line_w(&[(5.0, 21.5), (19.0, 21.5)], 2.6, a);
         }
         "protect" | "restrict" | "blockAuthors" => {
-            pen.rect(5.0, 9.0, 15.0, 17.5, c);
-            pen.line_c(&[(7.0, 9.0), (7.0, 6.0), (10.0, 3.0), (13.0, 6.0), (13.0, 9.0)], a);
+            pen.line_c(
+                &[
+                    (8.5, 10.5),
+                    (8.5, 7.8),
+                    (8.71, 6.6),
+                    (9.32, 5.55),
+                    (10.25, 4.77),
+                    (11.39, 4.35),
+                    (12.61, 4.35),
+                    (13.75, 4.77),
+                    (14.68, 5.55),
+                    (15.29, 6.6),
+                    (15.5, 7.8),
+                    (15.5, 10.5),
+                ],
+                a,
+            );
+            pen.rrect(5.5, 10.5, 18.5, 20.0, 1.4, c);
+            pen.fcircle(12.0, 15.0, 1.5, a);
         }
         "hideInk" => {
-            pen.line_c(&[(3.0, 13.0), (6.0, 8.0), (9.0, 13.0), (12.0, 8.0)], a);
-            pen.line(&[(3.0, 3.0), (17.0, 17.0)]);
+            pen.line_c(
+                &[
+                    (3.5, 14.5),
+                    (3.81, 13.32),
+                    (4.13, 12.29),
+                    (4.46, 11.41),
+                    (4.8, 10.7),
+                    (5.14, 10.16),
+                    (5.49, 9.81),
+                    (5.83, 9.65),
+                    (6.17, 9.7),
+                    (6.5, 9.96),
+                    (6.81, 10.44),
+                    (7.12, 11.15),
+                    (7.4, 12.1),
+                    (7.68, 13.05),
+                    (7.96, 13.77),
+                    (8.26, 14.26),
+                    (8.55, 14.54),
+                    (8.85, 14.63),
+                    (9.15, 14.54),
+                    (9.45, 14.27),
+                    (9.75, 13.86),
+                    (10.04, 13.3),
+                    (10.34, 12.61),
+                    (10.62, 11.8),
+                    (10.9, 10.9),
+                ],
+                a,
+            );
+            pen.line_c(&[(4.5, 4.5), (19.5, 19.5)], c);
         }
-        // View
         "readMode" => {
-            pen.closed(&[(2.0, 4.0), (9.5, 5.0), (9.5, 17.0), (2.0, 16.0)], c);
-            pen.closed(&[(18.0, 4.0), (10.5, 5.0), (10.5, 17.0), (18.0, 16.0)], a);
+            pen.closed(
+                &[
+                    (3.5, 5.5),
+                    (4.2, 5.18),
+                    (4.91, 4.92),
+                    (5.62, 4.71),
+                    (6.33, 4.57),
+                    (7.04, 4.48),
+                    (7.75, 4.45),
+                    (8.46, 4.48),
+                    (9.17, 4.57),
+                    (9.88, 4.71),
+                    (10.59, 4.92),
+                    (11.3, 5.18),
+                    (12.0, 5.5),
+                    (12.0, 19.0),
+                    (11.3, 18.68),
+                    (10.59, 18.42),
+                    (9.88, 18.21),
+                    (9.17, 18.07),
+                    (8.46, 17.98),
+                    (7.75, 17.95),
+                    (7.04, 17.98),
+                    (6.33, 18.07),
+                    (5.62, 18.21),
+                    (4.91, 18.42),
+                    (4.2, 18.68),
+                    (3.5, 19.0),
+                ],
+                c,
+            );
+            pen.closed(
+                &[
+                    (20.5, 5.5),
+                    (19.8, 5.18),
+                    (19.09, 4.92),
+                    (18.38, 4.71),
+                    (17.67, 4.57),
+                    (16.96, 4.48),
+                    (16.25, 4.45),
+                    (15.54, 4.48),
+                    (14.83, 4.57),
+                    (14.12, 4.71),
+                    (13.41, 4.92),
+                    (12.7, 5.18),
+                    (12.0, 5.5),
+                    (12.0, 19.0),
+                    (12.7, 18.68),
+                    (13.41, 18.42),
+                    (14.12, 18.21),
+                    (14.83, 18.07),
+                    (15.54, 17.98),
+                    (16.25, 17.95),
+                    (16.96, 17.98),
+                    (17.67, 18.07),
+                    (18.38, 18.21),
+                    (19.09, 18.42),
+                    (19.8, 18.68),
+                    (20.5, 19.0),
+                ],
+                a,
+            );
         }
         "printLayout" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.lines(6.0, 14.0, &[7.0, 10.0, 13.0]);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(8.5, 9.5), (15.5, 9.5)], 1.5, c);
+            pen.line_w(&[(8.5, 13.0), (15.5, 13.0)], 1.5, c);
+            pen.line_w(&[(8.5, 16.5), (13.0, 16.5)], 1.5, c);
         }
         "webLayout" => {
-            pen.circle(10.0, 10.0, 7.0, c);
-            pen.line_c(&[(3.0, 10.0), (17.0, 10.0)], a);
-            pen.line_c(&[(10.0, 3.0), (7.0, 10.0), (10.0, 17.0)], a);
-            pen.line_c(&[(10.0, 3.0), (13.0, 10.0), (10.0, 17.0)], a);
+            pen.circle(12.0, 12.0, 8.5, c);
+            pen.line_c(&[(3.5, 12.0), (20.5, 12.0)], a);
+            pen.line_w(
+                &[
+                    (12.0, 3.5),
+                    (12.66, 4.29),
+                    (13.21, 5.43),
+                    (13.63, 6.83),
+                    (13.93, 8.44),
+                    (14.11, 10.19),
+                    (14.18, 12.0),
+                    (14.11, 13.81),
+                    (13.93, 15.56),
+                    (13.63, 17.17),
+                    (13.21, 18.57),
+                    (12.66, 19.71),
+                    (12.0, 20.5),
+                ],
+                1.6,
+                a,
+            );
+            pen.line_w(
+                &[
+                    (12.0, 3.5),
+                    (11.34, 4.29),
+                    (10.79, 5.43),
+                    (10.37, 6.83),
+                    (10.07, 8.44),
+                    (9.89, 10.19),
+                    (9.82, 12.0),
+                    (9.89, 13.81),
+                    (10.07, 15.56),
+                    (10.37, 17.17),
+                    (10.79, 18.57),
+                    (11.34, 19.71),
+                    (12.0, 20.5),
+                ],
+                1.6,
+                a,
+            );
         }
-        "outline" => {
-            pen.fcircle(4.0, 4.5, 1.2, a);
-            pen.line(&[(6.5, 4.5), (17.0, 4.5)]);
-            pen.fcircle(7.0, 10.0, 1.2, a);
-            pen.line(&[(9.5, 10.0), (17.0, 10.0)]);
-            pen.fcircle(10.0, 15.5, 1.2, a);
-            pen.line(&[(12.5, 15.5), (17.0, 15.5)]);
+        "outlineView" | "outline" => {
+            pen.fcircle(5.0, 5.5, 1.2, a);
+            pen.fcircle(8.0, 12.0, 1.2, a);
+            pen.fcircle(11.0, 18.5, 1.2, a);
+            pen.line_w(&[(8.5, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(11.5, 12.0), (20.0, 12.0)], 1.7, c);
+            pen.line_w(&[(14.5, 18.5), (20.0, 18.5)], 1.7, c);
         }
-        "draft" => pen.lines(3.0, 17.0, &[4.0, 7.0, 10.0, 13.0, 16.0]),
+        "draft" => {
+            pen.line_w(&[(4.0, 5.0), (20.0, 5.0)], 1.7, c);
+            pen.line_w(&[(4.0, 9.7), (20.0, 9.7)], 1.7, c);
+            pen.line_w(&[(4.0, 14.4), (20.0, 14.4)], 1.7, c);
+            pen.line_w(&[(4.0, 19.1), (20.0, 19.1)], 1.7, c);
+        }
         "focus" => {
-            pen.line(&[(3.0, 7.0), (3.0, 3.0), (7.0, 3.0)]);
-            pen.line(&[(13.0, 3.0), (17.0, 3.0), (17.0, 7.0)]);
-            pen.line(&[(17.0, 13.0), (17.0, 17.0), (13.0, 17.0)]);
-            pen.line(&[(7.0, 17.0), (3.0, 17.0), (3.0, 13.0)]);
-            pen.lines(7.0, 13.0, &[8.5, 11.5]);
+            pen.line_c(&[(4.0, 9.0), (4.0, 5.5), (4.07, 5.04), (4.29, 4.62), (4.62, 4.29), (5.04, 4.07), (5.5, 4.0), (9.0, 4.0)], c);
+            pen.line_c(&[(15.0, 4.0), (18.5, 4.0), (18.96, 4.07), (19.38, 4.29), (19.71, 4.62), (19.93, 5.04), (20.0, 5.5), (20.0, 9.0)], c);
+            pen.line_c(&[(20.0, 15.0), (20.0, 18.5), (19.93, 18.96), (19.71, 19.38), (19.38, 19.71), (18.96, 19.93), (18.5, 20.0), (15.0, 20.0)], c);
+            pen.line_c(&[(9.0, 20.0), (5.5, 20.0), (5.04, 19.93), (4.62, 19.71), (4.29, 19.38), (4.07, 18.96), (4.0, 18.5), (4.0, 15.0)], c);
+            pen.line_w(&[(8.5, 10.5), (15.5, 10.5)], 1.6, c);
+            pen.line_w(&[(8.5, 13.5), (15.5, 13.5)], 1.6, c);
         }
         "immersive" => {
-            pen.closed(&[(2.0, 4.0), (9.5, 5.0), (9.5, 17.0), (2.0, 16.0)], c);
-            pen.closed(&[(18.0, 4.0), (10.5, 5.0), (10.5, 17.0), (18.0, 16.0)], c);
-            pen.fcircle(14.0, 10.0, 2.0, a);
+            pen.closed(
+                &[
+                    (3.5, 5.5),
+                    (4.2, 5.18),
+                    (4.91, 4.92),
+                    (5.62, 4.71),
+                    (6.33, 4.57),
+                    (7.04, 4.48),
+                    (7.75, 4.45),
+                    (8.46, 4.48),
+                    (9.17, 4.57),
+                    (9.88, 4.71),
+                    (10.59, 4.92),
+                    (11.3, 5.18),
+                    (12.0, 5.5),
+                    (12.0, 19.0),
+                    (11.3, 18.68),
+                    (10.59, 18.42),
+                    (9.88, 18.21),
+                    (9.17, 18.07),
+                    (8.46, 17.98),
+                    (7.75, 17.95),
+                    (7.04, 17.98),
+                    (6.33, 18.07),
+                    (5.62, 18.21),
+                    (4.91, 18.42),
+                    (4.2, 18.68),
+                    (3.5, 19.0),
+                ],
+                c,
+            );
+            pen.closed(
+                &[
+                    (20.5, 5.5),
+                    (19.8, 5.18),
+                    (19.09, 4.92),
+                    (18.38, 4.71),
+                    (17.67, 4.57),
+                    (16.96, 4.48),
+                    (16.25, 4.45),
+                    (15.54, 4.48),
+                    (14.83, 4.57),
+                    (14.12, 4.71),
+                    (13.41, 4.92),
+                    (12.7, 5.18),
+                    (12.0, 5.5),
+                    (12.0, 19.0),
+                    (12.7, 18.68),
+                    (13.41, 18.42),
+                    (14.12, 18.21),
+                    (14.83, 18.07),
+                    (15.54, 17.98),
+                    (16.25, 17.95),
+                    (16.96, 17.98),
+                    (17.67, 18.07),
+                    (18.38, 18.21),
+                    (19.09, 18.42),
+                    (19.8, 18.68),
+                    (20.5, 19.0),
+                ],
+                c,
+            );
+            pen.fcircle(16.0, 10.5, 1.8, a);
         }
         "vertical" => {
-            pen.page(5.0, 1.0, 15.0, 9.0);
-            pen.page(5.0, 11.0, 15.0, 19.0);
+            pen.closed(&[(6.5, 2.5), (17.5, 2.5), (17.5, 11.0), (6.5, 11.0)], c);
+            pen.closed(&[(6.5, 13.0), (17.5, 13.0), (17.5, 21.5), (6.5, 21.5)], c);
+            pen.line_w(&[(12.0, 11.2), (12.0, 12.8)], 1.5, a);
         }
         "sideToSide" => {
-            pen.page(1.5, 4.0, 9.5, 16.0);
-            pen.page(10.5, 4.0, 18.5, 16.0);
+            pen.closed(&[(2.5, 5.0), (11.0, 5.0), (11.0, 19.5), (2.5, 19.5)], c);
+            pen.closed(&[(13.0, 5.0), (21.5, 5.0), (21.5, 19.5), (13.0, 19.5)], c);
+            pen.line_w(&[(11.2, 12.0), (12.8, 12.0)], 1.5, a);
         }
         "ruler" => {
-            pen.rect(2.0, 7.0, 18.0, 13.0, c);
-            for x in [4.5, 7.0, 9.5, 12.0, 14.5] {
-                pen.line_c(&[(x, 7.0), (x, 10.0)], a);
-            }
+            pen.rrect(2.5, 8.5, 21.5, 15.5, 1.0, c);
+            pen.line_w(&[(6.0, 8.5), (6.0, 11.3)], 1.6, a);
+            pen.line_w(&[(9.5, 8.5), (9.5, 10.5)], 1.6, a);
+            pen.line_w(&[(13.0, 8.5), (13.0, 11.3)], 1.6, a);
+            pen.line_w(&[(16.5, 8.5), (16.5, 10.5)], 1.6, a);
+            pen.line_w(&[(19.5, 8.5), (19.5, 10.7)], 1.6, a);
         }
         "gridlines" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            for k in [6.5, 10.0, 13.5] {
-                pen.line_c(&[(k, 3.0), (k, 17.0)], a.linear_multiply(0.6));
-                pen.line_c(&[(3.0, k), (17.0, k)], a.linear_multiply(0.6));
-            }
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.line_w(&[(9.2, 3.5), (9.2, 20.5)], 1.3, a.linear_multiply(0.55));
+            pen.line_w(&[(14.8, 3.5), (14.8, 20.5)], 1.3, a.linear_multiply(0.55));
+            pen.line_w(&[(3.5, 9.2), (20.5, 9.2)], 1.3, a.linear_multiply(0.55));
+            pen.line_w(&[(3.5, 14.8), (20.5, 14.8)], 1.3, a.linear_multiply(0.55));
         }
         "navPane" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.frect(3.0, 3.0, 8.0, 17.0, a.linear_multiply(0.5));
+            pen.rrect(3.0, 3.5, 21.0, 20.5, 1.0, c);
+            pen.frect_r(3.0, 3.5, 9.5, 20.5, 1.0, a.linear_multiply(0.4));
+            pen.line_w(&[(12.5, 7.0), (18.0, 7.0)], 1.5, c);
+            pen.line_w(&[(12.5, 10.5), (18.0, 10.5)], 1.5, c);
+            pen.line_w(&[(12.5, 14.0), (16.5, 14.0)], 1.5, c);
         }
         "zoom" => {
-            pen.circle(8.5, 8.5, 5.5, c);
-            pen.line_c(&[(12.5, 12.5), (17.5, 17.5)], a);
-            pen.line(&[(6.0, 8.5), (11.0, 8.5)]);
-            pen.line(&[(8.5, 6.0), (8.5, 11.0)]);
+            pen.circle(10.0, 10.0, 6.5, c);
+            pen.line_c(&[(7.3, 10.0), (12.7, 10.0)], c);
+            pen.line_c(&[(10.0, 7.3), (10.0, 12.7)], c);
+            pen.line_c(&[(15.0, 15.0), (20.5, 20.5)], a);
         }
-        "zoomIn" | "zoomOut" => {
-            pen.circle(8.5, 8.5, 5.5, c);
-            pen.line_c(&[(12.5, 12.5), (17.5, 17.5)], a);
-            pen.line(&[(6.0, 8.5), (11.0, 8.5)]);
-            if name == "zoomIn" {
-                pen.line(&[(8.5, 6.0), (8.5, 11.0)]);
-            }
+        "zoomIn" => {
+            pen.circle(10.0, 10.0, 6.5, c);
+            pen.line_c(&[(7.3, 10.0), (12.7, 10.0)], c);
+            pen.line_c(&[(10.0, 7.3), (10.0, 12.7)], c);
+            pen.line_c(&[(15.0, 15.0), (20.5, 20.5)], a);
+            pen.line_c(&[(2.0, 21.0), (4.0, 19.0)], c.linear_multiply(0.0));
         }
-        "zoom100" => pen.text(10.0, 10.0, 7.5, "100", a, true),
-        "onePage" => pen.page(5.0, 2.0, 15.0, 18.0),
+        "zoomOut" => {
+            pen.circle(10.0, 10.0, 6.5, c);
+            pen.line_c(&[(7.3, 10.0), (12.7, 10.0)], c);
+            pen.line_c(&[(15.0, 15.0), (20.5, 20.5)], a);
+        }
+        "zoom100" => {
+            pen.line_w(&[(4.78, 9.67), (6.85, 8.29), (6.85, 16.8)], 1.9, c);
+        }
+        "onePage" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+        }
         "multiplePages" => {
-            pen.page(1.5, 4.0, 9.5, 16.0);
-            pen.page(10.5, 4.0, 18.5, 16.0);
+            pen.closed(&[(3.0, 6.0), (10.0, 6.0), (12.5, 8.5), (12.5, 18.0), (3.0, 18.0)], c);
+            pen.line_c(&[(10.0, 6.0), (10.0, 8.5), (12.5, 8.5)], c);
+            pen.closed(&[(11.5, 6.0), (18.5, 6.0), (21.0, 8.5), (21.0, 18.0), (11.5, 18.0)], c);
+            pen.line_c(&[(18.5, 6.0), (18.5, 8.5), (21.0, 8.5)], c);
         }
         "pageWidth" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.line_c(&[(1.5, 10.0), (18.5, 10.0)], a);
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(3.5, 12.0), (20.5, 12.0)], a);
+            pen.line_c(&[(6.3, 9.5), (3.5, 12.0), (6.3, 14.5)], a);
+            pen.line_c(&[(17.7, 9.5), (20.5, 12.0), (17.7, 14.5)], a);
         }
         "darkMode" => {
-            pen.fcircle(10.0, 10.0, 7.0, c);
-            pen.fcircle(13.0, 8.0, 6.0, Color32::from_rgba_unmultiplied(255, 255, 255, 230));
+            pen.fpoly(
+                &[
+                    (20.0, 14.5),
+                    (18.72, 17.14),
+                    (16.63, 19.19),
+                    (13.96, 20.4),
+                    (11.04, 20.64),
+                    (8.21, 19.87),
+                    (5.81, 18.19),
+                    (4.13, 15.79),
+                    (3.36, 12.96),
+                    (3.6, 10.04),
+                    (4.81, 7.37),
+                    (6.86, 5.28),
+                    (9.5, 4.0),
+                    (8.02, 6.11),
+                    (7.35, 8.6),
+                    (7.58, 11.17),
+                    (8.67, 13.51),
+                    (10.49, 15.33),
+                    (12.83, 16.42),
+                    (15.4, 16.65),
+                    (17.89, 15.98),
+                ],
+                &[
+                    [20, 0, 1],
+                    [20, 1, 2],
+                    [20, 2, 3],
+                    [20, 3, 4],
+                    [20, 4, 5],
+                    [5, 6, 7],
+                    [5, 7, 8],
+                    [5, 8, 9],
+                    [5, 9, 10],
+                    [5, 10, 11],
+                    [11, 12, 13],
+                    [11, 13, 14],
+                    [5, 11, 14],
+                    [5, 14, 15],
+                    [5, 15, 16],
+                    [5, 16, 17],
+                    [5, 17, 18],
+                    [5, 18, 19],
+                    [5, 19, 20],
+                ],
+                a,
+            );
         }
         "interfaceTheme" => {
-            // A window, its right half dark: light, dark or both (follow the system).
-            pen.frect(10.0, 3.5, 17.5, 16.5, c);
-            pen.rect(2.5, 3.5, 17.5, 16.5, c);
-            pen.line_c(&[(2.5, 6.5), (10.0, 6.5)], a);
+            pen.rrect(3.0, 4.0, 21.0, 20.0, 1.2, c);
+            pen.line_c(&[(12.0, 4.0), (12.0, 20.0)], c);
+            pen.fill(
+                &[
+                    (12.0, 4.0),
+                    (19.8, 4.0),
+                    (20.17, 4.06),
+                    (20.51, 4.23),
+                    (20.77, 4.49),
+                    (20.94, 4.83),
+                    (21.0, 5.2),
+                    (21.0, 18.8),
+                    (20.94, 19.17),
+                    (20.77, 19.51),
+                    (20.51, 19.77),
+                    (20.17, 19.94),
+                    (19.8, 20.0),
+                    (12.0, 20.0),
+                ],
+                c.linear_multiply(0.85),
+            );
+            pen.line_c(&[(3.0, 7.5), (12.0, 7.5)], a);
         }
         "newWindow" => {
-            pen.rect(2.5, 5.0, 13.0, 15.0, c);
-            pen.rect(7.0, 2.5, 17.5, 12.5, a);
+            pen.closed(&[(3.0, 7.0), (14.5, 7.0), (14.5, 19.5), (3.0, 19.5)], c);
+            pen.rrect(9.5, 4.5, 21.0, 17.0, 1.0, a);
+            pen.line_w(&[(12.0, 7.5), (18.5, 7.5)], 1.5, a);
         }
         "arrangeAll" => {
-            pen.rect(3.0, 2.5, 17.0, 9.0, c);
-            pen.rect(3.0, 11.0, 17.0, 17.5, a);
+            pen.rrect(3.0, 3.5, 21.0, 11.0, 1.0, c);
+            pen.frect_r(3.0, 13.0, 21.0, 20.5, 1.0, a);
         }
         "split" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.line_c(&[(3.0, 10.0), (17.0, 10.0)], a);
+            pen.rrect(3.0, 3.5, 21.0, 20.5, 1.2, c);
+            pen.line_c(&[(3.0, 12.0), (21.0, 12.0)], a);
         }
         "fullScreen" => {
-            // A screen with arrows out to its four corners.
-            pen.rect(2.0, 3.5, 18.0, 16.5, c);
-            pen.line_c(&[(5.0, 8.5), (5.0, 6.0), (7.5, 6.0)], a);
-            pen.line_c(&[(12.5, 6.0), (15.0, 6.0), (15.0, 8.5)], a);
-            pen.line_c(&[(15.0, 11.5), (15.0, 14.0), (12.5, 14.0)], a);
-            pen.line_c(&[(7.5, 14.0), (5.0, 14.0), (5.0, 11.5)], a);
-            pen.line_c(&[(5.0, 6.0), (8.0, 8.5)], a);
-            pen.line_c(&[(15.0, 6.0), (12.0, 8.5)], a);
-            pen.line_c(&[(15.0, 14.0), (12.0, 11.5)], a);
-            pen.line_c(&[(5.0, 14.0), (8.0, 11.5)], a);
+            pen.rrect(2.5, 4.5, 21.5, 19.5, 1.2, c);
+            pen.line_w(&[(6.5, 9.5), (6.5, 6.5), (9.5, 6.5)], 1.7, a);
+            pen.line_w(&[(14.5, 6.5), (17.5, 6.5), (17.5, 9.5)], 1.7, a);
+            pen.line_w(&[(17.5, 14.5), (17.5, 17.5), (14.5, 17.5)], 1.7, a);
+            pen.line_w(&[(9.5, 17.5), (6.5, 17.5), (6.5, 14.5)], 1.7, a);
+            pen.line_w(&[(6.5, 6.5), (9.0, 9.0)], 1.7, a);
+            pen.line_w(&[(17.5, 6.5), (15.0, 9.0)], 1.7, a);
+            pen.line_w(&[(17.5, 17.5), (15.0, 15.0)], 1.7, a);
+            pen.line_w(&[(6.5, 17.5), (9.0, 15.0)], 1.7, a);
         }
         "sideBySide" | "syncScroll" | "switchWindows" => {
-            pen.rect(2.0, 4.0, 9.5, 16.0, c);
-            pen.rect(10.5, 4.0, 18.0, 16.0, a);
+            pen.rrect(2.5, 5.0, 11.0, 19.0, 1.0, c);
+            pen.rrect(13.0, 5.0, 21.5, 19.0, 1.0, a);
         }
         "macros" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.fill(&[(8.0, 6.5), (8.0, 13.5), (14.0, 10.0)], a);
+            pen.rrect(3.0, 3.5, 21.0, 20.5, 1.2, c);
+            pen.fill(&[(16.5, 12.0), (9.5, 16.0), (9.5, 8.0)], a);
         }
-        // A page with a filled band at the top and a style mark: the document's template.
-        "documentTemplate" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.frect(6.0, 5.0, 11.5, 7.0, a);
-            pen.text(10.0, 13.0, 8.0, "A", a, false);
+        "insertAbove" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(3.5, 3.5, 20.5, 6.9, 1.0, a);
+            pen.line_w(&[(3.5, 9.2), (20.5, 9.2)], 1.4, c);
+            pen.line_w(&[(3.5, 15.4), (20.5, 15.4)], 1.4, c);
+            pen.line_w(&[(9.2, 6.9), (9.2, 20.5)], 1.4, c);
+            pen.line_w(&[(14.8, 6.9), (14.8, 20.5)], 1.4, c);
         }
-        "properties" | "info" => {
-            pen.circle(10.0, 10.0, 7.0, c);
-            pen.line_c(&[(10.0, 9.0), (10.0, 14.5)], a);
-            pen.fcircle(10.0, 6.3, 1.0, a);
+        "insertBelow" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(3.5, 17.1, 20.5, 20.5, 1.0, a);
+            pen.line_w(&[(3.5, 8.6), (20.5, 8.6)], 1.4, c);
+            pen.line_w(&[(3.5, 13.8), (20.5, 13.8)], 1.4, c);
+            pen.line_w(&[(9.2, 3.5), (9.2, 17.1)], 1.4, c);
+            pen.line_w(&[(14.8, 3.5), (14.8, 17.1)], 1.4, c);
         }
-        // Table tools
-        "insertAbove" | "insertBelow" | "insertLeft" | "insertRight" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            match name {
-                "insertAbove" => pen.frect(3.0, 3.0, 17.0, 8.0, a),
-                "insertBelow" => pen.frect(3.0, 12.0, 17.0, 17.0, a),
-                "insertLeft" => pen.frect(3.0, 3.0, 8.0, 17.0, a),
-                _ => pen.frect(12.0, 3.0, 17.0, 17.0, a),
-            }
+        "insertLeft" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(3.5, 3.5, 6.9, 20.5, 1.0, a);
+            pen.line_w(&[(9.2, 3.5), (20.5, 3.5)], 1.4, c);
+            pen.line_w(&[(9.2, 9.2), (20.5, 9.2)], 1.4, c);
+            pen.line_w(&[(9.2, 15.4), (20.5, 15.4)], 1.4, c);
+            pen.line_w(&[(6.9, 9.2), (6.9, 20.5)], 1.4, c);
+            pen.line_w(&[(15.4, 9.2), (15.4, 20.5)], 1.4, c);
+        }
+        "insertRight" => {
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(17.1, 3.5, 20.5, 20.5, 1.0, a);
+            pen.line_w(&[(3.5, 9.2), (17.1, 9.2)], 1.4, c);
+            pen.line_w(&[(3.5, 15.4), (17.1, 15.4)], 1.4, c);
+            pen.line_w(&[(3.5, 6.9), (3.5, 9.2)], 1.4, c);
+            pen.line_w(&[(3.5, 9.2), (3.5, 15.4)], 1.4, c);
+            pen.line_w(&[(8.6, 3.5), (8.6, 20.5)], 1.4, c);
+            pen.line_w(&[(9.2, 6.9), (17.1, 6.9)], 1.4, c);
+            pen.line_w(&[(9.2, 15.4), (17.1, 15.4)], 1.4, c);
         }
         "deleteTable" => {
-            pen.rect(3.0, 3.0, 15.0, 15.0, c);
-            pen.line(&[(3.0, 9.0), (15.0, 9.0)]);
-            pen.line(&[(9.0, 3.0), (9.0, 15.0)]);
-            pen.line_c(&[(12.0, 12.0), (18.0, 18.0)], red);
-            pen.line_c(&[(18.0, 12.0), (12.0, 18.0)], red);
+            pen.rrect(3.0, 3.5, 16.5, 17.0, 1.0, c);
+            pen.line_w(&[(3.0, 9.5), (16.5, 9.5)], 1.4, c);
+            pen.line_w(&[(9.2, 3.5), (9.2, 17.0)], 1.4, c);
+            pen.line_c(&[(13.8, 13.8), (20.2, 20.2)], red);
+            pen.line_c(&[(20.2, 13.8), (13.8, 20.2)], red);
         }
         "merge" => {
-            pen.rect(3.0, 5.0, 17.0, 15.0, c);
-            pen.line_c(&[(5.0, 10.0), (15.0, 10.0)], a);
-            pen.line_c(&[(7.0, 8.0), (5.0, 10.0), (7.0, 12.0)], a);
-            pen.line_c(&[(13.0, 8.0), (15.0, 10.0), (13.0, 12.0)], a);
+            pen.rrect(3.5, 5.0, 20.5, 19.0, 1.0, c);
+            pen.line_w(&[(3.5, 9.7), (20.5, 9.7)], 1.5, c);
+            pen.line_w(&[(3.5, 14.3), (20.5, 14.3)], 1.5, c);
+            pen.line_c(&[(8.2, 10.2), (5.8, 12.0), (8.2, 13.8)], a);
+            pen.line_c(&[(15.8, 10.2), (18.2, 12.0), (15.8, 13.8)], a);
         }
         "splitCells" | "splitTable" => {
-            pen.rect(3.0, 5.0, 17.0, 15.0, c);
-            pen.line_c(&[(10.0, 5.0), (10.0, 15.0)], a);
+            pen.rrect(3.5, 5.0, 20.5, 19.0, 1.0, c);
+            pen.line_w(&[(3.5, 9.7), (20.5, 9.7)], 1.5, c);
+            pen.line_w(&[(3.5, 14.3), (20.5, 14.3)], 1.5, c);
+            pen.line_c(&[(12.0, 5.0), (12.0, 19.0)], a);
         }
-        "autofit" | "distributeRows" | "distributeCols" | "rowHeight" | "colWidth" => {
-            pen.rect(3.0, 4.0, 17.0, 16.0, c);
-            pen.line_c(&[(5.0, 10.0), (15.0, 10.0)], a);
-            pen.line_c(&[(7.0, 8.0), (5.0, 10.0), (7.0, 12.0)], a);
-            pen.line_c(&[(13.0, 8.0), (15.0, 10.0), (13.0, 12.0)], a);
+        "autofit" | "colWidth" | "rowHeight" | "distributeRows" | "distributeCols" => {
+            pen.rrect(3.5, 4.0, 20.5, 20.0, 1.0, c);
+            pen.line_w(&[(3.5, 8.6), (20.5, 8.6)], 1.4, c);
+            pen.line_w(&[(3.5, 15.4), (20.5, 15.4)], 1.4, c);
+            pen.line_w(&[(6.5, 12.0), (17.5, 12.0)], 1.6, a);
+            pen.line_w(&[(9.0, 9.8), (6.8, 12.0), (9.0, 14.2)], 1.6, a);
+            pen.line_w(&[(15.0, 9.8), (17.2, 12.0), (15.0, 14.2)], 1.6, a);
         }
         "cellAlign" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.lines(6.0, 14.0, &[8.5, 11.5]);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.line_w(&[(7.5, 10.2), (16.5, 10.2)], 1.6, c);
+            pen.line_w(&[(7.5, 14.2), (16.5, 14.2)], 1.6, c);
         }
         "textDirection" => {
-            pen.text(9.0, 10.0, 10.0, "A", c, false);
-            pen.line_c(&[(15.5, 4.0), (15.5, 16.0)], a);
-            pen.line_c(&[(13.5, 14.0), (15.5, 16.0), (17.5, 14.0)], a);
+            pen.line_c(&[(5.08, 11.89), (8.0, 4.9), (10.91, 11.89)], c);
+            pen.line_c(&[(6.19, 9.33), (9.8, 9.33)], c);
+            pen.line_c(&[(17.5, 4.0), (17.5, 17.0)], a);
+            pen.line_c(&[(15.0, 14.7), (17.5, 17.2), (20.0, 14.7)], a);
         }
         "cellMargins" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.rect(6.0, 6.0, 14.0, 14.0, a);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.rrect_w(7.5, 7.5, 16.5, 16.5, 0.8, 1.6, a);
         }
         "repeatHeader" => {
-            pen.frect(3.0, 3.0, 17.0, 7.0, a);
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.line(&[(3.0, 12.0), (17.0, 12.0)]);
+            pen.rrect(3.5, 3.5, 20.5, 20.5, 1.0, c);
+            pen.frect_r(3.5, 3.5, 20.5, 8.7, 1.0, a);
+            pen.line_w(&[(3.5, 12.7), (20.5, 12.7)], 1.4, c);
+            pen.line_w(&[(3.5, 16.9), (20.5, 16.9)], 1.4, c);
+            pen.line_w(&[(9.2, 8.7), (9.2, 20.5)], 1.4, c);
+            pen.line_w(&[(14.8, 8.7), (14.8, 20.5)], 1.4, c);
         }
         "toText" => {
-            pen.rect(3.0, 3.0, 11.0, 11.0, c);
-            pen.lines(9.0, 17.0, &[14.0, 17.0]);
+            pen.rrect(3.0, 3.5, 14.0, 14.5, 1.0, c);
+            pen.line_w(&[(3.0, 8.8), (14.0, 8.8)], 1.4, c);
+            pen.line_w(&[(8.5, 3.5), (8.5, 14.5)], 1.4, c);
+            pen.line_w(&[(3.0, 18.5), (21.0, 18.5)], 1.7, c);
+            pen.line_w(&[(3.0, 21.8), (15.0, 21.8)], 1.7, c);
         }
-        "formula" => pen.text(10.0, 10.0, 12.0, "fx", a, false),
+        "formula" => {
+            pen.line_c(
+                &[
+                    (14.6, 4.5),
+                    (14.07, 4.53),
+                    (13.58, 4.61),
+                    (13.14, 4.74),
+                    (12.74, 4.93),
+                    (12.39, 5.17),
+                    (12.07, 5.46),
+                    (11.81, 5.81),
+                    (11.59, 6.2),
+                    (11.42, 6.65),
+                    (11.3, 7.15),
+                    (11.22, 7.7),
+                    (11.2, 8.3),
+                    (11.2, 19.0),
+                ],
+                c,
+            );
+            pen.line_c(&[(9.4, 10.5), (13.8, 10.5)], c);
+            pen.line_c(&[(16.2, 13.2), (21.0, 18.8)], a);
+            pen.line_c(&[(21.0, 13.2), (16.2, 18.8)], a);
+        }
         "selectTable" => {
-            pen.rect(3.0, 3.0, 17.0, 17.0, c);
-            pen.fill(&[(8.0, 7.0), (8.0, 15.0), (10.0, 13.0), (11.5, 16.0), (12.5, 15.5), (11.0, 12.5), (13.5, 12.5)], a);
+            pen.rrect(3.0, 3.5, 17.5, 18.0, 1.0, c);
+            pen.line_w(&[(3.0, 10.75), (17.5, 10.75)], 1.4, c);
+            pen.line_w(&[(10.25, 3.5), (10.25, 18.0)], 1.4, c);
+            pen.fpoly(
+                &[(10.86, 8.58), (18.04, 14.66), (14.76, 15.21), (16.63, 18.64), (14.92, 19.5), (13.12, 16.07), (10.86, 18.1)],
+                &[[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], [0, 5, 6]],
+                a,
+            );
         }
         "draw" => {
-            pen.rect(3.0, 3.0, 13.0, 13.0, c);
-            pen.line_c(&[(10.0, 17.0), (17.0, 10.0)], a);
+            pen.rrect(3.0, 3.5, 14.5, 15.0, 1.0, c);
+            pen.line_w(&[(3.0, 9.25), (14.5, 9.25)], 1.4, c);
+            pen.line_w(&[(8.75, 3.5), (8.75, 15.0)], 1.4, c);
+            pen.closed(&[(12.8, 20.7), (19.5, 14.0), (21.8, 16.3), (15.1, 23.0), (12.8, 23.0)], a);
         }
         "borderPainter" => {
-            pen.line(&[(4.0, 16.0), (14.0, 6.0), (16.0, 8.0), (6.0, 18.0), (3.5, 18.5), (4.0, 16.0)]);
-            pen.line_c(&[(3.0, 3.0), (11.0, 3.0)], a);
+            pen.closed(&[(4.5, 19.5), (5.5, 15.9), (14.4, 7.0), (17.0, 9.6), (8.1, 18.5)], c);
+            pen.line_w(&[(3.0, 4.5), (13.5, 4.5)], 2.6, a);
         }
-        // Chrome
         "save" => {
-            pen.closed(&[(3.0, 3.0), (14.0, 3.0), (17.0, 6.0), (17.0, 17.0), (3.0, 17.0)], c);
-            pen.frect(6.0, 3.0, 13.0, 7.5, a);
-            pen.rect(6.0, 11.0, 14.0, 17.0, c);
+            pen.closed(
+                &[
+                    (4.5, 4.5),
+                    (15.5, 4.5),
+                    (19.5, 8.5),
+                    (19.5, 19.0),
+                    (19.48, 19.15),
+                    (19.4, 19.29),
+                    (19.29, 19.4),
+                    (19.15, 19.48),
+                    (19.0, 19.5),
+                    (5.0, 19.5),
+                    (4.85, 19.48),
+                    (4.71, 19.4),
+                    (4.6, 19.29),
+                    (4.52, 19.15),
+                    (4.5, 19.0),
+                ],
+                c,
+            );
+            pen.fill(&[(15.5, 4.5), (15.5, 10.0), (7.5, 10.0), (7.5, 4.5)], a);
+            pen.rrect(7.5, 13.0, 16.5, 19.5, 0.0, c);
         }
         "undo" => {
-            pen.line(&[(5.0, 8.0), (13.0, 8.0)]);
-            pen.p.add(Shape::line(
-                (0..=12)
-                    .map(|i| {
-                        let t = -std::f32::consts::FRAC_PI_2 + std::f32::consts::PI * i as f32 / 12.0;
-                        pen.pt(13.0 + 4.5 * t.cos(), 12.5 + 4.5 * t.sin())
-                    })
-                    .collect(),
-                pen.stroke(c),
-            ));
-            pen.line(&[(13.0, 17.0), (8.0, 17.0)]);
-            pen.fill(&[(2.5, 8.0), (6.5, 4.5), (6.5, 11.5)], a);
+            pen.line_c(
+                &[
+                    (3.5, 9.5),
+                    (13.0, 9.5),
+                    (14.97, 9.85),
+                    (16.7, 10.85),
+                    (17.98, 12.38),
+                    (18.66, 14.25),
+                    (18.66, 16.25),
+                    (17.98, 18.12),
+                    (16.7, 19.65),
+                    (14.97, 20.65),
+                    (13.0, 21.0),
+                    (7.0, 21.0),
+                ],
+                c,
+            );
+            pen.line_c(&[(7.0, 5.5), (3.5, 9.5), (7.0, 13.5)], a);
         }
         "redo" => {
-            pen.line(&[(15.0, 8.0), (7.0, 8.0)]);
-            pen.p.add(Shape::line(
-                (0..=12)
-                    .map(|i| {
-                        let t = std::f32::consts::FRAC_PI_2 + std::f32::consts::PI * i as f32 / 12.0;
-                        pen.pt(7.0 + 4.5 * t.cos(), 12.5 - 4.5 * t.sin())
-                    })
-                    .collect(),
-                pen.stroke(c),
-            ));
-            pen.line(&[(7.0, 17.0), (12.0, 17.0)]);
-            pen.fill(&[(17.5, 8.0), (13.5, 4.5), (13.5, 11.5)], a);
+            pen.line_c(
+                &[
+                    (20.5, 9.5),
+                    (11.0, 9.5),
+                    (9.03, 9.85),
+                    (7.3, 10.85),
+                    (6.02, 12.37),
+                    (5.34, 14.25),
+                    (5.34, 16.25),
+                    (6.02, 18.12),
+                    (7.3, 19.65),
+                    (9.03, 20.65),
+                    (11.0, 21.0),
+                    (17.0, 21.0),
+                ],
+                c,
+            );
+            pen.line_c(&[(17.0, 5.5), (20.5, 9.5), (17.0, 13.5)], a);
         }
         "search" => {
-            pen.circle(8.5, 8.5, 5.0, c);
-            pen.line(&[(12.0, 12.0), (16.5, 16.5)]);
+            pen.circle(10.5, 10.5, 6.5, c);
+            pen.line_c(&[(15.3, 15.3), (20.5, 20.5)], c);
         }
         "share" => {
-            pen.line(&[(10.0, 3.0), (10.0, 12.0)]);
-            pen.line(&[(6.5, 6.5), (10.0, 3.0), (13.5, 6.5)]);
-            pen.line(&[(5.0, 9.0), (3.5, 9.0), (3.5, 17.0), (16.5, 17.0), (16.5, 9.0), (15.0, 9.0)]);
+            pen.line_c(
+                &[
+                    (4.5, 13.5),
+                    (4.5, 19.0),
+                    (4.55, 19.31),
+                    (4.69, 19.59),
+                    (4.91, 19.81),
+                    (5.19, 19.95),
+                    (5.5, 20.0),
+                    (18.5, 20.0),
+                    (18.81, 19.95),
+                    (19.09, 19.81),
+                    (19.31, 19.59),
+                    (19.45, 19.31),
+                    (19.5, 19.0),
+                    (19.5, 13.5),
+                ],
+                c,
+            );
+            pen.line_c(&[(12.0, 14.0), (12.0, 3.5)], a);
+            pen.line_c(&[(7.5, 8.0), (12.0, 3.5), (16.5, 8.0)], a);
         }
         "user" => {
-            pen.fcircle(10.0, 7.0, 3.5, a);
-            pen.p.add(Shape::convex_polygon(
-                (0..=16)
-                    .map(|i| {
-                        let t = std::f32::consts::PI * i as f32 / 16.0;
-                        pen.pt(10.0 - 6.5 * t.cos(), 18.0 - 6.0 * t.sin())
-                    })
-                    .collect(),
+            pen.fcircle(12.0, 6.8, 3.4, a);
+            pen.fill(
+                &[
+                    (4.5, 20.5),
+                    (4.57, 19.46),
+                    (4.76, 18.5),
+                    (5.08, 17.62),
+                    (5.51, 16.83),
+                    (6.05, 16.11),
+                    (6.67, 15.49),
+                    (7.39, 14.95),
+                    (8.19, 14.51),
+                    (9.06, 14.16),
+                    (9.99, 13.91),
+                    (10.97, 13.75),
+                    (12.0, 13.7),
+                    (13.03, 13.75),
+                    (14.01, 13.91),
+                    (14.94, 14.16),
+                    (15.81, 14.51),
+                    (16.61, 14.95),
+                    (17.32, 15.49),
+                    (17.95, 16.11),
+                    (18.49, 16.83),
+                    (18.92, 17.62),
+                    (19.24, 18.5),
+                    (19.43, 19.46),
+                    (19.5, 20.5),
+                ],
                 a,
-                Stroke::NONE,
-            ));
+            );
         }
         "close" => {
-            pen.line(&[(5.0, 5.0), (15.0, 15.0)]);
-            pen.line(&[(15.0, 5.0), (5.0, 15.0)]);
+            pen.line_c(&[(5.5, 5.5), (18.5, 18.5)], c);
+            pen.line_c(&[(18.5, 5.5), (5.5, 18.5)], c);
         }
-        // A triangle filling most of its box: it is drawn at 9–12 pt beside combos and split
-        // buttons, where a smaller one shrank to a dot (#535).
-        "dropdown" => pen.fill(&[(3.0, 7.0), (17.0, 7.0), (10.0, 14.0)], c),
+        "dropdown" => {
+            pen.fill(&[(5.5, 8.0), (18.5, 8.0), (12.0, 15.5)], c);
+        }
         "more" => {
-            for x in [5.0, 10.0, 15.0] {
-                pen.fcircle(x, 10.0, 1.3, c);
-            }
+            pen.fcircle(5.0, 12.0, 1.5, c);
+            pen.fcircle(12.0, 12.0, 1.5, c);
+            pen.fcircle(19.0, 12.0, 1.5, c);
         }
         "launcher" => {
-            pen.line(&[(5.0, 5.0), (5.0, 15.0), (15.0, 15.0)]);
-            pen.line(&[(8.0, 8.0), (15.0, 15.0)]);
-            pen.line(&[(11.0, 15.0), (15.0, 15.0), (15.0, 11.0)]);
+            pen.line_c(&[(5.5, 5.0), (5.5, 18.5), (19.0, 18.5)], c);
+            pen.line_c(&[(9.5, 14.5), (18.5, 5.5)], c);
+            pen.line_c(&[(13.5, 5.5), (18.5, 5.5), (18.5, 10.5)], c);
         }
         "pin" => {
-            pen.line(&[(10.0, 12.0), (10.0, 18.0)]);
-            pen.rect(7.0, 2.0, 13.0, 9.0, c);
-            pen.line(&[(5.0, 12.0), (15.0, 12.0)]);
+            pen.closed(&[(7.8, 3.5), (16.2, 3.5), (15.0, 9.7), (17.5, 12.0), (6.5, 12.0), (9.0, 9.7)], c);
+            pen.line_c(&[(12.0, 12.5), (12.0, 20.5)], c);
         }
         "plus" => {
-            pen.line(&[(10.0, 4.0), (10.0, 16.0)]);
-            pen.line(&[(4.0, 10.0), (16.0, 10.0)]);
+            pen.line_c(&[(12.0, 4.5), (12.0, 19.5)], c);
+            pen.line_c(&[(4.5, 12.0), (19.5, 12.0)], c);
         }
-        "minus" => pen.line(&[(4.0, 10.0), (16.0, 10.0)]),
-        "check" => pen.line_c(&[(4.0, 10.5), (8.5, 15.0), (16.5, 5.0)], c),
-        "chevronLeft" => pen.line(&[(13.0, 4.0), (7.0, 10.0), (13.0, 16.0)]),
-        "chevronRight" => pen.line(&[(7.0, 4.0), (13.0, 10.0), (7.0, 16.0)]),
-        "chevronUp" => pen.line(&[(4.0, 13.0), (10.0, 7.0), (16.0, 13.0)]),
-        "chevronDown" => pen.line(&[(4.0, 7.0), (10.0, 13.0), (16.0, 7.0)]),
-        // Read Aloud player
-        "mediaPlay" => pen.fill(&[(6.0, 4.0), (16.0, 10.0), (6.0, 16.0)], c),
-        "mediaPause" => {
-            pen.frect(5.5, 4.0, 8.5, 16.0, c);
-            pen.frect(11.5, 4.0, 14.5, 16.0, c);
+        "minus" => {
+            pen.line_c(&[(4.5, 12.0), (19.5, 12.0)], c);
         }
-        "mediaStop" => pen.frect(5.0, 5.0, 15.0, 15.0, c),
-        "mediaPrev" => {
-            pen.frect(4.0, 5.0, 6.0, 15.0, c);
-            pen.fill(&[(16.0, 5.0), (7.0, 10.0), (16.0, 15.0)], c);
+        "check" => {
+            pen.line_c(&[(4.5, 12.5), (9.5, 17.5), (19.5, 6.5)], c);
         }
-        "mediaNext" => {
-            pen.frect(14.0, 5.0, 16.0, 15.0, c);
-            pen.fill(&[(4.0, 5.0), (13.0, 10.0), (4.0, 15.0)], c);
+        "chevronLeft" => {
+            pen.line_c(&[(14.5, 5.0), (8.0, 12.0), (14.5, 19.0)], c);
         }
-        // Move past citation: a bracketed citation with an arrow hopping over it to the caret.
-        "pastCitation" => {
-            pen.line_c(&[(4.5, 9.0), (3.0, 9.0), (3.0, 17.0), (4.5, 17.0)], c);
-            pen.line_c(&[(11.5, 9.0), (13.0, 9.0), (13.0, 17.0), (11.5, 17.0)], c);
-            pen.lines(5.5, 10.5, &[12.0, 14.5]);
-            pen.line_c(&[(4.0, 6.0), (8.0, 2.5), (14.0, 2.5), (16.5, 7.0)], a);
-            pen.line_c(&[(14.0, 6.0), (16.5, 7.0), (17.5, 4.5)], a);
-            pen.line_c(&[(17.0, 9.0), (17.0, 17.5)], a);
+        "chevronRight" => {
+            pen.line_c(&[(9.5, 5.0), (16.0, 12.0), (9.5, 19.0)], c);
+        }
+        "chevronUp" => {
+            pen.line_c(&[(5.0, 14.5), (12.0, 8.0), (19.0, 14.5)], c);
+        }
+        "chevronDown" => {
+            pen.line_c(&[(5.0, 9.5), (12.0, 16.0), (19.0, 9.5)], c);
         }
         "chevronDoubleRight" => {
-            pen.line(&[(4.0, 4.0), (9.0, 10.0), (4.0, 16.0)]);
-            pen.line(&[(11.0, 4.0), (16.0, 10.0), (11.0, 16.0)]);
+            pen.line_c(&[(5.0, 5.0), (11.5, 12.0), (5.0, 19.0)], c);
+            pen.line_c(&[(12.5, 5.0), (19.0, 12.0), (12.5, 19.0)], c);
+        }
+        "mediaPlay" => {
+            pen.fill(&[(18.5, 12.0), (8.0, 18.5), (8.0, 5.5)], c);
+        }
+        "mediaPause" => {
+            pen.frect_r(6.0, 5.5, 9.0, 18.5, 0.8, c);
+            pen.frect_r(15.0, 5.5, 18.0, 18.5, 0.8, c);
+        }
+        "mediaStop" => {
+            pen.frect_r(6.0, 6.0, 18.0, 18.0, 1.0, c);
+        }
+        "mediaPrev" => {
+            pen.frect_r(5.0, 5.5, 7.4, 18.5, 0.8, c);
+            pen.fill(&[(18.5, 5.5), (18.5, 18.5), (8.8, 12.0)], c);
+        }
+        "mediaNext" => {
+            pen.frect_r(16.6, 5.5, 19.0, 18.5, 0.8, c);
+            pen.fill(&[(15.2, 12.0), (5.5, 18.5), (5.5, 5.5)], c);
+        }
+        "pastCitation" => {
+            pen.line_w(&[(6.8, 10.5), (5.4, 10.5), (5.4, 18.5), (6.8, 18.5)], 1.7, c);
+            pen.line_w(&[(13.2, 10.5), (14.6, 10.5), (14.6, 18.5), (13.2, 18.5)], 1.7, c);
+            pen.line_w(&[(8.2, 13.4), (10.8, 13.4)], 1.5, c);
+            pen.line_w(&[(8.2, 16.2), (10.2, 16.2)], 1.5, c);
+            pen.line_c(
+                &[
+                    (5.0, 6.5),
+                    (5.59, 5.87),
+                    (6.34, 5.35),
+                    (7.22, 4.93),
+                    (8.21, 4.6),
+                    (9.29, 4.37),
+                    (10.41, 4.25),
+                    (11.57, 4.22),
+                    (12.72, 4.3),
+                    (13.85, 4.47),
+                    (14.92, 4.75),
+                    (15.91, 5.12),
+                    (16.8, 5.6),
+                ],
+                a,
+            );
+            pen.line_c(&[(14.0, 3.8), (17.4, 5.4), (16.7, 8.8)], a);
         }
         "addins" => {
-            pen.rect(3.0, 3.0, 9.0, 9.0, c);
-            pen.rect(11.0, 3.0, 17.0, 9.0, c);
-            pen.rect(3.0, 11.0, 9.0, 17.0, c);
-            pen.line_c(&[(14.0, 11.0), (14.0, 17.0)], a);
-            pen.line_c(&[(11.0, 14.0), (17.0, 14.0)], a);
+            pen.rrect(3.5, 3.5, 11.0, 11.0, 1.0, c);
+            pen.rrect(13.0, 3.5, 20.5, 11.0, 1.0, c);
+            pen.rrect(3.5, 13.0, 11.0, 20.5, 1.0, c);
+            pen.line_c(&[(16.75, 13.5), (16.75, 19.5)], a);
+            pen.line_c(&[(13.75, 16.5), (19.75, 16.5)], a);
         }
         "discord" => {
-            pen.fill(&[(3.0, 6.0), (7.0, 3.5), (13.0, 3.5), (17.0, 6.0), (17.5, 14.0), (13.5, 16.5), (6.5, 16.5), (2.5, 14.0)], a);
-            pen.fcircle(7.5, 10.5, 1.5, Color32::WHITE);
-            pen.fcircle(12.5, 10.5, 1.5, Color32::WHITE);
+            pen.fpoly(
+                &[
+                    (4.8, 6.5),
+                    (5.36, 6.14),
+                    (5.92, 5.81),
+                    (6.5, 5.51),
+                    (7.09, 5.24),
+                    (7.68, 5.0),
+                    (8.29, 4.79),
+                    (8.9, 4.61),
+                    (9.51, 4.46),
+                    (10.13, 4.35),
+                    (10.75, 4.27),
+                    (11.38, 4.22),
+                    (12.0, 4.2),
+                    (12.62, 4.22),
+                    (13.25, 4.27),
+                    (13.87, 4.35),
+                    (14.49, 4.46),
+                    (15.1, 4.61),
+                    (15.71, 4.79),
+                    (16.32, 5.0),
+                    (16.91, 5.24),
+                    (17.5, 5.51),
+                    (18.08, 5.81),
+                    (18.64, 6.14),
+                    (19.2, 6.5),
+                    (19.55, 7.35),
+                    (19.87, 8.22),
+                    (20.13, 9.09),
+                    (20.36, 9.97),
+                    (20.54, 10.85),
+                    (20.67, 11.75),
+                    (20.76, 12.65),
+                    (20.81, 13.57),
+                    (20.8, 14.49),
+                    (20.75, 15.42),
+                    (20.65, 16.35),
+                    (20.5, 17.3),
+                    (20.06, 17.69),
+                    (19.61, 18.06),
+                    (19.14, 18.4),
+                    (18.65, 18.73),
+                    (18.14, 19.03),
+                    (17.63, 19.3),
+                    (17.09, 19.55),
+                    (16.55, 19.77),
+                    (16.0, 19.97),
+                    (15.44, 20.14),
+                    (14.87, 20.29),
+                    (14.3, 20.4),
+                    (13.4, 18.5),
+                    (13.62, 18.45),
+                    (13.85, 18.38),
+                    (14.07, 18.31),
+                    (14.3, 18.24),
+                    (14.52, 18.15),
+                    (14.74, 18.06),
+                    (14.96, 17.97),
+                    (15.17, 17.86),
+                    (15.38, 17.75),
+                    (15.59, 17.64),
+                    (15.8, 17.52),
+                    (16.0, 17.4),
+                    (15.33, 17.68),
+                    (14.62, 17.9),
+                    (13.88, 18.08),
+                    (13.11, 18.2),
+                    (12.34, 18.27),
+                    (11.55, 18.3),
+                    (10.76, 18.28),
+                    (9.99, 18.2),
+                    (9.22, 18.08),
+                    (8.48, 17.9),
+                    (7.77, 17.68),
+                    (7.1, 17.4),
+                    (7.3, 17.52),
+                    (7.51, 17.64),
+                    (7.72, 17.75),
+                    (7.93, 17.86),
+                    (8.14, 17.97),
+                    (8.36, 18.06),
+                    (8.58, 18.15),
+                    (8.8, 18.24),
+                    (9.03, 18.31),
+                    (9.25, 18.38),
+                    (9.48, 18.45),
+                    (9.7, 18.5),
+                    (8.8, 20.4),
+                    (8.23, 20.29),
+                    (7.66, 20.14),
+                    (7.1, 19.97),
+                    (6.55, 19.77),
+                    (6.01, 19.55),
+                    (5.47, 19.3),
+                    (4.96, 19.03),
+                    (4.45, 18.73),
+                    (3.96, 18.4),
+                    (3.49, 18.06),
+                    (3.04, 17.69),
+                    (2.6, 17.3),
+                    (2.45, 16.35),
+                    (2.35, 15.42),
+                    (2.3, 14.49),
+                    (2.29, 13.57),
+                    (2.34, 12.65),
+                    (2.42, 11.75),
+                    (2.56, 10.85),
+                    (2.74, 9.97),
+                    (2.97, 9.09),
+                    (3.23, 8.22),
+                    (3.55, 7.35),
+                    (3.9, 6.5),
+                ],
+                &[
+                    [0, 1, 2],
+                    [0, 2, 3],
+                    [0, 3, 4],
+                    [0, 4, 5],
+                    [0, 5, 6],
+                    [0, 6, 7],
+                    [0, 7, 8],
+                    [0, 8, 9],
+                    [0, 9, 10],
+                    [0, 10, 11],
+                    [0, 11, 12],
+                    [0, 12, 13],
+                    [0, 13, 14],
+                    [0, 14, 15],
+                    [0, 15, 16],
+                    [0, 16, 17],
+                    [0, 17, 18],
+                    [0, 18, 19],
+                    [0, 19, 20],
+                    [0, 20, 21],
+                    [0, 21, 22],
+                    [0, 22, 23],
+                    [0, 23, 24],
+                    [0, 24, 25],
+                    [110, 0, 25],
+                    [110, 25, 26],
+                    [110, 26, 27],
+                    [110, 27, 28],
+                    [110, 28, 29],
+                    [110, 29, 30],
+                    [110, 30, 31],
+                    [110, 31, 32],
+                    [110, 32, 33],
+                    [110, 33, 34],
+                    [110, 34, 35],
+                    [110, 35, 36],
+                    [110, 36, 37],
+                    [110, 37, 38],
+                    [110, 38, 39],
+                    [110, 39, 40],
+                    [110, 40, 41],
+                    [41, 42, 43],
+                    [41, 43, 44],
+                    [41, 44, 45],
+                    [41, 45, 46],
+                    [41, 46, 47],
+                    [41, 47, 48],
+                    [41, 48, 49],
+                    [41, 49, 50],
+                    [41, 50, 51],
+                    [41, 51, 52],
+                    [41, 52, 53],
+                    [41, 53, 54],
+                    [41, 54, 55],
+                    [41, 55, 56],
+                    [41, 56, 57],
+                    [41, 57, 58],
+                    [41, 58, 59],
+                    [41, 59, 60],
+                    [41, 60, 61],
+                    [110, 41, 61],
+                    [110, 61, 62],
+                    [110, 62, 63],
+                    [110, 63, 64],
+                    [110, 64, 65],
+                    [110, 65, 66],
+                    [110, 66, 67],
+                    [110, 67, 68],
+                    [110, 68, 69],
+                    [110, 69, 70],
+                    [110, 70, 71],
+                    [110, 71, 72],
+                    [110, 72, 73],
+                    [84, 85, 86],
+                    [83, 84, 86],
+                    [82, 83, 86],
+                    [81, 82, 86],
+                    [80, 81, 86],
+                    [79, 80, 86],
+                    [78, 79, 86],
+                    [77, 78, 86],
+                    [76, 77, 86],
+                    [75, 76, 86],
+                    [74, 75, 86],
+                    [73, 74, 86],
+                    [73, 86, 87],
+                    [73, 87, 88],
+                    [110, 73, 88],
+                    [110, 88, 89],
+                    [110, 89, 90],
+                    [110, 90, 91],
+                    [110, 91, 92],
+                    [110, 92, 93],
+                    [110, 93, 94],
+                    [110, 94, 95],
+                    [110, 95, 96],
+                    [110, 96, 97],
+                    [110, 97, 98],
+                    [110, 98, 99],
+                    [110, 99, 100],
+                    [110, 100, 101],
+                    [110, 101, 102],
+                    [110, 102, 103],
+                    [110, 103, 104],
+                    [110, 104, 105],
+                    [110, 105, 106],
+                    [110, 106, 107],
+                    [110, 107, 108],
+                    [108, 109, 110],
+                ],
+                a,
+            );
+            pen.fcircle(9.1, 11.6, 1.6, bg);
+            pen.fcircle(14.9, 11.6, 1.6, bg);
         }
-        // Open: a folder with its flap lifted.
         "open" => {
-            pen.closed(&[(2.5, 5.0), (7.5, 5.0), (9.0, 6.5), (15.5, 6.5), (15.5, 9.0)], c);
-            pen.line(&[(2.5, 5.0), (2.5, 16.0)]);
-            pen.closed(&[(2.5, 16.0), (5.0, 9.0), (18.0, 9.0), (15.5, 16.0)], a);
+            pen.line_c(&[(3.5, 18.0), (3.5, 6.5), (8.5, 6.5), (10.3, 8.5), (16.5, 8.5), (16.5, 11.0)], c);
+            pen.fill(&[(3.5, 18.5), (6.5, 11.0), (21.0, 11.0), (18.0, 18.5)], a);
         }
-        // Print: a printer with a sheet coming out.
         "print" => {
-            pen.rect(6.0, 2.5, 14.0, 7.0, c);
-            pen.rect(2.5, 7.0, 17.5, 14.0, c);
-            pen.closed(&[(6.0, 11.5), (14.0, 11.5), (14.0, 17.5), (6.0, 17.5)], a);
-            pen.fcircle(15.0, 9.5, 0.8, c);
-        }
-        "alignText" => {
-            // A box with its text lines in the middle, arrows to the top and bottom edges.
-            pen.rect(3.0, 2.5, 17.0, 17.5, c);
-            pen.lines(5.5, 11.0, &[9.0, 11.5]);
-            pen.line_c(&[(14.0, 5.0), (14.0, 15.0)], a);
-            pen.line_c(&[(12.5, 6.5), (14.0, 5.0), (15.5, 6.5)], a);
-            pen.line_c(&[(12.5, 13.5), (14.0, 15.0), (15.5, 13.5)], a);
+            pen.line_c(&[(7.0, 8.5), (7.0, 3.5), (17.0, 3.5), (17.0, 8.5)], c);
+            pen.rrect(3.5, 8.5, 20.5, 15.5, 1.2, c);
+            pen.frect_r(7.0, 13.0, 17.0, 20.5, 0.0, a);
+            pen.fcircle(17.3, 11.0, 0.9, bg);
         }
         "crop" => {
-            // Two right angles overlapping: the crop marks.
-            pen.line_c(&[(6.0, 2.0), (6.0, 14.0), (18.0, 14.0)], c);
-            pen.line_c(&[(2.0, 6.0), (14.0, 6.0), (14.0, 18.0)], a);
+            pen.line_c(&[(6.5, 3.5), (6.5, 17.0), (20.0, 17.0)], c);
+            pen.line_c(&[(3.5, 6.5), (17.0, 6.5), (17.0, 20.0)], a);
         }
-        "textBoxLink" | "textBoxUnlink" => {
-            // Two boxes, the text running from the first into the second (broken: cut through).
-            pen.rect(2.0, 3.0, 8.5, 11.0, c);
-            pen.rect(11.5, 9.0, 18.0, 17.0, c);
-            pen.lines(3.5, 7.0, &[5.5, 8.0]);
-            pen.line_c(&[(5.0, 11.0), (5.0, 14.0), (11.5, 14.0)], a);
-            pen.line_c(&[(9.5, 12.5), (11.5, 14.0), (9.5, 15.5)], a);
-            if name == "textBoxUnlink" {
-                pen.line_c(&[(6.5, 16.5), (9.0, 11.5)], c);
-            }
+        "textBoxLink" => {
+            pen.rrect(3.0, 3.5, 9.5, 11.0, 0.8, c);
+            pen.rrect(14.5, 13.0, 21.0, 20.5, 0.8, c);
+            pen.line_w(&[(4.2, 5.8), (8.2, 5.8)], 1.4, c);
+            pen.line_w(&[(4.2, 8.0), (7.2, 8.0)], 1.4, c);
+            pen.line_w(&[(6.3, 11.0), (6.3, 14.0), (6.4, 14.62), (6.68, 15.18), (7.12, 15.62), (7.68, 15.9), (8.3, 16.0), (11.5, 16.0)], 1.6, a);
+            pen.line_w(&[(9.3, 13.8), (11.7, 16.0), (9.3, 18.2)], 1.6, a);
         }
-
-        // The built-in file browser (#576): a folder, a file and the home folder.
-        "folder" => {
-            pen.frect(2.5, 4.5, 8.5, 7.0, yellow);
-            pen.frect(2.5, 6.5, 17.5, 16.0, yellow);
-            pen.closed(&[(2.5, 4.5), (8.0, 4.5), (9.5, 6.5), (17.5, 6.5), (17.5, 16.0), (2.5, 16.0)], c);
+        "textBoxUnlink" => {
+            pen.rrect(3.0, 3.5, 9.5, 11.0, 0.8, c);
+            pen.rrect(14.5, 13.0, 21.0, 20.5, 0.8, c);
+            pen.line_w(&[(4.2, 5.8), (8.2, 5.8)], 1.4, c);
+            pen.line_w(&[(4.2, 8.0), (7.2, 8.0)], 1.4, c);
+            pen.line_w(&[(6.3, 11.0), (6.3, 14.0), (6.4, 14.62), (6.68, 15.18), (7.12, 15.62), (7.68, 15.9), (8.3, 16.0), (9.7, 16.0)], 1.6, a);
+            pen.line_w(&[(14.1, 16.0), (15.7, 16.0)], 1.6, a);
+            pen.line_c(&[(11.5, 13.5), (8.8, 20.5)], c);
         }
-        "file" => {
-            pen.page(4.5, 2.0, 15.5, 18.0);
-            pen.lines(7.0, 13.0, &[9.0, 12.0, 15.0]);
+        "alignText" => {
+            pen.rrect(3.5, 3.0, 20.5, 18.5, 1.0, c);
+            pen.line_w(&[(6.0, 8.0), (15.0, 8.0)], 1.6, c);
+            pen.line_w(&[(6.0, 11.5), (15.0, 11.5)], 1.6, c);
+            pen.line_w(&[(17.5, 6.5), (17.5, 15.0)], 1.6, a);
+            pen.line_w(&[(15.9, 8.3), (17.5, 6.5), (19.1, 8.3)], 1.6, a);
+            pen.line_w(&[(15.9, 13.2), (17.5, 15.0), (19.1, 13.2)], 1.6, a);
         }
-        "homeFolder" => {
-            pen.closed(&[(3.0, 9.5), (10.0, 3.5), (17.0, 9.5)], c);
-            pen.closed(&[(5.0, 8.5), (5.0, 17.0), (15.0, 17.0), (15.0, 8.5)], c);
-            pen.frect(8.5, 12.0, 11.5, 17.0, a);
+        "documentTemplate" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.frect_r(8.5, 6.5, 15.5, 9.3, 0.6, a);
+            pen.line_c(&[(9.75, 13.7), (12.0, 8.3), (14.25, 13.7)], a);
+            pen.line_c(&[(10.61, 11.72), (13.39, 11.72)], a);
         }
-        // File (Backstage) side menu (#1714). Save As: the save disk with a pencil across its corner.
-        "saveAs" => {
-            pen.closed(&[(2.5, 2.5), (11.5, 2.5), (14.5, 5.5), (14.5, 14.5), (2.5, 14.5)], c);
-            pen.frect(5.0, 2.5, 10.5, 6.0, a);
-            pen.rect(5.0, 9.5, 12.0, 14.5, c);
-            pen.fill(&[(11.0, 17.0), (17.0, 11.0), (18.5, 12.5), (12.5, 18.5)], a);
-            pen.fill(&[(11.0, 17.0), (12.5, 18.5), (10.0, 19.5)], c);
-        }
-        // Export: a page with an arrow leaving it.
-        "export" => {
-            pen.page(2.5, 2.0, 12.5, 18.0);
-            pen.line_c(&[(7.5, 10.0), (18.0, 10.0)], a);
-            pen.line_c(&[(15.0, 7.0), (18.0, 10.0), (15.0, 13.0)], a);
-        }
-        // Options: a gear.
-        "options" => {
-            for k in 0..8 {
-                let t = k as f32 * std::f32::consts::FRAC_PI_4;
-                let at = |radius: f32, dt: f32| (10.0 + radius * (t + dt).cos(), 10.0 + radius * (t + dt).sin());
-                pen.fill(&[at(5.0, -0.28), at(8.2, -0.17), at(8.2, 0.17), at(5.0, 0.28)], c);
-            }
-            pen.circle(10.0, 10.0, 5.5, c);
-            pen.circle(10.0, 10.0, 2.2, a);
-        }
-        // Recover: a page with a turning arrow, a copy brought back.
-        "recover" => {
-            pen.page(2.5, 2.0, 12.5, 15.5);
-            pen.p.add(Shape::line(
-                (0..=14)
-                    .map(|i| {
-                        let t = -std::f32::consts::FRAC_PI_2 + 1.5 * std::f32::consts::PI * i as f32 / 14.0;
-                        pen.pt(13.5 + 4.0 * t.cos(), 13.5 + 4.0 * t.sin())
-                    })
-                    .collect(),
-                pen.stroke(a),
-            ));
-            pen.fill(&[(11.0, 9.5), (14.5, 7.3), (14.5, 11.7)], a);
-        }
-
-        // Outlining tab: arrows moving a paragraph between outline levels and along the outline.
-        "outlinePromote" | "outlineDemote" => {
-            pen.lines(9.0, 17.0, &[6.0, 10.0, 14.0]);
-            if name == "outlinePromote" {
-                pen.line_c(&[(7.0, 10.0), (2.5, 10.0)], a);
-                pen.line_c(&[(5.0, 7.5), (2.5, 10.0), (5.0, 12.5)], a);
-            } else {
-                pen.line_c(&[(2.5, 10.0), (7.0, 10.0)], a);
-                pen.line_c(&[(4.5, 7.5), (7.0, 10.0), (4.5, 12.5)], a);
-            }
-        }
-        "outlineTop" | "outlineBody" => {
-            pen.lines(11.0, 17.0, &[6.0, 10.0, 14.0]);
-            let (x, d) = if name == "outlineTop" { (3.0, 1.0) } else { (9.0, -1.0) };
-            for k in [0.0, 3.5] {
-                pen.line_c(&[(x + d * k + d * 2.5, 7.0), (x + d * k, 10.0), (x + d * k + d * 2.5, 13.0)], a);
-            }
-        }
-        "outlineUp" | "outlineDown" => {
-            pen.lines(3.0, 11.0, &[6.0, 10.0, 14.0]);
-            let up = name == "outlineUp";
-            let (tip, tail) = if up { (3.0, 17.0) } else { (17.0, 3.0) };
-            pen.line_c(&[(15.0, tail), (15.0, tip)], a);
-            let wing = if up { tip + 3.0 } else { tip - 3.0 };
-            pen.line_c(&[(12.0, wing), (15.0, tip), (18.0, wing)], a);
-        }
-        "outlineExpand" | "outlineCollapse" => {
-            pen.fcircle(10.0, 10.0, 6.5, c);
-            pen.line_c(&[(6.5, 10.0), (13.5, 10.0)], Color32::WHITE);
-            if name == "outlineExpand" {
-                pen.line_c(&[(10.0, 6.5), (10.0, 13.5)], Color32::WHITE);
-            }
-        }
-        "closeOutline" => {
-            pen.page(4.0, 2.0, 16.0, 18.0);
-            pen.line_c(&[(7.0, 8.0), (13.0, 14.0)], red);
-            pen.line_c(&[(13.0, 8.0), (7.0, 14.0)], red);
+        "properties" | "info" => {
+            pen.circle(12.0, 12.0, 8.5, c);
+            pen.fcircle(12.0, 7.4, 1.3, a);
+            pen.line_c(&[(12.0, 10.8), (12.0, 17.2)], a);
         }
         "help" => {
-            pen.circle(10.0, 10.0, 7.0, c);
-            pen.text(10.0, 10.0, 10.0, "?", a, true);
+            pen.circle(12.0, 12.0, 8.5, c);
+            pen.line_c(
+                &[
+                    (9.3, 9.2),
+                    (9.48, 8.28),
+                    (9.96, 7.47),
+                    (10.67, 6.87),
+                    (11.54, 6.53),
+                    (12.48, 6.5),
+                    (13.37, 6.78),
+                    (14.12, 7.34),
+                    (14.65, 8.12),
+                    (14.89, 9.02),
+                    (14.81, 9.96),
+                    (14.44, 10.81),
+                    (13.8, 11.5),
+                    (13.54, 11.7),
+                    (13.29, 11.89),
+                    (13.07, 12.08),
+                    (12.87, 12.27),
+                    (12.69, 12.46),
+                    (12.54, 12.66),
+                    (12.41, 12.87),
+                    (12.3, 13.1),
+                    (12.21, 13.34),
+                    (12.15, 13.6),
+                    (12.11, 13.89),
+                    (12.1, 14.2),
+                ],
+                a,
+            );
+            pen.fcircle(12.05, 17.6, 1.2, a);
         }
-        // Developer › Controls: a field's frame with what it holds.
+        "folder" => {
+            pen.fpoly(
+                &[
+                    (3.5, 19.5),
+                    (3.5, 6.5),
+                    (3.51, 6.3),
+                    (3.56, 6.11),
+                    (3.62, 5.93),
+                    (3.71, 5.76),
+                    (3.82, 5.6),
+                    (3.95, 5.45),
+                    (4.1, 5.32),
+                    (4.26, 5.21),
+                    (4.43, 5.12),
+                    (4.61, 5.06),
+                    (4.8, 5.01),
+                    (5.0, 5.0),
+                    (9.2, 5.0),
+                    (11.2, 7.5),
+                    (19.0, 7.5),
+                    (19.2, 7.51),
+                    (19.39, 7.56),
+                    (19.57, 7.62),
+                    (19.74, 7.71),
+                    (19.9, 7.82),
+                    (20.05, 7.95),
+                    (20.18, 8.1),
+                    (20.29, 8.26),
+                    (20.38, 8.43),
+                    (20.44, 8.61),
+                    (20.49, 8.8),
+                    (20.5, 9.0),
+                    (20.5, 19.5),
+                ],
+                &[
+                    [29, 0, 1],
+                    [29, 1, 2],
+                    [29, 2, 3],
+                    [29, 3, 4],
+                    [29, 4, 5],
+                    [29, 5, 6],
+                    [29, 6, 7],
+                    [29, 7, 8],
+                    [29, 8, 9],
+                    [29, 9, 10],
+                    [29, 10, 11],
+                    [29, 11, 12],
+                    [29, 12, 13],
+                    [29, 13, 14],
+                    [29, 14, 15],
+                    [29, 15, 16],
+                    [29, 16, 17],
+                    [29, 17, 18],
+                    [29, 18, 19],
+                    [29, 19, 20],
+                    [29, 20, 21],
+                    [29, 21, 22],
+                    [29, 22, 23],
+                    [29, 23, 24],
+                    [29, 24, 25],
+                    [29, 25, 26],
+                    [29, 26, 27],
+                    [27, 28, 29],
+                ],
+                yellow,
+            );
+            pen.closed(
+                &[
+                    (3.5, 19.5),
+                    (3.5, 6.5),
+                    (3.51, 6.3),
+                    (3.56, 6.11),
+                    (3.62, 5.93),
+                    (3.71, 5.76),
+                    (3.82, 5.6),
+                    (3.95, 5.45),
+                    (4.1, 5.32),
+                    (4.26, 5.21),
+                    (4.43, 5.12),
+                    (4.61, 5.06),
+                    (4.8, 5.01),
+                    (5.0, 5.0),
+                    (9.2, 5.0),
+                    (11.2, 7.5),
+                    (19.0, 7.5),
+                    (19.2, 7.51),
+                    (19.39, 7.56),
+                    (19.57, 7.62),
+                    (19.74, 7.71),
+                    (19.9, 7.82),
+                    (20.05, 7.95),
+                    (20.18, 8.1),
+                    (20.29, 8.26),
+                    (20.38, 8.43),
+                    (20.44, 8.61),
+                    (20.49, 8.8),
+                    (20.5, 9.0),
+                    (20.5, 19.5),
+                ],
+                c,
+            );
+        }
+        "file" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_w(&[(8.5, 9.0), (15.5, 9.0)], 1.5, c);
+            pen.line_w(&[(8.5, 12.5), (15.5, 12.5)], 1.5, c);
+            pen.line_w(&[(8.5, 16.0), (13.0, 16.0)], 1.5, c);
+        }
+        "homeFolder" => {
+            pen.line_c(&[(3.5, 11.2), (12.0, 4.0), (20.5, 11.2)], c);
+            pen.line_c(&[(5.5, 9.5), (5.5, 20.5), (18.5, 20.5), (18.5, 9.5)], c);
+            pen.frect_r(10.2, 14.5, 13.8, 20.5, 0.0, a);
+        }
+        "saveAs" => {
+            pen.closed(&[(3.0, 3.5), (12.0, 3.5), (14.5, 6.0), (14.5, 15.5), (3.0, 15.5)], c);
+            pen.fill(&[(11.5, 3.5), (11.5, 8.0), (5.5, 8.0), (5.5, 3.5)], a);
+            pen.closed(&[(13.0, 19.7), (19.8, 12.9), (22.2, 15.3), (15.4, 22.1), (12.0, 23.0)], a);
+        }
+        "export" => {
+            pen.closed(&[(3.5, 3.5), (10.5, 3.5), (13.5, 6.5), (13.5, 21.0), (3.5, 21.0)], c);
+            pen.line_c(&[(13.5, 12.0), (20.5, 12.0)], a);
+            pen.line_c(&[(17.5, 9.0), (20.5, 12.0), (17.5, 15.0)], a);
+        }
+        "options" => {
+            pen.frect_r(10.9, 2.6, 13.1, 6.8, 1.0, c);
+            pen.frect_r(17.87, 4.58, 20.07, 8.78, 1.0, c);
+            pen.frect_r(21.4, 10.9, 23.6, 15.1, 1.0, c);
+            pen.frect_r(19.42, 17.87, 21.62, 22.07, 1.0, c);
+            pen.frect_r(13.1, 21.4, 15.3, 25.6, 1.0, c);
+            pen.frect_r(6.13, 19.42, 8.33, 23.62, 1.0, c);
+            pen.frect_r(2.6, 13.1, 4.8, 17.3, 1.0, c);
+            pen.frect_r(4.58, 6.13, 6.78, 10.33, 1.0, c);
+            pen.circle(12.0, 12.0, 5.4, c);
+            pen.fcircle(12.0, 12.0, 2.1, a);
+        }
+        "recover" => {
+            pen.closed(&[(3.0, 2.5), (10.5, 2.5), (13.5, 5.5), (13.5, 15.0), (3.0, 15.0)], c);
+            pen.line_c(&[(10.5, 2.5), (10.5, 5.5), (13.5, 5.5)], c);
+            pen.line_w(
+                &[
+                    (21.93, 16.6),
+                    (21.69, 17.99),
+                    (20.99, 19.22),
+                    (19.92, 20.14),
+                    (18.61, 20.65),
+                    (17.2, 20.68),
+                    (15.86, 20.24),
+                    (14.75, 19.38),
+                    (13.99, 18.19),
+                    (13.68, 16.81),
+                    (13.85, 15.41),
+                    (14.49, 14.15),
+                    (15.51, 13.18),
+                    (16.8, 12.6),
+                    (18.2, 12.5),
+                    (19.56, 12.87),
+                    (20.71, 13.68),
+                ],
+                3.2,
+                a,
+            );
+            pen.fill(&[(22.64, 11.76), (22.91, 14.84), (19.95, 13.91)], a);
+        }
+        "outlinePromote" => {
+            pen.line_w(&[(9.0, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(9.0, 12.0), (20.0, 12.0)], 1.7, c);
+            pen.line_w(&[(9.0, 18.5), (20.0, 18.5)], 1.7, c);
+            pen.line_c(&[(6.5, 12.0), (2.8, 12.0)], a);
+            pen.line_c(&[(5.0, 9.5), (2.5, 12.0), (5.0, 14.5)], a);
+        }
+        "outlineDemote" => {
+            pen.line_w(&[(12.0, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(12.0, 12.0), (20.0, 12.0)], 1.7, c);
+            pen.line_w(&[(12.0, 18.5), (20.0, 18.5)], 1.7, c);
+            pen.line_c(&[(4.0, 7.5), (8.5, 12.0), (4.0, 16.5)], a);
+            pen.line_c(&[(6.0, 12.0), (10.0, 12.0)], a);
+        }
+        "outlineTop" => {
+            pen.line_w(&[(11.0, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(11.0, 12.0), (20.0, 12.0)], 1.7, c);
+            pen.line_w(&[(11.0, 18.5), (20.0, 18.5)], 1.7, c);
+            pen.line_w(&[(8.5, 8.5), (5.0, 12.0), (8.5, 15.5)], 1.7, a);
+            pen.line_w(&[(5.0, 8.5), (1.5, 12.0), (5.0, 15.5)], 1.7, a);
+        }
+        "outlineBody" => {
+            pen.line_w(&[(13.0, 5.5), (20.0, 5.5)], 1.7, c);
+            pen.line_w(&[(13.0, 12.0), (20.0, 12.0)], 1.7, c);
+            pen.line_w(&[(13.0, 18.5), (20.0, 18.5)], 1.7, c);
+            pen.line_w(&[(3.5, 8.5), (7.0, 12.0), (3.5, 15.5)], 1.7, a);
+            pen.line_w(&[(7.5, 8.5), (11.0, 12.0), (7.5, 15.5)], 1.7, a);
+        }
+        "outlineUp" => {
+            pen.line_w(&[(3.5, 5.5), (13.5, 5.5)], 1.7, c);
+            pen.line_w(&[(3.5, 12.0), (13.5, 12.0)], 1.7, c);
+            pen.line_w(&[(3.5, 18.5), (13.5, 18.5)], 1.7, c);
+            pen.line_c(&[(17.5, 19.0), (17.5, 6.0)], a);
+            pen.line_c(&[(14.3, 9.2), (17.5, 6.0), (20.7, 9.2)], a);
+        }
+        "outlineDown" => {
+            pen.line_w(&[(3.5, 5.5), (13.5, 5.5)], 1.7, c);
+            pen.line_w(&[(3.5, 12.0), (13.5, 12.0)], 1.7, c);
+            pen.line_w(&[(3.5, 18.5), (13.5, 18.5)], 1.7, c);
+            pen.line_c(&[(17.5, 5.0), (17.5, 18.0)], a);
+            pen.line_c(&[(14.3, 14.8), (17.5, 18.0), (20.7, 14.8)], a);
+        }
+        "outlineExpand" => {
+            pen.fcircle(12.0, 12.0, 7.5, c);
+            pen.line_c(&[(8.5, 12.0), (15.5, 12.0)], bg);
+            pen.line_c(&[(12.0, 8.5), (12.0, 15.5)], bg);
+        }
+        "outlineCollapse" => {
+            pen.fcircle(12.0, 12.0, 7.5, c);
+            pen.line_c(&[(8.5, 12.0), (15.5, 12.0)], bg);
+        }
+        "closeOutline" => {
+            pen.closed(&[(6.0, 3.0), (14.0, 3.0), (18.0, 7.0), (18.0, 21.0), (6.0, 21.0)], c);
+            pen.line_c(&[(14.0, 3.0), (14.0, 7.0), (18.0, 7.0)], c);
+            pen.line_c(&[(9.5, 9.0), (14.5, 14.0)], red);
+            pen.line_c(&[(14.5, 9.0), (9.5, 14.0)], red);
+        }
         "ccRichText" => {
-            pen.rect(2.5, 5.0, 17.5, 15.0, a);
-            pen.text(7.5, 10.0, 8.0, "A", c, true);
-            pen.text(13.0, 10.5, 7.0, "a", c, false);
+            pen.rrect(2.5, 5.5, 21.5, 18.5, 1.5, a);
+            pen.line_c(&[(7.39, 15.14), (9.4, 9.56), (11.42, 15.14)], c);
+            pen.line_c(&[(8.38, 13.47), (10.43, 13.47)], c);
+            pen.circle(14.09, 13.65, 1.55, c);
+            pen.line_c(&[(15.64, 12.1), (15.64, 15.2)], c);
         }
         "ccPlainText" => {
-            pen.rect(2.5, 5.0, 17.5, 15.0, a);
-            pen.text(8.0, 10.0, 8.0, "A", c, false);
-            pen.line(&[(12.0, 7.5), (12.0, 12.5)]);
+            pen.rrect(2.5, 5.5, 21.5, 18.5, 1.5, a);
+            pen.line_c(&[(6.48, 12.09), (9.4, 5.1), (12.31, 12.09)], c);
+            pen.line_c(&[(7.59, 9.53), (11.2, 9.53)], c);
+            pen.line_c(&[(14.5, 8.5), (14.5, 15.5)], c);
         }
         "ccPicture" => {
-            pen.rect(2.5, 4.0, 17.5, 16.0, a);
-            pen.line(&[(4.5, 14.0), (8.5, 9.5), (11.5, 12.5), (13.5, 10.5), (15.5, 14.0)]);
-            pen.fcircle(13.5, 7.0, 1.2, c);
+            pen.rrect(2.5, 4.5, 21.5, 19.5, 1.5, a);
+            pen.line_w(&[(4.5, 17.0), (7.9, 12.4), (10.4, 15.6), (12.1, 13.6), (15.5, 17.0)], 1.6, c);
+            pen.fcircle(15.7, 8.8, 1.3, c);
         }
         "ccGallery" => {
-            pen.rect(2.5, 3.0, 17.5, 17.0, a);
-            pen.frect(5.0, 5.5, 9.0, 9.5, c);
-            pen.frect(11.0, 5.5, 15.0, 9.5, c);
-            pen.lines(5.0, 15.0, &[12.5, 15.0]);
+            pen.rrect(2.5, 3.0, 21.5, 21.0, 1.5, a);
+            pen.rrect(5.0, 6.5, 10.0, 11.5, 0.7, c);
+            pen.rrect(14.0, 6.5, 19.0, 11.5, 0.7, c);
+            pen.line_w(&[(5.0, 15.5), (19.0, 15.5)], 1.5, c);
+            pen.line_w(&[(5.0, 18.0), (14.0, 18.0)], 1.5, c);
         }
         "ccCheckBox" => {
-            pen.rect(4.0, 4.0, 16.0, 16.0, c);
-            pen.line_c(&[(6.5, 10.0), (9.0, 13.0), (14.0, 6.5)], a);
+            pen.rrect(4.0, 4.0, 20.0, 20.0, 1.5, c);
+            pen.line_c(&[(7.5, 12.0), (10.7, 15.2), (16.7, 8.4)], a);
         }
         "ccComboBox" => {
-            pen.rect(2.5, 6.0, 17.5, 14.0, c);
-            pen.line(&[(13.0, 6.0), (13.0, 14.0)]);
-            pen.lines(4.5, 10.5, &[10.0]);
-            pen.arrow_down(15.25, 10.0, a);
+            pen.rrect(2.5, 6.5, 21.5, 17.5, 1.0, c);
+            pen.line_w(&[(15.5, 6.5), (15.5, 17.5)], 1.5, c);
+            pen.fill(&[(16.4, 11.0), (19.6, 11.0), (18.0, 13.2)], a);
         }
         "ccDropDown" => {
-            pen.rect(2.5, 3.0, 17.5, 9.0, c);
-            pen.line(&[(13.0, 3.0), (13.0, 9.0)]);
-            pen.arrow_down(15.25, 6.0, a);
-            pen.rect(2.5, 9.0, 13.0, 17.0, c);
-            pen.lines(4.5, 11.0, &[11.5, 14.5]);
+            pen.rrect(2.5, 3.5, 21.5, 10.0, 1.0, c);
+            pen.line_w(&[(15.5, 3.5), (15.5, 10.0)], 1.5, c);
+            pen.fill(&[(16.6, 5.4), (19.4, 5.4), (18.0, 7.4)], a);
+            pen.closed_w(&[(2.5, 10.5), (16.0, 10.5), (16.0, 20.5), (2.5, 20.5)], 1.7, c);
+            pen.line_w(&[(5.0, 14.5), (13.0, 14.5)], 1.5, c);
+            pen.line_w(&[(5.0, 17.5), (10.0, 17.5)], 1.5, c);
         }
         "ccDate" => {
-            pen.rect(3.0, 4.5, 17.0, 17.0, c);
-            pen.frect(3.0, 4.5, 17.0, 8.0, a);
-            pen.line(&[(6.5, 3.0), (6.5, 6.0)]);
-            pen.line(&[(13.5, 3.0), (13.5, 6.0)]);
-            for (x, y) in [(6.5, 11.0), (10.0, 11.0), (13.5, 11.0), (6.5, 14.5), (10.0, 14.5)] {
-                pen.fcircle(x, y, 0.9, c);
-            }
+            pen.rrect(3.0, 4.5, 21.0, 20.0, 1.0, a);
+            pen.frect_r(3.0, 4.5, 21.0, 8.9, 1.0, a);
+            pen.line_c(&[(7.0, 2.5), (7.0, 6.5)], c);
+            pen.line_c(&[(17.0, 2.5), (17.0, 6.5)], c);
+            pen.fcircle(7.7, 13.0, 1.0, c);
+            pen.fcircle(12.0, 13.0, 1.0, c);
+            pen.fcircle(16.3, 13.0, 1.0, c);
+            pen.fcircle(7.7, 16.6, 1.0, c);
+            pen.fcircle(12.0, 16.6, 1.0, c);
         }
         "ccRepeat" => {
-            pen.rect(2.5, 3.0, 17.5, 17.0, a);
-            pen.rect(5.0, 5.5, 15.0, 9.5, c);
-            pen.rect(5.0, 11.0, 15.0, 15.0, c);
-            pen.line_c(&[(10.0, 15.0), (10.0, 18.5)], a);
+            pen.rrect(2.5, 3.0, 21.5, 17.0, 1.5, a);
+            pen.rrect_w(5.5, 6.0, 18.5, 9.4, 0.7, 1.6, c);
+            pen.rrect_w(5.5, 11.0, 18.5, 14.4, 0.7, 1.6, c);
+            pen.line_c(&[(12.0, 17.0), (12.0, 21.0)], a);
         }
         "designMode" => {
-            pen.line(&[(4.0, 16.0), (16.0, 16.0), (4.0, 4.0), (4.0, 16.0)]);
-            pen.line_c(&[(4.0, 12.0), (8.0, 16.0)], a);
-            pen.line(&[(7.0, 13.0), (7.0, 12.0)]);
+            pen.closed(&[(4.5, 19.5), (4.5, 5.0), (19.0, 19.5)], c);
+            pen.line_c(&[(4.5, 19.5), (19.0, 5.0)], a);
         }
         _ => {
             // Fallback: a rounded tile with the first letter.
             p.rect_stroke(r.shrink(r.width() * 0.12), 3.0, Stroke::new(1.0, c), egui::StrokeKind::Middle);
             let ch = name.chars().next().map(|x| x.to_ascii_uppercase().to_string()).unwrap_or_default();
-            p.text(r.center(), egui::Align2::CENTER_CENTER, ch, FontId::proportional(r.height() * 0.45), a);
+            p.text(r.center(), egui::Align2::CENTER_CENTER, ch, egui::FontId::proportional(r.height() * 0.45), accent);
         }
     }
 }
 
+/// Every name [`paint`] knows — primary ids and aliases (icon sheets, tests).
+pub const NAMES: &[&str] = &[
+    "accept",
+    "accessibility",
+    "addNote",
+    "addPen",
+    "addShape",
+    "addText",
+    "addins",
+    "addressBlock",
+    "align",
+    "alignCenter",
+    "alignLeft",
+    "alignRight",
+    "alignText",
+    "altText",
+    "arrangeAll",
+    "autofit",
+    "bibliography",
+    "blankPage",
+    "blockAuthors",
+    "bold",
+    "bookmark",
+    "borderPainter",
+    "borders",
+    "breaks",
+    "bringForward",
+    "bullets",
+    "canvas",
+    "caption",
+    "case",
+    "ccCheckBox",
+    "ccComboBox",
+    "ccDate",
+    "ccDropDown",
+    "ccGallery",
+    "ccPicture",
+    "ccPlainText",
+    "ccRepeat",
+    "ccRichText",
+    "cellAlign",
+    "cellMargins",
+    "changeChartType",
+    "charborder",
+    "chart",
+    "chartData",
+    "chartTitle",
+    "check",
+    "checkErrors",
+    "chevronDoubleRight",
+    "chevronDown",
+    "chevronLeft",
+    "chevronRight",
+    "chevronUp",
+    "citation",
+    "clear",
+    "close",
+    "closeOutline",
+    "colWidth",
+    "colors",
+    "columns",
+    "combine",
+    "comment",
+    "compare",
+    "copy",
+    "coverPage",
+    "crop",
+    "crossRef",
+    "cut",
+    "darkMode",
+    "dataLabels",
+    "dateTime",
+    "deleteComment",
+    "deleteTable",
+    "demote",
+    "designMode",
+    "dictate",
+    "discord",
+    "distributeCols",
+    "distributeRows",
+    "docPrefs",
+    "documentTemplate",
+    "draft",
+    "draw",
+    "drawTable",
+    "dropCap",
+    "dropdown",
+    "editRecipients",
+    "editor",
+    "effects",
+    "effectsDesign",
+    "enclose",
+    "endnote",
+    "envelope",
+    "equation",
+    "eraser",
+    "export",
+    "file",
+    "find",
+    "finish",
+    "first",
+    "focus",
+    "folder",
+    "fontcolor",
+    "fontdialog",
+    "fonts",
+    "footer",
+    "footnote",
+    "formula",
+    "fullScreen",
+    "greetingLine",
+    "gridlines",
+    "group",
+    "grow",
+    "header",
+    "help",
+    "hideInk",
+    "highlight",
+    "highlightFields",
+    "homeFolder",
+    "hyphenation",
+    "icons",
+    "immersive",
+    "indent",
+    "indentLeft",
+    "indentRight",
+    "index",
+    "info",
+    "inkToMath",
+    "inkToShape",
+    "insertAbove",
+    "insertBelow",
+    "insertLeft",
+    "insertRight",
+    "interfaceTheme",
+    "italic",
+    "justify",
+    "labels",
+    "language",
+    "lasso",
+    "last",
+    "launcher",
+    "legend",
+    "lineNumbers",
+    "lineSpacing",
+    "link",
+    "macros",
+    "mailMerge",
+    "margins",
+    "markCitation",
+    "markEntry",
+    "markup",
+    "matchFields",
+    "mediaNext",
+    "mediaPause",
+    "mediaPlay",
+    "mediaPrev",
+    "mediaStop",
+    "merge",
+    "mergeField",
+    "minus",
+    "models3d",
+    "more",
+    "multilevel",
+    "multiplePages",
+    "navPane",
+    "newComment",
+    "newWindow",
+    "next",
+    "nextChange",
+    "nextComment",
+    "nextFootnote",
+    "nextRecord",
+    "numbering",
+    "object",
+    "onePage",
+    "onlinePicture",
+    "open",
+    "options",
+    "orientation",
+    "outdent",
+    "outline",
+    "outlineBody",
+    "outlineCollapse",
+    "outlineDemote",
+    "outlineDown",
+    "outlineExpand",
+    "outlinePromote",
+    "outlineTop",
+    "outlineUp",
+    "outlineView",
+    "pageBorders",
+    "pageBreak",
+    "pageColor",
+    "pageNumber",
+    "pageWidth",
+    "painter",
+    "paraSpacing",
+    "pastCitation",
+    "paste",
+    "pen",
+    "pencil",
+    "phonetic",
+    "picture",
+    "pilcrow",
+    "pin",
+    "plus",
+    "position",
+    "prevChange",
+    "prevComment",
+    "preview",
+    "previewResults",
+    "previous",
+    "previousRecord",
+    "print",
+    "printLayout",
+    "promote",
+    "properties",
+    "protect",
+    "quickParts",
+    "readAloud",
+    "readMode",
+    "recipients",
+    "recover",
+    "redo",
+    "reject",
+    "repeatHeader",
+    "replace",
+    "replay",
+    "replayForward",
+    "replayPause",
+    "replayPlay",
+    "replayRewind",
+    "researcher",
+    "resetGraphic",
+    "resolve",
+    "restrict",
+    "reviewingPane",
+    "rotate",
+    "rowHeight",
+    "ruler",
+    "rules",
+    "save",
+    "saveAs",
+    "screenshot",
+    "search",
+    "select",
+    "selectTable",
+    "selectionPane",
+    "sendBackward",
+    "setDefault",
+    "shading",
+    "shapeEffects",
+    "shapes",
+    "share",
+    "showComments",
+    "showNotes",
+    "shrink",
+    "sideBySide",
+    "sideToSide",
+    "signature",
+    "size",
+    "smartArt",
+    "smartArtColors",
+    "sort",
+    "sources",
+    "spaceAfter",
+    "spaceBefore",
+    "spelling",
+    "split",
+    "splitCells",
+    "splitTable",
+    "strike",
+    "styles",
+    "stylesPane",
+    "subscript",
+    "superscript",
+    "switchWindows",
+    "symbol",
+    "syncScroll",
+    "table",
+    "tableOfAuthorities",
+    "tableOfFigures",
+    "textBox",
+    "textBoxLink",
+    "textBoxUnlink",
+    "textDirection",
+    "textFill",
+    "textLtr",
+    "textOutline",
+    "textPane",
+    "textRtl",
+    "themes",
+    "thesaurus",
+    "thickness",
+    "toText",
+    "toc",
+    "trackChanges",
+    "transform",
+    "translate",
+    "underline",
+    "undo",
+    "unlinkCitations",
+    "update",
+    "updateTable",
+    "user",
+    "vertical",
+    "video",
+    "watermark",
+    "webLayout",
+    "wordArt",
+    "wordCount",
+    "wrapText",
+    "zoom",
+    "zoom100",
+    "zoomIn",
+    "zoomOut",
+];
+
 /// The Insert › Shapes menu's icons: each shape kind (`insert.shape` ids) as a small outline.
 fn shape(pen: &Pen, kind: &str) -> bool {
+    let pen = Pen { g: 20.0, w: 1.25, caps: false, ..*pen };
     let (c, a) = (pen.c, pen.a);
     let tint = a.linear_multiply(0.25);
     let solid = |pts: &[(f32, f32)]| {
@@ -1577,16 +5056,6 @@ fn shape(pen: &Pen, kind: &str) -> bool {
         _ => return false,
     }
     true
-}
-
-trait ThenLines {
-    fn then_lines(self, pen: &Pen, x0: f32, x1: f32, ys: &[f32]);
-}
-
-impl ThenLines for () {
-    fn then_lines(self, pen: &Pen, x0: f32, x1: f32, ys: &[f32]) {
-        pen.lines(x0, x1, ys);
-    }
 }
 
 /// Draw an Insert › Icons library icon into `r` in `c`, from the same path data the inserted
