@@ -33,10 +33,7 @@ mod window;
 
 pub use self::device::DeviceId;
 pub use self::error::OsError;
-pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
-    PlatformSpecificEventLoopAttributes,
-};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes};
 pub use self::monitor::{MonitorHandle, VideoModeHandle};
 pub use self::window::{PlatformSpecificWindowAttributes, Window, WindowId};
 
@@ -44,7 +41,4 @@ pub(crate) use self::keyboard::KeyEventExtra;
 use self::web_sys as backend;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub(crate) use crate::platform_impl::Fullscreen;
-pub(crate) use cursor::{
-    CustomCursor as PlatformCustomCursor, CustomCursorFuture,
-    CustomCursorSource as PlatformCustomCursorSource,
-};
+pub(crate) use cursor::{CustomCursor as PlatformCustomCursor, CustomCursorFuture, CustomCursorSource as PlatformCustomCursorSource};

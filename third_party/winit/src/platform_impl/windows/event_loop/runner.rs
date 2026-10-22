@@ -92,9 +92,7 @@ impl<T> EventLoopRunner<T> {
     {
         // Erase closure lifetime.
         // SAFETY: Caller upholds that the lifetime of the closure is upheld.
-        let f = unsafe {
-            mem::transmute::<Box<dyn FnMut(Event<T>)>, Box<dyn FnMut(Event<T>)>>(Box::new(f))
-        };
+        let f = unsafe { mem::transmute::<Box<dyn FnMut(Event<T>)>, Box<dyn FnMut(Event<T>)>>(Box::new(f)) };
         let old_event_handler = self.event_handler.replace(Some(f));
         assert!(old_event_handler.is_none());
     }
@@ -181,12 +179,12 @@ impl<T> EventLoopRunner<T> {
                     Err(e) => {
                         self.panic_error.set(Some(e));
                         None
-                    },
+                    }
                 },
                 Some(e) => {
                     self.panic_error.set(Some(e));
                     None
-                },
+                }
             }
         } else {
             self.panic_error.set(panic_error);
@@ -281,46 +279,43 @@ impl<T> EventLoopRunner<T> {
         use RunnerState::{Destroyed, HandlingMainEvents, Idle, Uninitialized};
 
         match (self.runner_state.replace(new_runner_state), new_runner_state) {
-            (Uninitialized, Uninitialized)
-            | (Idle, Idle)
-            | (HandlingMainEvents, HandlingMainEvents)
-            | (Destroyed, Destroyed) => (),
+            (Uninitialized, Uninitialized) | (Idle, Idle) | (HandlingMainEvents, HandlingMainEvents) | (Destroyed, Destroyed) => (),
 
             // State transitions that initialize the event loop.
             (Uninitialized, HandlingMainEvents) => {
                 self.call_new_events(true);
-            },
+            }
             (Uninitialized, Idle) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-            },
+            }
             (Uninitialized, Destroyed) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
-            },
+            }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
             // State transitions that start the event handling process.
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
-            },
+            }
             (Idle, Destroyed) => {
                 self.call_event_handler(Event::LoopExiting);
-            },
+            }
 
             (HandlingMainEvents, Idle) => {
                 // This is always the last event we dispatch before waiting for new events
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
-            },
+            }
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::AboutToWait);
                 self.last_events_cleared.set(Instant::now());
                 self.call_event_handler(Event::LoopExiting);
-            },
+            }
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
@@ -330,23 +325,16 @@ impl<T> EventLoopRunner<T> {
         let start_cause = match (init, self.control_flow(), self.exit.get()) {
             (true, ..) => StartCause::Init,
             (false, ControlFlow::Poll, None) => StartCause::Poll,
-            (false, _, Some(_)) | (false, ControlFlow::Wait, None) => StartCause::WaitCancelled {
-                requested_resume: None,
-                start: self.last_events_cleared.get(),
-            },
+            (false, _, Some(_)) | (false, ControlFlow::Wait, None) => {
+                StartCause::WaitCancelled { requested_resume: None, start: self.last_events_cleared.get() }
+            }
             (false, ControlFlow::WaitUntil(requested_resume), None) => {
                 if Instant::now() < requested_resume {
-                    StartCause::WaitCancelled {
-                        requested_resume: Some(requested_resume),
-                        start: self.last_events_cleared.get(),
-                    }
+                    StartCause::WaitCancelled { requested_resume: Some(requested_resume), start: self.last_events_cleared.get() }
                 } else {
-                    StartCause::ResumeTimeReached {
-                        requested_resume,
-                        start: self.last_events_cleared.get(),
-                    }
+                    StartCause::ResumeTimeReached { requested_resume, start: self.last_events_cleared.get() }
                 }
-            },
+            }
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         // NB: For consistency all platforms must emit a 'resumed' event even though Windows
@@ -361,14 +349,9 @@ impl<T> EventLoopRunner<T> {
 impl<T> BufferedEvent<T> {
     pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer },
-                window_id,
-            } => BufferedEvent::ScaleFactorChanged(
-                window_id,
-                scale_factor,
-                *inner_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap(),
-            ),
+            Event::WindowEvent { event: WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer }, window_id } => {
+                BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *inner_size_writer.new_inner_size.upgrade().unwrap().lock().unwrap())
+            }
             event => BufferedEvent::Event(event),
         }
     }
@@ -382,9 +365,7 @@ impl<T> BufferedEvent<T> {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                            &user_new_inner_size,
-                        )),
+                        inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&user_new_inner_size)),
                     },
                 });
                 let inner_size = *user_new_inner_size.lock().unwrap();
@@ -393,14 +374,13 @@ impl<T> BufferedEvent<T> {
 
                 if inner_size != new_inner_size {
                     let window_flags = unsafe {
-                        let userdata =
-                            get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
+                        let userdata = get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData;
                         (*userdata).window_state_lock().window_flags
                     };
 
                     window_flags.set_size((window_id.0).0, inner_size);
                 }
-            },
+            }
         }
     }
 }

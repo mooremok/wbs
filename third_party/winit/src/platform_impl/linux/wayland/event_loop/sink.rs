@@ -29,10 +29,7 @@ impl EventSink {
     /// Add new device event to a queue.
     #[inline]
     pub fn push_device_event(&mut self, event: DeviceEvent, device_id: DeviceId) {
-        self.window_events.push(Event::DeviceEvent {
-            event,
-            device_id: RootDeviceId(PlatformDeviceId::Wayland(device_id)),
-        });
+        self.window_events.push(Event::DeviceEvent { event, device_id: RootDeviceId(PlatformDeviceId::Wayland(device_id)) });
     }
 
     /// Add new window event to a queue.

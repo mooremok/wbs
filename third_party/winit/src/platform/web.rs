@@ -224,9 +224,7 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
     fn spawn_app<A: ApplicationHandler<Self::UserEvent> + 'static>(self, mut app: A) {
-        self.event_loop.spawn(move |event, event_loop| {
-            event_loop::dispatch_event_for_app(&mut app, event_loop, event)
-        });
+        self.event_loop.spawn(move |event, event_loop| event_loop::dispatch_event_for_app(&mut app, event_loop, event));
     }
 
     fn spawn<F>(self, event_handler: F)
@@ -376,10 +374,7 @@ pub trait CustomCursorExtWebSys {
 
     /// Crates a new animated cursor from multiple [`CustomCursor`]s.
     /// Supplied `cursors` can't be empty or other animations.
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation>;
+    fn from_animation(duration: Duration, cursors: Vec<CustomCursor>) -> Result<CustomCursorSource, BadAnimation>;
 }
 
 impl CustomCursorExtWebSys for CustomCursor {
@@ -391,10 +386,7 @@ impl CustomCursorExtWebSys for CustomCursor {
         CustomCursorSource { inner: PlatformCustomCursorSource::Url { url, hotspot_x, hotspot_y } }
     }
 
-    fn from_animation(
-        duration: Duration,
-        cursors: Vec<CustomCursor>,
-    ) -> Result<CustomCursorSource, BadAnimation> {
+    fn from_animation(duration: Duration, cursors: Vec<CustomCursor>) -> Result<CustomCursorSource, BadAnimation> {
         if cursors.is_empty() {
             return Err(BadAnimation::Empty);
         }
@@ -403,9 +395,7 @@ impl CustomCursorExtWebSys for CustomCursor {
             return Err(BadAnimation::Animation);
         }
 
-        Ok(CustomCursorSource {
-            inner: PlatformCustomCursorSource::Animation { duration, cursors },
-        })
+        Ok(CustomCursorSource { inner: PlatformCustomCursorSource::Animation { duration, cursors } })
     }
 }
 
@@ -457,7 +447,7 @@ impl Display for CustomCursorError {
             Self::Decode(error) => write!(f, "failed to decode image: {error}"),
             Self::Animation => {
                 write!(f, "found `CustomCursor` that is an animation when building an animation")
-            },
+            }
         }
     }
 }

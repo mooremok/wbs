@@ -2,8 +2,7 @@ use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::window::{
-    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
-    WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
+    Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes, WindowButtons, WindowId as RootWI, WindowLevel,
 };
 
 use super::main_thread::{MainThreadMarker, MainThreadSafe};
@@ -29,21 +28,12 @@ pub struct Inner {
 }
 
 impl Window {
-    pub(crate) fn new(
-        target: &ActiveEventLoop,
-        mut attr: WindowAttributes,
-    ) -> Result<Self, RootOE> {
+    pub(crate) fn new(target: &ActiveEventLoop, mut attr: WindowAttributes) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
         let window = target.runner.window();
         let document = target.runner.document();
-        let canvas = backend::Canvas::create(
-            target.runner.main_thread(),
-            id,
-            window.clone(),
-            document.clone(),
-            &mut attr,
-        )?;
+        let canvas = backend::Canvas::create(target.runner.main_thread(), id, window.clone(), document.clone(), &mut attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         target.register(&canvas, id);
@@ -95,8 +85,7 @@ impl Window {
                 let canvas = inner.canvas.borrow();
                 // SAFETY: This will only work if the reference to `HtmlCanvasElement` stays valid.
                 let canvas: &wasm_bindgen::JsValue = canvas.raw();
-                let window_handle =
-                    rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
+                let window_handle = rwh_06::WebCanvasWindowHandle::new(std::ptr::NonNull::from(canvas).cast());
                 rwh_06::RawWindowHandle::WebCanvas(window_handle)
             })
             .ok_or(rwh_06::HandleError::Unavailable)
@@ -104,9 +93,7 @@ impl Window {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub(crate) fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub(crate) fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Web(rwh_06::WebDisplayHandle::new()))
     }
 }
@@ -231,9 +218,7 @@ impl Inner {
         let lock = match mode {
             CursorGrabMode::None => false,
             CursorGrabMode::Locked => true,
-            CursorGrabMode::Confined => {
-                return Err(ExternalError::NotSupported(NotSupportedError::new()))
-            },
+            CursorGrabMode::Confined => return Err(ExternalError::NotSupported(NotSupportedError::new())),
         };
 
         self.canvas.borrow().set_cursor_lock(lock).map_err(ExternalError::Os)
@@ -395,13 +380,7 @@ impl Inner {
 
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
-        backend::is_dark_mode(&self.window).map(|is_dark_mode| {
-            if is_dark_mode {
-                Theme::Dark
-            } else {
-                Theme::Light
-            }
-        })
+        backend::is_dark_mode(&self.window).map(|is_dark_mode| if is_dark_mode { Theme::Dark } else { Theme::Light })
     }
 
     pub fn set_content_protected(&self, _protected: bool) {}
@@ -463,8 +442,7 @@ impl PlatformSpecificWindowAttributes {
             return;
         };
 
-        let main_thread = MainThreadMarker::new()
-            .expect("received a `HtmlCanvasElement` outside the window context");
+        let main_thread = MainThreadMarker::new().expect("received a `HtmlCanvasElement` outside the window context");
 
         self.canvas = Some(Arc::new(MainThreadSafe::new(main_thread, canvas)));
     }

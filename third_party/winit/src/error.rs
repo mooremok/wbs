@@ -122,10 +122,6 @@ mod tests {
     #[test]
     fn ensure_fmt_does_not_panic() {
         let _ = format!("{:?}, {}", NotSupportedError::new(), NotSupportedError::new().clone());
-        let _ = format!(
-            "{:?}, {}",
-            ExternalError::NotSupported(NotSupportedError::new()),
-            ExternalError::NotSupported(NotSupportedError::new())
-        );
+        let _ = format!("{:?}, {}", ExternalError::NotSupported(NotSupportedError::new()), ExternalError::NotSupported(NotSupportedError::new()));
     }
 }

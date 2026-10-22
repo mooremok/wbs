@@ -13,12 +13,7 @@ use super::*;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: xproto::Window, cursor: Option<CursorIcon>) {
-        let cursor = *self
-            .cursor_cache
-            .lock()
-            .unwrap()
-            .entry(cursor)
-            .or_insert_with(|| self.get_cursor(cursor));
+        let cursor = *self.cursor_cache.lock().unwrap().entry(cursor).or_insert_with(|| self.get_cursor(cursor));
 
         self.update_cursor(window, cursor).expect("Failed to set cursor");
     }
@@ -43,15 +38,7 @@ impl XConnection {
             // We don't care about this color, since it only fills bytes
             // in the pixmap which are not 0 in the mask.
             let mut dummy_color = MaybeUninit::uninit();
-            let cursor = (self.xlib.XCreatePixmapCursor)(
-                self.display,
-                pixmap,
-                pixmap,
-                dummy_color.as_mut_ptr(),
-                dummy_color.as_mut_ptr(),
-                0,
-                0,
-            );
+            let cursor = (self.xlib.XCreatePixmapCursor)(self.display, pixmap, pixmap, dummy_color.as_mut_ptr(), dummy_color.as_mut_ptr(), 0, 0);
             (self.xlib.XFreePixmap)(self.display, pixmap);
 
             cursor
@@ -67,12 +54,7 @@ impl XConnection {
         let mut xcursor = 0;
         for &name in iter::once(&cursor.name()).chain(cursor.alt_names().iter()) {
             let name = CString::new(name).unwrap();
-            xcursor = unsafe {
-                (self.xcursor.XcursorLibraryLoadCursor)(
-                    self.display,
-                    name.as_ptr() as *const c_char,
-                )
-            };
+            xcursor = unsafe { (self.xcursor.XcursorLibraryLoadCursor)(self.display, name.as_ptr() as *const c_char) };
 
             if xcursor != 0 {
                 break;
@@ -84,10 +66,7 @@ impl XConnection {
 
     fn update_cursor(&self, window: xproto::Window, cursor: ffi::Cursor) -> Result<(), X11Error> {
         self.xcb_connection()
-            .change_window_attributes(
-                window,
-                &xproto::ChangeWindowAttributesAux::new().cursor(cursor as xproto::Cursor),
-            )?
+            .change_window_attributes(window, &xproto::ChangeWindowAttributesAux::new().cursor(cursor as xproto::Cursor))?
             .ignore_error();
 
         self.xcb_connection().flush()?;
@@ -121,15 +100,9 @@ impl PartialEq for CustomCursor {
 impl Eq for CustomCursor {}
 
 impl CustomCursor {
-    pub(crate) fn new(
-        event_loop: &ActiveEventLoop,
-        cursor: PlatformCustomCursorSource,
-    ) -> CustomCursor {
+    pub(crate) fn new(event_loop: &ActiveEventLoop, cursor: PlatformCustomCursorSource) -> CustomCursor {
         unsafe {
-            let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(
-                cursor.0.width as i32,
-                cursor.0.height as i32,
-            );
+            let ximage = (event_loop.xconn.xcursor.XcursorImageCreate)(cursor.0.width as i32, cursor.0.height as i32);
             if ximage.is_null() {
                 panic!("failed to allocate cursor image");
             }
@@ -139,14 +112,10 @@ impl CustomCursor {
 
             let dst = slice::from_raw_parts_mut((*ximage).pixels, cursor.0.rgba.len() / 4);
             for (dst, chunk) in dst.iter_mut().zip(cursor.0.rgba.chunks_exact(4)) {
-                *dst = (chunk[0] as u32) << 16
-                    | (chunk[1] as u32) << 8
-                    | (chunk[2] as u32)
-                    | (chunk[3] as u32) << 24;
+                *dst = (chunk[0] as u32) << 16 | (chunk[1] as u32) << 8 | (chunk[2] as u32) | (chunk[3] as u32) << 24;
             }
 
-            let cursor =
-                (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
+            let cursor = (event_loop.xconn.xcursor.XcursorImageLoadCursor)(event_loop.xconn.display, ximage);
             (event_loop.xconn.xcursor.XcursorImageDestroy)(ximage);
             Self { inner: Arc::new(CustomCursorInner { xconn: event_loop.xconn.clone(), cursor }) }
         }

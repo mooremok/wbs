@@ -21,16 +21,8 @@ struct Sender(Arc<Inner>);
 
 impl<T> WakerSpawner<T> {
     #[track_caller]
-    pub fn new(
-        main_thread: MainThreadMarker,
-        value: T,
-        handler: fn(&T, NonZeroUsize, bool),
-    ) -> Option<Self> {
-        let inner = Arc::new(Inner {
-            counter: AtomicUsize::new(0),
-            waker: AtomicWaker::new(),
-            closed: AtomicBool::new(false),
-        });
+    pub fn new(main_thread: MainThreadMarker, value: T, handler: fn(&T, NonZeroUsize, bool)) -> Option<Self> {
+        let inner = Arc::new(Inner { counter: AtomicUsize::new(0), waker: AtomicWaker::new(), closed: AtomicBool::new(false) });
 
         let handler = Handler { value, handler };
 
@@ -66,9 +58,9 @@ impl<T> WakerSpawner<T> {
                                         }
 
                                         Poll::Pending
-                                    },
+                                    }
                                 }
-                            },
+                            }
                         }
                     })
                     .await
@@ -94,10 +86,7 @@ impl<T> WakerSpawner<T> {
     }
 
     pub fn fetch(&self) -> usize {
-        debug_assert!(
-            MainThreadMarker::new().is_some(),
-            "this should only be called from the main thread"
-        );
+        debug_assert!(MainThreadMarker::new().is_some(), "this should only be called from the main thread");
 
         self.0.with_sender_data(|inner| inner.0.counter.swap(0, Ordering::Relaxed))
     }

@@ -107,10 +107,7 @@ impl<T> EventLoopBuilder<T> {
         doc = "[`.with_android_app(app)`]: \
                crate::platform::android::EventLoopBuilderExtAndroid::with_android_app"
     )]
-    #[cfg_attr(
-        not(android_platform),
-        doc = "[`.with_android_app(app)`]: #only-available-on-android"
-    )]
+    #[cfg_attr(not(android_platform), doc = "[`.with_android_app(app)`]: #only-available-on-android")]
     #[inline]
     pub fn build(&mut self) -> Result<EventLoop<T>, EventLoopError> {
         let _span = tracing::debug_span!("winit::EventLoopBuilder::build").entered();
@@ -121,10 +118,7 @@ impl<T> EventLoopBuilder<T> {
 
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
-        Ok(EventLoop {
-            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?,
-            _marker: PhantomData,
-        })
+        Ok(EventLoop { event_loop: platform_impl::EventLoop::new(&mut self.platform_specific)?, _marker: PhantomData })
     }
 
     #[cfg(web_platform)]
@@ -244,10 +238,7 @@ impl<T> EventLoop<T> {
     ///   never executed and any values not passed to this function will *not* be dropped.
     ///
     ///   Web applications are recommended to use
-    #[cfg_attr(
-        web_platform,
-        doc = "[`EventLoopExtWebSys::spawn_app()`][crate::platform::web::EventLoopExtWebSys::spawn_app()]"
-    )]
+    #[cfg_attr(web_platform, doc = "[`EventLoopExtWebSys::spawn_app()`][crate::platform::web::EventLoopExtWebSys::spawn_app()]")]
     #[cfg_attr(not(web_platform), doc = "`EventLoopExtWebSys::spawn()`")]
     ///   [^1] instead of [`run_app()`] to avoid the need
     ///   for the Javascript exception trick, and to make it clearer that the event loop runs
@@ -311,8 +302,7 @@ impl<T> EventLoop<T> {
         )
         .entered();
 
-        let window =
-            platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
+        let window = platform_impl::Window::new(&self.event_loop.window_target().p, window_attributes)?;
         Ok(Window { window })
     }
 
@@ -632,11 +622,7 @@ impl AsyncRequestSerial {
 
 /// Shim for various run APIs.
 #[inline(always)]
-pub(crate) fn dispatch_event_for_app<T: 'static, A: ApplicationHandler<T>>(
-    app: &mut A,
-    event_loop: &ActiveEventLoop,
-    event: Event<T>,
-) {
+pub(crate) fn dispatch_event_for_app<T: 'static, A: ApplicationHandler<T>>(app: &mut A, event_loop: &ActiveEventLoop, event: Event<T>) {
     match event {
         Event::NewEvents(cause) => app.new_events(event_loop, cause),
         Event::WindowEvent { window_id, event } => app.window_event(event_loop, window_id, event),

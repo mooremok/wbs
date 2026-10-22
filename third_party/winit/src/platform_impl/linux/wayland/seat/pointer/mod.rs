@@ -7,24 +7,22 @@ use std::time::Duration;
 use tracing::warn;
 
 use sctk::reexports::client::delegate_dispatch;
+use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_pointer::WlPointer;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
-use sctk::reexports::client::{Connection, Proxy, QueueHandle, Dispatch};
-use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
-use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
+use sctk::reexports::client::{Connection, Dispatch, Proxy, QueueHandle};
+use sctk::reexports::csd_frame::FrameClick;
 use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::WpCursorShapeDeviceV1;
 use sctk::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_manager_v1::WpCursorShapeManagerV1;
+use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
+use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
 use sctk::reexports::protocols::wp::pointer_constraints::zv1::client::zwp_pointer_constraints_v1::{Lifetime, ZwpPointerConstraintsV1};
-use sctk::reexports::client::globals::{BindError, GlobalList};
-use sctk::reexports::csd_frame::FrameClick;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 
 use sctk::compositor::SurfaceData;
 use sctk::globals::GlobalData;
-use sctk::seat::pointer::{
-    PointerData, PointerDataExt, PointerEvent, PointerEventKind, PointerHandler,
-};
+use sctk::seat::pointer::{PointerData, PointerDataExt, PointerEvent, PointerEventKind, PointerHandler};
 use sctk::seat::SeatState;
 
 use crate::dpi::{LogicalPosition, PhysicalPosition};
@@ -36,20 +34,14 @@ use crate::platform_impl::wayland::{self, DeviceId, WindowId};
 pub mod relative_pointer;
 
 impl PointerHandler for WinitState {
-    fn pointer_frame(
-        &mut self,
-        connection: &Connection,
-        _: &QueueHandle<Self>,
-        pointer: &WlPointer,
-        events: &[PointerEvent],
-    ) {
+    fn pointer_frame(&mut self, connection: &Connection, _: &QueueHandle<Self>, pointer: &WlPointer, events: &[PointerEvent]) {
         let seat = pointer.winit_data().seat();
         let seat_state = match self.seats.get(&seat.id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received pointer event without seat");
                 return;
-            },
+            }
         };
 
         let themed_pointer = match seat_state.pointer.as_ref() {
@@ -57,7 +49,7 @@ impl PointerHandler for WinitState {
             None => {
                 warn!("Received pointer event without pointer");
                 return;
-            },
+            }
         };
 
         let device_id = crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId));
@@ -80,29 +72,19 @@ impl PointerHandler for WinitState {
             };
 
             let scale_factor = window.scale_factor();
-            let position: PhysicalPosition<f64> =
-                LogicalPosition::new(event.position.0, event.position.1).to_physical(scale_factor);
+            let position: PhysicalPosition<f64> = LogicalPosition::new(event.position.0, event.position.1).to_physical(scale_factor);
 
             match event.kind {
                 // Pointer movements on decorations.
-                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. }
-                    if parent_surface != surface =>
-                {
-                    if let Some(icon) = window.frame_point_moved(
-                        seat,
-                        surface,
-                        Duration::ZERO,
-                        event.position.0,
-                        event.position.1,
-                    ) {
+                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } if parent_surface != surface => {
+                    if let Some(icon) = window.frame_point_moved(seat, surface, Duration::ZERO, event.position.0, event.position.1) {
                         let _ = themed_pointer.set_cursor(connection, icon);
                     }
-                },
+                }
                 PointerEventKind::Leave { .. } if parent_surface != surface => {
                     window.frame_point_left();
-                },
-                ref kind @ PointerEventKind::Press { button, serial, time }
-                | ref kind @ PointerEventKind::Release { button, serial, time }
+                }
+                ref kind @ PointerEventKind::Press { button, serial, time } | ref kind @ PointerEventKind::Release { button, serial, time }
                     if parent_surface != surface =>
                 {
                     let click = match wayland_button_to_winit(button) {
@@ -122,53 +104,37 @@ impl PointerHandler for WinitState {
                         window_id,
                         &mut self.window_compositor_updates,
                     );
-                },
+                }
                 // Regular events on the main surface.
                 PointerEventKind::Enter { .. } => {
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorEntered { device_id }, window_id);
+                    self.events_sink.push_window_event(WindowEvent::CursorEntered { device_id }, window_id);
 
                     window.pointer_entered(Arc::downgrade(themed_pointer));
 
                     // Set the currently focused surface.
                     pointer.winit_data().inner.lock().unwrap().surface = Some(window_id);
 
-                    self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
-                        window_id,
-                    );
-                },
+                    self.events_sink.push_window_event(WindowEvent::CursorMoved { device_id, position }, window_id);
+                }
                 PointerEventKind::Leave { .. } => {
                     window.pointer_left(Arc::downgrade(themed_pointer));
 
                     // Remove the active surface.
                     pointer.winit_data().inner.lock().unwrap().surface = None;
 
-                    self.events_sink
-                        .push_window_event(WindowEvent::CursorLeft { device_id }, window_id);
-                },
+                    self.events_sink.push_window_event(WindowEvent::CursorLeft { device_id }, window_id);
+                }
                 PointerEventKind::Motion { .. } => {
-                    self.events_sink.push_window_event(
-                        WindowEvent::CursorMoved { device_id, position },
-                        window_id,
-                    );
-                },
-                ref kind @ PointerEventKind::Press { button, serial, .. }
-                | ref kind @ PointerEventKind::Release { button, serial, .. } => {
+                    self.events_sink.push_window_event(WindowEvent::CursorMoved { device_id, position }, window_id);
+                }
+                ref kind @ PointerEventKind::Press { button, serial, .. } | ref kind @ PointerEventKind::Release { button, serial, .. } => {
                     // Update the last button serial.
                     pointer.winit_data().inner.lock().unwrap().latest_button_serial = serial;
 
                     let button = wayland_button_to_winit(button);
-                    let state = if matches!(kind, PointerEventKind::Press { .. }) {
-                        ElementState::Pressed
-                    } else {
-                        ElementState::Released
-                    };
-                    self.events_sink.push_window_event(
-                        WindowEvent::MouseInput { device_id, state, button },
-                        window_id,
-                    );
-                },
+                    let state = if matches!(kind, PointerEventKind::Press { .. }) { ElementState::Pressed } else { ElementState::Released };
+                    self.events_sink.push_window_event(WindowEvent::MouseInput { device_id, state, button }, window_id);
+                }
                 PointerEventKind::Axis { horizontal, vertical, .. } => {
                     // Get the current phase.
                     let mut pointer_data = pointer.winit_data().inner.lock().unwrap();
@@ -197,23 +163,14 @@ impl PointerHandler for WinitState {
                     // the discrete values if they are present.
                     let delta = if has_discrete_scroll {
                         // NOTE: Wayland sign convention is the inverse of winit.
-                        MouseScrollDelta::LineDelta(
-                            (-horizontal.discrete) as f32,
-                            (-vertical.discrete) as f32,
-                        )
+                        MouseScrollDelta::LineDelta((-horizontal.discrete) as f32, (-vertical.discrete) as f32)
                     } else {
                         // NOTE: Wayland sign convention is the inverse of winit.
-                        MouseScrollDelta::PixelDelta(
-                            LogicalPosition::new(-horizontal.absolute, -vertical.absolute)
-                                .to_physical(scale_factor),
-                        )
+                        MouseScrollDelta::PixelDelta(LogicalPosition::new(-horizontal.absolute, -vertical.absolute).to_physical(scale_factor))
                     };
 
-                    self.events_sink.push_window_event(
-                        WindowEvent::MouseWheel { device_id, delta, phase },
-                        window_id,
-                    )
-                },
+                    self.events_sink.push_window_event(WindowEvent::MouseWheel { device_id, delta, phase }, window_id)
+                }
             }
         }
     }
@@ -233,11 +190,7 @@ pub struct WinitPointerData {
 
 impl WinitPointerData {
     pub fn new(seat: WlSeat, viewport: Option<WpViewport>) -> Self {
-        Self {
-            inner: Mutex::new(WinitPointerDataInner::default()),
-            sctk_data: PointerData::new(seat),
-            viewport,
-        }
+        Self { inner: Mutex::new(WinitPointerDataInner::default()), sctk_data: PointerData::new(seat), viewport }
     }
 
     pub fn lock_pointer(
@@ -249,14 +202,7 @@ impl WinitPointerData {
     ) {
         let mut inner = self.inner.lock().unwrap();
         if inner.locked_pointer.is_none() {
-            inner.locked_pointer = Some(pointer_constraints.lock_pointer(
-                surface,
-                pointer,
-                None,
-                Lifetime::Persistent,
-                queue_handle,
-                GlobalData,
-            ));
+            inner.locked_pointer = Some(pointer_constraints.lock_pointer(surface, pointer, None, Lifetime::Persistent, queue_handle, GlobalData));
         }
     }
 
@@ -274,14 +220,8 @@ impl WinitPointerData {
         pointer: &WlPointer,
         queue_handle: &QueueHandle<WinitState>,
     ) {
-        self.inner.lock().unwrap().confined_pointer = Some(pointer_constraints.confine_pointer(
-            surface,
-            pointer,
-            None,
-            Lifetime::Persistent,
-            queue_handle,
-            GlobalData,
-        ));
+        self.inner.lock().unwrap().confined_pointer =
+            Some(pointer_constraints.confine_pointer(surface, pointer, None, Lifetime::Persistent, queue_handle, GlobalData));
     }
 
     pub fn unconfine_pointer(&self) {
@@ -369,13 +309,7 @@ impl Drop for WinitPointerDataInner {
 
 impl Default for WinitPointerDataInner {
     fn default() -> Self {
-        Self {
-            surface: None,
-            locked_pointer: None,
-            confined_pointer: None,
-            latest_button_serial: 0,
-            phase: TouchPhase::Ended,
-        }
+        Self { surface: None, locked_pointer: None, confined_pointer: None, latest_button_serial: 0, phase: TouchPhase::Ended }
     }
 }
 
@@ -415,10 +349,7 @@ pub struct PointerConstraintsState {
 }
 
 impl PointerConstraintsState {
-    pub fn new(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> Result<Self, BindError> {
+    pub fn new(globals: &GlobalList, queue_handle: &QueueHandle<WinitState>) -> Result<Self, BindError> {
         let pointer_constraints = globals.bind(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { pointer_constraints })
     }

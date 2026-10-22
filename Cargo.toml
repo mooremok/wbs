@@ -11,6 +11,7 @@ rust-version = "1.95"
 repository = "https://github.com/storytold/wordcraft"
 
 [workspace.dependencies]
+winit = { path = "third_party/winit" }
 # internal
 wordcraft-geom = { path = "crates/geom" }
 wordcraft-doc = { path = "crates/doc" }

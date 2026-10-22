@@ -6,10 +6,7 @@ use std::sync::{Arc, Mutex};
 use smol_str::SmolStr;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
-    PointerEvent, WheelEvent,
-};
+use web_sys::{CssStyleDeclaration, Document, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
@@ -78,23 +75,14 @@ impl Canvas {
         attr: &mut WindowAttributes,
     ) -> Result<Self, RootOE> {
         let canvas = match attr.platform_specific.canvas.take().map(|canvas| {
-            Arc::try_unwrap(canvas)
-                .map(|canvas| canvas.into_inner(main_thread))
-                .unwrap_or_else(|canvas| canvas.get(main_thread).clone())
+            Arc::try_unwrap(canvas).map(|canvas| canvas.into_inner(main_thread)).unwrap_or_else(|canvas| canvas.get(main_thread).clone())
         }) {
             Some(canvas) => canvas,
-            None => document
-                .create_element("canvas")
-                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-                .unchecked_into(),
+            None => document.create_element("canvas").map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?.unchecked_into(),
         };
 
         if attr.platform_specific.append && !document.contains(Some(&canvas)) {
-            document
-                .body()
-                .expect("Failed to get body from document")
-                .append_child(&canvas)
-                .expect("Failed to append canvas to body");
+            document.body().expect("Failed to get body from document").append_child(&canvas).expect("Failed to append canvas to body");
         }
 
         // A tabindex is needed in order to capture local keyboard events.
@@ -103,9 +91,7 @@ impl Canvas {
         // document's source order.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
         if attr.platform_specific.focusable {
-            canvas
-                .set_attribute("tabindex", "0")
-                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+            canvas.set_attribute("tabindex", "0").map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
         }
 
         let style = Style::new(&window, &canvas);
@@ -182,10 +168,7 @@ impl Canvas {
     }
 
     pub fn set_attribute(&self, attribute: &str, value: &str) {
-        self.common
-            .raw
-            .set_attribute(attribute, value)
-            .unwrap_or_else(|err| panic!("error: {err:?}\nSet attribute: {attribute}"))
+        self.common.raw.set_attribute(attribute, value).unwrap_or_else(|err| panic!("error: {err:?}\nSet attribute: {attribute}"))
     }
 
     pub fn position(&self) -> LogicalPosition<f64> {
@@ -193,10 +176,8 @@ impl Canvas {
         let mut position = LogicalPosition { x: bounds.x(), y: bounds.y() };
 
         if self.document().contains(Some(self.raw())) && self.style().get("display") != "none" {
-            position.x += super::style_size_property(self.style(), "border-left-width")
-                + super::style_size_property(self.style(), "padding-left");
-            position.y += super::style_size_property(self.style(), "border-top-width")
-                + super::style_size_property(self.style(), "padding-top");
+            position.x += super::style_size_property(self.style(), "border-left-width") + super::style_size_property(self.style(), "padding-left");
+            position.y += super::style_size_property(self.style(), "border-top-width") + super::style_size_property(self.style(), "padding-top");
         }
 
         position
@@ -274,22 +255,14 @@ impl Canvas {
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_keyboard_release =
-            Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
-                if prevent_default.get() {
-                    event.prevent_default();
-                }
-                let key = event::key(&event);
-                let modifiers = event::keyboard_modifiers(&event);
-                handler(
-                    event::key_code(&event),
-                    key,
-                    event::key_text(&event),
-                    event::key_location(&event),
-                    event.repeat(),
-                    modifiers,
-                );
-            }));
+        self.on_keyboard_release = Some(self.common.add_event("keyup", move |event: KeyboardEvent| {
+            if prevent_default.get() {
+                event.prevent_default();
+            }
+            let key = event::key(&event);
+            let modifiers = event::keyboard_modifiers(&event);
+            handler(event::key_code(&event), key, event::key_text(&event), event::key_location(&event), event.repeat(), modifiers);
+        }));
     }
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F)
@@ -297,22 +270,14 @@ impl Canvas {
         F: 'static + FnMut(PhysicalKey, Key, Option<SmolStr>, KeyLocation, bool, ModifiersState),
     {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_keyboard_press =
-            Some(self.common.add_event("keydown", move |event: KeyboardEvent| {
-                if prevent_default.get() {
-                    event.prevent_default();
-                }
-                let key = event::key(&event);
-                let modifiers = event::keyboard_modifiers(&event);
-                handler(
-                    event::key_code(&event),
-                    key,
-                    event::key_text(&event),
-                    event::key_location(&event),
-                    event.repeat(),
-                    modifiers,
-                );
-            }));
+        self.on_keyboard_press = Some(self.common.add_event("keydown", move |event: KeyboardEvent| {
+            if prevent_default.get() {
+                event.prevent_default();
+            }
+            let key = event::key(&event);
+            let modifiers = event::keyboard_modifiers(&event);
+            handler(event::key_code(&event), key, event::key_text(&event), event::key_location(&event), event.repeat(), modifiers);
+        }));
     }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
@@ -342,28 +307,16 @@ impl Canvas {
         M: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, MouseButton),
         T: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, Force),
     {
-        self.pointer_handler.on_mouse_press(
-            &self.common,
-            mouse_handler,
-            touch_handler,
-            Rc::clone(&self.prevent_default),
-        )
+        self.pointer_handler.on_mouse_press(&self.common, mouse_handler, touch_handler, Rc::clone(&self.prevent_default))
     }
 
     pub fn on_cursor_move<M, T, B>(&mut self, mouse_handler: M, touch_handler: T, button_handler: B)
     where
         M: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = PhysicalPosition<f64>>),
-        T: 'static
-            + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
+        T: 'static + FnMut(ModifiersState, i32, &mut dyn Iterator<Item = (PhysicalPosition<f64>, Force)>),
         B: 'static + FnMut(ModifiersState, i32, PhysicalPosition<f64>, ButtonsState, MouseButton),
     {
-        self.pointer_handler.on_cursor_move(
-            &self.common,
-            mouse_handler,
-            touch_handler,
-            button_handler,
-            Rc::clone(&self.prevent_default),
-        )
+        self.pointer_handler.on_cursor_move(&self.common, mouse_handler, touch_handler, button_handler, Rc::clone(&self.prevent_default))
     }
 
     pub fn on_touch_cancel<F>(&mut self, handler: F)
@@ -395,11 +348,7 @@ impl Canvas {
     where
         F: 'static + FnMut(bool),
     {
-        self.on_dark_mode = Some(MediaQueryListHandle::new(
-            &self.common.window,
-            "(prefers-color-scheme: dark)",
-            move |mql| handler(mql.matches()),
-        ));
+        self.on_dark_mode = Some(MediaQueryListHandle::new(&self.common.window, "(prefers-color-scheme: dark)", move |mql| handler(mql.matches())));
     }
 
     pub(crate) fn on_resize_scale<S, R>(&mut self, scale_handler: S, size_handler: R)
@@ -433,12 +382,11 @@ impl Canvas {
 
     pub(crate) fn on_context_menu(&mut self) {
         let prevent_default = Rc::clone(&self.prevent_default);
-        self.on_context_menu =
-            Some(self.common.add_event("contextmenu", move |event: PointerEvent| {
-                if prevent_default.get() {
-                    event.prevent_default();
-                }
-            }));
+        self.on_context_menu = Some(self.common.add_event("contextmenu", move |event: PointerEvent| {
+            if prevent_default.get() {
+                event.prevent_default();
+            }
+        }));
     }
 
     pub fn request_fullscreen(&self) {
@@ -487,10 +435,7 @@ impl Canvas {
             super::set_canvas_size(self.document(), self.raw(), self.style(), new_size);
 
             // Set the size might not trigger the event because the calculation is inaccurate.
-            self.on_resize_scale
-                .as_ref()
-                .expect("expected Window to still be active")
-                .notify_resize();
+            self.on_resize_scale.as_ref().expect("expected Window to still be active").notify_resize();
         } else if self.old_size() != new_size {
             // Then we at least send a resized event.
             self.set_old_size(new_size);
@@ -519,11 +464,7 @@ impl Canvas {
 }
 
 impl Common {
-    pub fn add_event<E, F>(
-        &self,
-        event_name: &'static str,
-        handler: F,
-    ) -> EventListenerHandle<dyn FnMut(E)>
+    pub fn add_event<E, F>(&self, event_name: &'static str, handler: F) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),

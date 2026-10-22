@@ -7,28 +7,20 @@ use objc2::rc::{Retained, WeakId};
 use objc2::runtime::{AnyObject, Sel};
 use objc2::{declare_class, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_app_kit::{
-    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient,
-    NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
+    NSApplication, NSCursor, NSEvent, NSEventPhase, NSResponder, NSTextInputClient, NSTrackingRectTag, NSView, NSViewFrameDidChangeNotification,
 };
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying,
-    NSMutableAttributedString, NSNotFound, NSNotificationCenter, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
+    MainThreadMarker, NSArray, NSAttributedString, NSAttributedStringKey, NSCopying, NSMutableAttributedString, NSNotFound, NSNotificationCenter,
+    NSObject, NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger,
 };
 
 use super::app_state::ApplicationDelegate;
 use super::cursor::{default_cursor, invisible_cursor};
-use super::event::{
-    code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed,
-    scancode_to_physicalkey, KeyEventExtra,
-};
+use super::event::{code_to_key, code_to_location, create_key_event, event_mods, lalt_pressed, ralt_pressed, scancode_to_physicalkey, KeyEventExtra};
 use super::window::WinitWindow;
 use super::DEVICE_ID;
 use crate::dpi::{LogicalPosition, LogicalSize};
-use crate::event::{
-    DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
-    WindowEvent,
-};
+use crate::event::{DeviceEvent, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey};
 use crate::platform::macos::OptionAsAlt;
 
@@ -840,12 +832,7 @@ impl WinitView {
         this.setPostsFrameChangedNotifications(true);
         let notification_center = unsafe { NSNotificationCenter::defaultCenter() };
         unsafe {
-            notification_center.addObserver_selector_name_object(
-                &this,
-                sel!(frameDidChange:),
-                Some(NSViewFrameDidChangeNotification),
-                Some(&this),
-            )
+            notification_center.addObserver_selector_name_object(&this, sel!(frameDidChange:), Some(NSViewFrameDidChangeNotification), Some(&this))
         }
 
         *this.ivars().input_source.borrow_mut() = this.current_input_source();
@@ -875,11 +862,7 @@ impl WinitView {
     }
 
     fn current_input_source(&self) -> String {
-        self.inputContext()
-            .expect("input context")
-            .selectedKeyboardInputSource()
-            .map(|input_source| input_source.to_string())
-            .unwrap_or_default()
+        self.inputContext().expect("input context").selectedKeyboardInputSource().map(|input_source| input_source.to_string()).unwrap_or_default()
     }
 
     pub(super) fn cursor_icon(&self) -> Retained<NSCursor> {
@@ -985,17 +968,13 @@ impl WinitView {
                     // We'll correct this later.
                     state: Pressed,
                     text: None,
-                    platform_specific: KeyEventExtra {
-                        text_with_all_modifiers: None,
-                        key_without_modifiers: logical_key.clone(),
-                    },
+                    platform_specific: KeyEventExtra { text_with_all_modifiers: None, key_without_modifiers: logical_key.clone() },
                 };
 
                 let location_mask = ModLocationMask::from_location(event.location);
 
                 let mut phys_mod_state = self.ivars().phys_modifiers.borrow_mut();
-                let phys_mod =
-                    phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
+                let phys_mod = phys_mod_state.entry(logical_key).or_insert(ModLocationMask::empty());
 
                 let is_active = current_modifiers.state().contains(event_modifier);
                 let mut events = VecDeque::with_capacity(2);
@@ -1011,20 +990,12 @@ impl WinitView {
                         let mut event = event.clone();
                         event.location = KeyLocation::Left;
                         event.physical_key = get_left_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            event,
-                            is_synthetic: false,
-                        });
+                        events.push_back(WindowEvent::KeyboardInput { device_id: DEVICE_ID, event, is_synthetic: false });
                     }
                     if phys_mod.contains(ModLocationMask::RIGHT) {
                         event.location = KeyLocation::Right;
                         event.physical_key = get_right_modifier_code(&event.logical_key).into();
-                        events.push_back(WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            event,
-                            is_synthetic: false,
-                        });
+                        events.push_back(WindowEvent::KeyboardInput { device_id: DEVICE_ID, event, is_synthetic: false });
                     }
                     *phys_mod = ModLocationMask::empty();
                 } else {
@@ -1051,11 +1022,7 @@ impl WinitView {
                         event.state = if is_pressed { Pressed } else { Released };
                     }
 
-                    events.push_back(WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        event,
-                        is_synthetic: false,
-                    });
+                    events.push_back(WindowEvent::KeyboardInput { device_id: DEVICE_ID, event, is_synthetic: false });
                 }
 
                 drop(phys_mod_state);
@@ -1078,11 +1045,7 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::MouseInput {
-            device_id: DEVICE_ID,
-            state: button_state,
-            button,
-        });
+        self.queue_event(WindowEvent::MouseInput { device_id: DEVICE_ID, state: button_state, button });
     }
 
     fn mouse_motion(&self, event: &NSEvent) {
@@ -1090,11 +1053,7 @@ impl WinitView {
         let view_point = self.convertPoint_fromView(window_point, None);
         let frame = self.frame();
 
-        if view_point.x.is_sign_negative()
-            || view_point.y.is_sign_negative()
-            || view_point.x > frame.size.width
-            || view_point.y > frame.size.height
-        {
+        if view_point.x.is_sign_negative() || view_point.y.is_sign_negative() || view_point.x > frame.size.width || view_point.y > frame.size.height {
             let mouse_buttons_down = unsafe { NSEvent::pressedMouseButtons() };
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
@@ -1106,10 +1065,7 @@ impl WinitView {
 
         self.update_modifiers(event, false);
 
-        self.queue_event(WindowEvent::CursorMoved {
-            device_id: DEVICE_ID,
-            position: view_point.to_physical(self.scale_factor()),
-        });
+        self.queue_event(WindowEvent::CursorMoved { device_id: DEVICE_ID, position: view_point.to_physical(self.scale_factor()) });
     }
 }
 
@@ -1144,9 +1100,7 @@ fn replace_event(event: &NSEvent, option_as_alt: OptionAsAlt) -> Retained<NSEven
         && !ev_mods.super_key();
 
     if ignore_alt_characters {
-        let ns_chars = unsafe {
-            event.charactersIgnoringModifiers().expect("expected characters to be non-null")
-        };
+        let ns_chars = unsafe { event.charactersIgnoringModifiers().expect("expected characters to be non-null") };
 
         unsafe {
             NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(

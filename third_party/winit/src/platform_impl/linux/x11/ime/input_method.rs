@@ -19,9 +19,7 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     //   by Xlib.
     unsafe { (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr()) };
 
-    let im = unsafe {
-        (xconn.xlib.XOpenIM)(xconn.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut())
-    };
+    let im = unsafe { (xconn.xlib.XOpenIM)(xconn.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut()) };
 
     if im.is_null() {
         None
@@ -44,13 +42,8 @@ impl InputMethod {
 
         // Query the styles supported by the XIM.
         unsafe {
-            if !(xconn.xlib.XGetIMValues)(
-                im,
-                ffi::XNQueryInputStyle_0.as_ptr() as *const _,
-                (&mut styles) as *mut _,
-                std::ptr::null_mut::<()>(),
-            )
-            .is_null()
+            if !(xconn.xlib.XGetIMValues)(im, ffi::XNQueryInputStyle_0.as_ptr() as *const _, (&mut styles) as *mut _, std::ptr::null_mut::<()>())
+                .is_null()
             {
                 return None;
             }
@@ -60,18 +53,14 @@ impl InputMethod {
         let mut none_style = None;
 
         unsafe {
-            std::slice::from_raw_parts((*styles).supported_styles, (*styles).count_styles as _)
-                .iter()
-                .for_each(|style| match *style {
-                    XIM_PREEDIT_STYLE => {
-                        preedit_style = Some(Style::Preedit(*style));
-                    },
-                    XIM_NOTHING_STYLE if preedit_style.is_none() => {
-                        preedit_style = Some(Style::Nothing(*style))
-                    },
-                    XIM_NONE_STYLE => none_style = Some(Style::None(*style)),
-                    _ => (),
-                });
+            std::slice::from_raw_parts((*styles).supported_styles, (*styles).count_styles as _).iter().for_each(|style| match *style {
+                XIM_PREEDIT_STYLE => {
+                    preedit_style = Some(Style::Preedit(*style));
+                }
+                XIM_NOTHING_STYLE if preedit_style.is_none() => preedit_style = Some(Style::Nothing(*style)),
+                XIM_NONE_STYLE => none_style = Some(Style::None(*style)),
+                _ => (),
+            });
 
             (xconn.xlib.XFree)(styles.cast());
         };
@@ -169,33 +158,19 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
     let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
     let mut atoms: Vec<ffi::Atom> = xconn
-        .get_property::<xproto::Atom>(
-            root as xproto::Window,
-            servers_atom,
-            xproto::Atom::from(xproto::AtomEnum::ATOM),
-        )
+        .get_property::<xproto::Atom>(root as xproto::Window, servers_atom, xproto::Atom::from(xproto::AtomEnum::ATOM))
         .map_err(GetXimServersError::GetPropertyError)?
         .into_iter()
         .map(|atom| atom as _)
         .collect::<Vec<_>>();
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
-    unsafe {
-        (xconn.xlib.XGetAtomNames)(
-            xconn.display,
-            atoms.as_mut_ptr(),
-            atoms.len() as _,
-            names.as_mut_ptr() as _,
-        )
-    };
+    unsafe { (xconn.xlib.XGetAtomNames)(xconn.display, atoms.as_mut_ptr(), atoms.len() as _, names.as_mut_ptr() as _) };
     unsafe { names.set_len(atoms.len()) };
 
     let mut formatted_names = Vec::with_capacity(names.len());
     for name in names {
-        let string = unsafe { CStr::from_ptr(name) }
-            .to_owned()
-            .into_string()
-            .map_err(GetXimServersError::InvalidUtf8)?;
+        let string = unsafe { CStr::from_ptr(name) }.to_owned().into_string().map_err(GetXimServersError::InvalidUtf8)?;
         unsafe { (xconn.xlib.XFree)(name as _) };
         formatted_names.push(string.replace("@server=", "@im="));
     }
@@ -211,14 +186,12 @@ struct InputMethodName {
 
 impl InputMethodName {
     pub fn from_string(string: String) -> Self {
-        let c_string = CString::new(string.clone())
-            .expect("String used to construct CString contained null byte");
+        let c_string = CString::new(string.clone()).expect("String used to construct CString contained null byte");
         InputMethodName { c_string, string }
     }
 
     pub fn from_str(string: &str) -> Self {
-        let c_string =
-            CString::new(string).expect("String used to construct CString contained null byte");
+        let c_string = CString::new(string).expect("String used to construct CString contained null byte");
         InputMethodName { c_string, string: string.to_owned() }
     }
 }
@@ -315,11 +288,7 @@ impl PotentialInputMethods {
         }
     }
 
-    pub fn open_im(
-        &mut self,
-        xconn: &Arc<XConnection>,
-        callback: Option<&dyn Fn()>,
-    ) -> InputMethodResult {
+    pub fn open_im(&mut self, xconn: &Arc<XConnection>, callback: Option<&dyn Fn()>) -> InputMethodResult {
         use self::InputMethodResult::*;
 
         self.reset();

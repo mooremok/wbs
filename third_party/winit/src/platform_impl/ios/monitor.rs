@@ -51,11 +51,7 @@ pub struct VideoModeHandle {
 }
 
 impl VideoModeHandle {
-    fn new(
-        uiscreen: Retained<UIScreen>,
-        screen_mode: Retained<UIScreenMode>,
-        mtm: MainThreadMarker,
-    ) -> VideoModeHandle {
+    fn new(uiscreen: Retained<UIScreen>, screen_mode: Retained<UIScreenMode>, mtm: MainThreadMarker) -> VideoModeHandle {
         let refresh_rate_millihertz = refresh_rate_millihertz(&uiscreen);
         let size = screen_mode.size();
         VideoModeHandle {
@@ -94,9 +90,7 @@ pub struct MonitorHandle {
 
 impl Clone for MonitorHandle {
     fn clone(&self) -> Self {
-        run_on_main(|mtm| Self {
-            ui_screen: MainThreadBound::new(self.ui_screen.get(mtm).clone(), mtm),
-        })
+        run_on_main(|mtm| Self { ui_screen: MainThreadBound::new(self.ui_screen.get(mtm).clone(), mtm) })
     }
 }
 
@@ -112,10 +106,7 @@ impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
         // SAFETY: Only getting the pointer.
         let mtm = unsafe { MainThreadMarker::new_unchecked() };
-        ptr::eq(
-            Retained::as_ptr(self.ui_screen.get(mtm)),
-            Retained::as_ptr(other.ui_screen.get(mtm)),
-        )
+        ptr::eq(Retained::as_ptr(self.ui_screen.get(mtm)), Retained::as_ptr(other.ui_screen.get(mtm)))
     }
 }
 
@@ -165,10 +156,7 @@ impl MonitorHandle {
                 Some("Mirrored".to_string())
             } else {
                 #[allow(deprecated)]
-                UIScreen::screens(mtm)
-                    .iter()
-                    .position(|rhs| rhs == &**self.ui_screen(mtm))
-                    .map(|idx| idx.to_string())
+                UIScreen::screens(mtm).iter().position(|rhs| rhs == &**self.ui_screen(mtm)).map(|idx| idx.to_string())
             }
         })
     }
@@ -199,9 +187,7 @@ impl MonitorHandle {
             let modes: BTreeSet<_> = ui_screen
                 .availableModes()
                 .into_iter()
-                .map(|mode| RootVideoModeHandle {
-                    video_mode: VideoModeHandle::new(ui_screen.clone(), mode, mtm),
-                })
+                .map(|mode| RootVideoModeHandle { video_mode: VideoModeHandle::new(ui_screen.clone(), mode, mtm) })
                 .collect();
 
             modes.into_iter().map(|mode| mode.video_mode)
@@ -213,13 +199,7 @@ impl MonitorHandle {
     }
 
     pub fn preferred_video_mode(&self) -> VideoModeHandle {
-        run_on_main(|mtm| {
-            VideoModeHandle::new(
-                self.ui_screen(mtm).clone(),
-                self.ui_screen(mtm).preferredMode().unwrap(),
-                mtm,
-            )
-        })
+        run_on_main(|mtm| VideoModeHandle::new(self.ui_screen(mtm).clone(), self.ui_screen(mtm).preferredMode().unwrap(), mtm))
     }
 }
 
@@ -270,8 +250,6 @@ mod tests {
         let main = UIScreen::mainScreen(mtm);
         assert!(UIScreen::screens(mtm).iter().any(|screen| ptr::eq(screen, &*main)));
 
-        assert!(unsafe {
-            NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm))
-        });
+        assert!(unsafe { NSSet::setWithArray(&UIScreen::screens(mtm)).containsObject(&UIScreen::mainScreen(mtm)) });
     }
 }

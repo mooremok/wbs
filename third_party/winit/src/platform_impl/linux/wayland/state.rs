@@ -26,8 +26,7 @@ use sctk::subcompositor::SubcompositorState;
 use crate::platform_impl::wayland::event_loop::sink::EventSink;
 use crate::platform_impl::wayland::output::MonitorHandle;
 use crate::platform_impl::wayland::seat::{
-    PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
-    WinitPointerDataExt, WinitSeatState,
+    PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData, WinitPointerDataExt, WinitSeatState,
 };
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
@@ -118,24 +117,15 @@ pub struct WinitState {
 }
 
 impl WinitState {
-    pub fn new(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<Self>,
-        loop_handle: LoopHandle<'static, WinitState>,
-    ) -> Result<Self, OsError> {
+    pub fn new(globals: &GlobalList, queue_handle: &QueueHandle<Self>, loop_handle: LoopHandle<'static, WinitState>) -> Result<Self, OsError> {
         let registry_state = RegistryState::new(globals);
-        let compositor_state =
-            CompositorState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
-        let subcompositor_state = match SubcompositorState::bind(
-            compositor_state.wl_compositor().clone(),
-            globals,
-            queue_handle,
-        ) {
+        let compositor_state = CompositorState::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
+        let subcompositor_state = match SubcompositorState::bind(compositor_state.wl_compositor().clone(), globals, queue_handle) {
             Ok(c) => Some(c),
             Err(e) => {
                 tracing::warn!("Subcompositor protocol not available, ignoring CSD: {e:?}");
                 None
-            },
+            }
         };
 
         let output_state = OutputState::new(globals, queue_handle);
@@ -148,12 +138,11 @@ impl WinitState {
             seats.insert(seat.id(), WinitSeatState::new());
         }
 
-        let (viewporter_state, fractional_scaling_manager) =
-            if let Ok(fsm) = FractionalScalingManager::new(globals, queue_handle) {
-                (ViewporterState::new(globals, queue_handle).ok(), Some(fsm))
-            } else {
-                (None, None)
-            };
+        let (viewporter_state, fractional_scaling_manager) = if let Ok(fsm) = FractionalScalingManager::new(globals, queue_handle) {
+            (ViewporterState::new(globals, queue_handle).ok(), Some(fsm))
+        } else {
+            (None, None)
+        };
 
         let shm = Shm::bind(globals, queue_handle).map_err(WaylandError::Bind)?;
         let custom_cursor_pool = Arc::new(Mutex::new(SlotPool::new(2, &shm).unwrap()));
@@ -182,9 +171,7 @@ impl WinitState {
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
             relative_pointer: RelativePointerState::new(globals, queue_handle).ok(),
-            pointer_constraints: PointerConstraintsState::new(globals, queue_handle)
-                .map(Arc::new)
-                .ok(),
+            pointer_constraints: PointerConstraintsState::new(globals, queue_handle).map(Arc::new).ok(),
             pointer_surfaces: Default::default(),
 
             monitors: Arc::new(Mutex::new(monitors)),
@@ -195,12 +182,7 @@ impl WinitState {
         })
     }
 
-    pub fn scale_factor_changed(
-        &mut self,
-        surface: &WlSurface,
-        scale_factor: f64,
-        is_legacy: bool,
-    ) {
+    pub fn scale_factor_changed(&mut self, surface: &WlSurface, scale_factor: f64, is_legacy: bool) {
         // Check if the cursor surface.
         let window_id = super::make_wid(surface);
 
@@ -211,11 +193,7 @@ impl WinitState {
             }
 
             // The scale factor change is for the window.
-            let pos = if let Some(pos) = self
-                .window_compositor_updates
-                .iter()
-                .position(|update| update.window_id == window_id)
-            {
+            let pos = if let Some(pos) = self.window_compositor_updates.iter().position(|update| update.window_id == window_id) {
                 pos
             } else {
                 self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
@@ -239,8 +217,7 @@ impl WinitState {
     }
 
     pub fn queue_close(updates: &mut Vec<WindowCompositorUpdate>, window_id: WindowId) {
-        let pos = if let Some(pos) = updates.iter().position(|update| update.window_id == window_id)
-        {
+        let pos = if let Some(pos) = updates.iter().position(|update| update.window_id == window_id) {
             pos
         } else {
             updates.push(WindowCompositorUpdate::new(window_id));
@@ -263,19 +240,10 @@ impl WindowHandler for WinitState {
         Self::queue_close(&mut self.window_compositor_updates, window_id);
     }
 
-    fn configure(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        window: &Window,
-        configure: WindowConfigure,
-        _serial: u32,
-    ) {
+    fn configure(&mut self, _: &Connection, _: &QueueHandle<Self>, window: &Window, configure: WindowConfigure, _serial: u32) {
         let window_id = super::make_wid(window.wl_surface());
 
-        let pos = if let Some(pos) =
-            self.window_compositor_updates.iter().position(|update| update.window_id == window_id)
-        {
+        let pos = if let Some(pos) = self.window_compositor_updates.iter().position(|update| update.window_id == window_id) {
             pos
         } else {
             self.window_compositor_updates.push(WindowCompositorUpdate::new(window_id));
@@ -283,23 +251,16 @@ impl WindowHandler for WinitState {
         };
 
         // Populate the configure to the window.
-        self.window_compositor_updates[pos].resized |= self
-            .windows
-            .get_mut()
-            .get_mut(&window_id)
-            .expect("got configure for dead window.")
-            .lock()
-            .unwrap()
-            .configure(configure, &self.shm, &self.subcompositor_state);
+        self.window_compositor_updates[pos].resized |=
+            self.windows.get_mut().get_mut(&window_id).expect("got configure for dead window.").lock().unwrap().configure(
+                configure,
+                &self.shm,
+                &self.subcompositor_state,
+            );
 
         // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
         // users, since it can break a lot of things, thus it'll ask users to redraw instead.
-        self.window_requests
-            .get_mut()
-            .get(&window_id)
-            .unwrap()
-            .redraw_requested
-            .store(true, Ordering::Relaxed);
+        self.window_requests.get_mut().get(&window_id).unwrap().redraw_requested.store(true, Ordering::Relaxed);
 
         // Manually mark that we've got an event, since configure may not generate a resize.
         self.dispatched_events = true;
@@ -335,41 +296,15 @@ impl OutputHandler for WinitState {
 }
 
 impl CompositorHandler for WinitState {
-    fn transform_changed(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        _: &WlSurface,
-        _: wayland_client::protocol::wl_output::Transform,
-    ) {
+    fn transform_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: wayland_client::protocol::wl_output::Transform) {
         // TODO(kchibisov) we need to expose it somehow in winit.
     }
 
-    fn surface_enter(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        _: &WlSurface,
-        _: &WlOutput,
-    ) {
-    }
+    fn surface_enter(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: &WlOutput) {}
 
-    fn surface_leave(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        _: &WlSurface,
-        _: &WlOutput,
-    ) {
-    }
+    fn surface_leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlSurface, _: &WlOutput) {}
 
-    fn scale_factor_changed(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        surface: &WlSurface,
-        scale_factor: i32,
-    ) {
+    fn scale_factor_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &WlSurface, scale_factor: i32) {
         self.scale_factor_changed(surface, scale_factor as f64, true)
     }
 
@@ -381,14 +316,7 @@ impl CompositorHandler for WinitState {
         };
 
         // In case we have a redraw requested we must indicate the wake up.
-        if self
-            .window_requests
-            .get_mut()
-            .get(&window_id)
-            .unwrap()
-            .redraw_requested
-            .load(Ordering::Relaxed)
-        {
+        if self.window_requests.get_mut().get(&window_id).unwrap().redraw_requested.load(Ordering::Relaxed) {
             self.dispatched_events = true;
         }
 

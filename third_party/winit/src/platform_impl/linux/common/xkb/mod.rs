@@ -9,8 +9,7 @@ use smol_str::SmolStr;
 use std::os::unix::io::OwnedFd;
 use tracing::warn;
 use xkbcommon_dl::{
-    self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle,
-    xkbcommon_handle, XkbCommon, XkbCommonCompose,
+    self as xkb, xkb_compose_status, xkb_context, xkb_context_flags, xkbcommon_compose_handle, xkbcommon_handle, XkbCommon, XkbCommonCompose,
 };
 #[cfg(x11_platform)]
 use {x11_dl::xlib_xcb::xcb_connection_t, xkbcommon_dl::x11::xkbcommon_x11_handle};
@@ -164,10 +163,7 @@ impl Context {
     ///
     /// Should be used when the original context must not be altered.
     #[cfg(x11_platform)]
-    pub fn key_context_with_state<'a>(
-        &'a mut self,
-        state: &'a mut XkbState,
-    ) -> Option<KeyContext<'a>> {
+    pub fn key_context_with_state<'a>(&'a mut self, state: &'a mut XkbState) -> Option<KeyContext<'a>> {
         let keymap = self.keymap.as_mut()?;
         let compose_state1 = self.compose_state1.as_mut();
         let compose_state2 = self.compose_state2.as_mut();
@@ -185,14 +181,8 @@ pub struct KeyContext<'a> {
 }
 
 impl KeyContext<'_> {
-    pub fn process_key_event(
-        &mut self,
-        keycode: u32,
-        state: ElementState,
-        repeat: bool,
-    ) -> KeyEvent {
-        let mut event =
-            KeyEventResults::new(self, keycode, !repeat && state == ElementState::Pressed);
+    pub fn process_key_event(&mut self, keycode: u32, state: ElementState, repeat: bool) -> KeyEvent {
+        let mut event = KeyEventResults::new(self, keycode, !repeat && state == ElementState::Pressed);
         let physical_key = keymap::raw_keycode_to_physicalkey(keycode);
         let (logical_key, location) = event.key();
         let text = event.text();
@@ -208,13 +198,7 @@ impl KeyContext<'_> {
         self.scratch_buffer.clear();
         self.scratch_buffer.reserve(8);
         loop {
-            let bytes_written = unsafe {
-                (XKBH.xkb_keysym_to_utf8)(
-                    keysym,
-                    self.scratch_buffer.as_mut_ptr().cast(),
-                    self.scratch_buffer.capacity(),
-                )
-            };
+            let bytes_written = unsafe { (XKBH.xkb_keysym_to_utf8)(keysym, self.scratch_buffer.as_mut_ptr().cast(), self.scratch_buffer.capacity()) };
             if bytes_written == 0 {
                 return None;
             } else if bytes_written == -1 {
@@ -279,11 +263,7 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
                 (key, location)
             }
         } else {
-            let key = self
-                .composed_text()
-                .unwrap_or_else(|_| self.context.keysym_to_utf8_raw(self.keysym))
-                .map(Key::Character)
-                .unwrap_or(key);
+            let key = self.composed_text().unwrap_or_else(|_| self.context.keysym_to_utf8_raw(self.keysym)).map(Key::Character).unwrap_or(key);
             (key, location)
         }
     }
@@ -297,10 +277,9 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
         match self.keysym_to_key(keysym) {
             Ok((key, location)) => (key, location),
             Err((key, location)) => {
-                let key =
-                    self.context.keysym_to_utf8_raw(keysym).map(Key::Character).unwrap_or(key);
+                let key = self.context.keysym_to_utf8_raw(keysym).map(Key::Character).unwrap_or(key);
                 (key, location)
-            },
+            }
         }
     }
 
@@ -334,9 +313,8 @@ impl<'a, 'b> KeyEventResults<'a, 'b> {
                 xkb_compose_status::XKB_COMPOSE_COMPOSED => {
                     let state = self.context.compose_state1.as_mut().unwrap();
                     Ok(state.get_string(self.context.scratch_buffer))
-                },
-                xkb_compose_status::XKB_COMPOSE_COMPOSING
-                | xkb_compose_status::XKB_COMPOSE_CANCELLED => Ok(None),
+                }
+                xkb_compose_status::XKB_COMPOSE_COMPOSING | xkb_compose_status::XKB_COMPOSE_CANCELLED => Ok(None),
                 xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
             },
             _ => Err(()),
@@ -407,10 +385,5 @@ where
 // NOTE: This is track_caller so we can have more informative line numbers when logging
 #[track_caller]
 fn byte_slice_to_smol_str(bytes: &[u8]) -> Option<SmolStr> {
-    std::str::from_utf8(bytes)
-        .map(SmolStr::new)
-        .map_err(|e| {
-            tracing::warn!("UTF-8 received from libxkbcommon ({:?}) was invalid: {e}", bytes)
-        })
-        .ok()
+    std::str::from_utf8(bytes).map(SmolStr::new).map_err(|e| tracing::warn!("UTF-8 received from libxkbcommon ({:?}) was invalid: {e}", bytes)).ok()
 }

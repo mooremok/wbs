@@ -75,9 +75,7 @@ mod mwm {
 
 impl MotifHints {
     pub fn new() -> MotifHints {
-        MotifHints {
-            hints: MwmHints { flags: 0, functions: 0, decorations: 0, input_mode: 0, status: 0 },
-        }
+        MotifHints { hints: MwmHints { flags: 0, functions: 0, decorations: 0, input_mode: 0, status: 0 } }
     }
 
     pub fn set_decorations(&mut self, decorations: bool) {
@@ -142,11 +140,7 @@ impl XConnection {
     }
 
     #[allow(clippy::unnecessary_cast)]
-    pub fn set_motif_hints(
-        &self,
-        window: xproto::Window,
-        hints: &MotifHints,
-    ) -> Result<VoidCookie<'_>, X11Error> {
+    pub fn set_motif_hints(&self, window: xproto::Window, hints: &MotifHints) -> Result<VoidCookie<'_>, X11Error> {
         let atoms = self.atoms();
         let motif_hints = atoms[_MOTIF_WM_HINTS];
 
@@ -158,12 +152,6 @@ impl XConnection {
             hints.hints.status as u32,
         ];
 
-        self.change_property(
-            window,
-            motif_hints,
-            motif_hints,
-            xproto::PropMode::REPLACE,
-            &hints_data,
-        )
+        self.change_property(window, motif_hints, motif_hints, xproto::PropMode::REPLACE, &hints_data)
     }
 }

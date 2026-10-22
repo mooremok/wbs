@@ -120,12 +120,7 @@ struct PropIterator<'a, C: ?Sized, T> {
 
 impl<'a, C: Connection + ?Sized, T: Pod> PropIterator<'a, C, T> {
     /// Create a new property iterator.
-    fn new(
-        conn: &'a C,
-        window: xproto::Window,
-        property: xproto::Atom,
-        property_type: xproto::Atom,
-    ) -> Self {
+    fn new(conn: &'a C, window: xproto::Window, property: xproto::Atom, property_type: xproto::Atom) -> Self {
         let format = match mem::size_of::<T>() {
             1 => 8,
             2 => 16,
@@ -133,15 +128,7 @@ impl<'a, C: Connection + ?Sized, T: Pod> PropIterator<'a, C, T> {
             _ => unreachable!(),
         };
 
-        Self {
-            conn,
-            window,
-            property,
-            property_type,
-            offset: 0,
-            format,
-            _phantom: Default::default(),
-        }
+        Self { conn, window, property, property_type, offset: 0, format, _phantom: Default::default() }
     }
 
     /// Get the next window and append it to `data`.
@@ -149,17 +136,7 @@ impl<'a, C: Connection + ?Sized, T: Pod> PropIterator<'a, C, T> {
     /// Returns whether there are more windows to fetch.
     fn next_window(&mut self, data: &mut Vec<T>) -> Result<bool, GetPropertyError> {
         // Send the request and wait for the reply.
-        let reply = self
-            .conn
-            .get_property(
-                false,
-                self.window,
-                self.property,
-                self.property_type,
-                self.offset,
-                PROPERTY_BUFFER_SIZE,
-            )?
-            .reply()?;
+        let reply = self.conn.get_property(false, self.window, self.property, self.property_type, self.offset, PROPERTY_BUFFER_SIZE)?.reply()?;
 
         // Make sure that the reply is of the correct type.
         if reply.type_ != self.property_type {

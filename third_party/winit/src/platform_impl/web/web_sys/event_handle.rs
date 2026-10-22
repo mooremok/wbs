@@ -14,9 +14,7 @@ impl<T: ?Sized> EventListenerHandle<T> {
         U: Into<EventTarget>,
     {
         let target = target.into();
-        target
-            .add_event_listener_with_callback(event_type, listener.as_ref().unchecked_ref())
-            .expect("Failed to add event listener");
+        target.add_event_listener_with_callback(event_type, listener.as_ref().unchecked_ref()).expect("Failed to add event listener");
         EventListenerHandle { target, event_type, listener }
     }
 }
@@ -24,15 +22,7 @@ impl<T: ?Sized> EventListenerHandle<T> {
 impl<T: ?Sized> Drop for EventListenerHandle<T> {
     fn drop(&mut self) {
         self.target
-            .remove_event_listener_with_callback(
-                self.event_type,
-                self.listener.as_ref().unchecked_ref(),
-            )
-            .unwrap_or_else(|e| {
-                web_sys::console::error_2(
-                    &format!("Error removing event listener {}", self.event_type).into(),
-                    &e,
-                )
-            });
+            .remove_event_listener_with_callback(self.event_type, self.listener.as_ref().unchecked_ref())
+            .unwrap_or_else(|e| web_sys::console::error_2(&format!("Error removing event listener {}", self.event_type).into(), &e));
     }
 }

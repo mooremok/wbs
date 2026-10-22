@@ -42,11 +42,7 @@ impl<T> EventLoop<T> {
         let handler: Box<dyn FnMut(Event<()>)> = Box::new(|event| {
             let event = match event.map_nonuser_event() {
                 Ok(event) => event,
-                Err(Event::UserEvent(())) => Event::UserEvent(
-                    self.user_event_receiver
-                        .try_recv()
-                        .expect("handler woken up without user event"),
-                ),
+                Err(Event::UserEvent(())) => Event::UserEvent(self.user_event_receiver.try_recv().expect("handler woken up without user event")),
                 Err(_) => unreachable!(),
             };
             event_handler(event, &target)
@@ -54,18 +50,12 @@ impl<T> EventLoop<T> {
         // SAFETY: The `transmute` is necessary because `run()` requires `'static`. This is safe
         // because this function will never return and all resources not cleaned up by the point we
         // `throw` will leak, making this actually `'static`.
-        let handler = unsafe {
-            std::mem::transmute::<Box<dyn FnMut(Event<()>)>, Box<dyn FnMut(Event<()>) + 'static>>(
-                handler,
-            )
-        };
+        let handler = unsafe { std::mem::transmute::<Box<dyn FnMut(Event<()>)>, Box<dyn FnMut(Event<()>) + 'static>>(handler) };
         self.elw.p.run(handler, false);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
-        backend::throw(
-            "Using exceptions for control flow, don't mind me. This isn't actually an error!",
-        );
+        backend::throw("Using exceptions for control flow, don't mind me. This isn't actually an error!");
 
         unreachable!();
     }
@@ -80,11 +70,7 @@ impl<T> EventLoop<T> {
             Box::new(move |event| {
                 let event = match event.map_nonuser_event() {
                     Ok(event) => event,
-                    Err(Event::UserEvent(())) => Event::UserEvent(
-                        self.user_event_receiver
-                            .try_recv()
-                            .expect("handler woken up without user event"),
-                    ),
+                    Err(Event::UserEvent(())) => Event::UserEvent(self.user_event_receiver.try_recv().expect("handler woken up without user event")),
                     Err(_) => unreachable!(),
                 };
                 event_handler(event, &target)

@@ -8,11 +8,7 @@ use objc2_foundation::{NSNotification, NSNotificationCenter, NSNotificationName,
 ///
 /// This is used in Winit as an alternative to declaring an application delegate, as we want to
 /// give the user full control over those.
-pub fn create_observer(
-    center: &NSNotificationCenter,
-    name: &NSNotificationName,
-    handler: impl Fn(&NSNotification) + 'static,
-) -> Retained<NSObject> {
+pub fn create_observer(center: &NSNotificationCenter, name: &NSNotificationName, handler: impl Fn(&NSNotification) + 'static) -> Retained<NSObject> {
     let block = RcBlock::new(move |notification: NonNull<NSNotification>| {
         handler(unsafe { notification.as_ref() });
     });

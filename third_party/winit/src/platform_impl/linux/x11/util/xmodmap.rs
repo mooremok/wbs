@@ -45,9 +45,7 @@ impl ModifierKeymap {
     fn reset_from_x_keymap(&mut self, keymap: &XModifierKeymap) {
         let keys_per_mod = keymap.max_keypermod as usize;
 
-        let keys = unsafe {
-            slice::from_raw_parts(keymap.modifiermap as *const _, keys_per_mod * NUM_MODS)
-        };
+        let keys = unsafe { slice::from_raw_parts(keymap.modifiermap as *const _, keys_per_mod * NUM_MODS) };
         self.modifiers.clear();
         for key in keys {
             self.modifiers.insert(*key);

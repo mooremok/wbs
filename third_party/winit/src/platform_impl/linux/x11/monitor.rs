@@ -105,13 +105,7 @@ pub fn mode_refresh_rate_millihertz(mode: &randr::ModeInfo) -> Option<u32> {
 }
 
 impl MonitorHandle {
-    fn new(
-        xconn: &XConnection,
-        resources: &ScreenResources,
-        id: randr::Crtc,
-        crtc: &randr::GetCrtcInfoReply,
-        primary: bool,
-    ) -> Option<Self> {
+    fn new(xconn: &XConnection, resources: &ScreenResources, id: randr::Crtc, crtc: &randr::GetCrtcInfoReply, primary: bool) -> Option<Self> {
         let (name, scale_factor, video_modes) = xconn.get_output_info(resources, crtc)?;
         let dimensions = (crtc.width as u32, crtc.height as u32);
         let position = (crtc.x as i32, crtc.y as i32);
@@ -119,24 +113,11 @@ impl MonitorHandle {
         // Get the refresh rate of the current video mode.
         let current_mode = crtc.mode;
         let screen_modes = resources.modes();
-        let refresh_rate_millihertz = screen_modes
-            .iter()
-            .find(|mode| mode.id == current_mode)
-            .and_then(mode_refresh_rate_millihertz);
+        let refresh_rate_millihertz = screen_modes.iter().find(|mode| mode.id == current_mode).and_then(mode_refresh_rate_millihertz);
 
         let rect = util::AaRect::new(position, dimensions);
 
-        Some(MonitorHandle {
-            id,
-            name,
-            refresh_rate_millihertz,
-            scale_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
+        Some(MonitorHandle { id, name, refresh_rate_millihertz, scale_factor, dimensions, position, primary, rect, video_modes })
     }
 
     pub fn dummy() -> Self {
@@ -195,10 +176,7 @@ impl MonitorHandle {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(
-        &self,
-        window_rect: Option<util::AaRect>,
-    ) -> Result<MonitorHandle, X11Error> {
+    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> Result<MonitorHandle, X11Error> {
         let monitors = self.available_monitors()?;
 
         if monitors.is_empty() {
@@ -228,14 +206,12 @@ impl XConnection {
 
     fn query_monitor_list(&self) -> Result<Vec<MonitorHandle>, X11Error> {
         let root = self.default_root();
-        let resources =
-            ScreenResources::from_connection(self.xcb_connection(), root, self.randr_version())?;
+        let resources = ScreenResources::from_connection(self.xcb_connection(), root, self.randr_version())?;
 
         // Pipeline all of the get-crtc requests.
         let mut crtc_cookies = Vec::with_capacity(resources.crtcs().len());
         for &crtc in resources.crtcs() {
-            crtc_cookies
-                .push(self.xcb_connection().randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)?);
+            crtc_cookies.push(self.xcb_connection().randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)?);
         }
 
         // Do this here so we do all of our requests in one shot.
@@ -281,31 +257,24 @@ impl XConnection {
                     *monitors_lock = Some(monitors.clone());
                 }
                 Ok(monitors)
-            },
+            }
         }
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> Result<MonitorHandle, X11Error> {
-        Ok(self
-            .available_monitors()?
-            .into_iter()
-            .find(|monitor| monitor.primary)
-            .unwrap_or_else(MonitorHandle::dummy))
+        Ok(self.available_monitors()?.into_iter().find(|monitor| monitor.primary).unwrap_or_else(MonitorHandle::dummy))
     }
 
     pub fn select_xrandr_input(&self, root: xproto::Window) -> Result<u8, X11Error> {
         use randr::NotifyMask;
 
         // Get extension info.
-        let info = self
-            .xcb_connection()
-            .extension_information(randr::X11_EXTENSION_NAME)?
-            .ok_or(X11Error::MissingExtension(randr::X11_EXTENSION_NAME))?;
+        let info =
+            self.xcb_connection().extension_information(randr::X11_EXTENSION_NAME)?.ok_or(X11Error::MissingExtension(randr::X11_EXTENSION_NAME))?;
 
         // Select input data.
-        let event_mask =
-            NotifyMask::CRTC_CHANGE | NotifyMask::OUTPUT_PROPERTY | NotifyMask::SCREEN_CHANGE;
+        let event_mask = NotifyMask::CRTC_CHANGE | NotifyMask::OUTPUT_PROPERTY | NotifyMask::SCREEN_CHANGE;
         self.xcb_connection().randr_select_input(root, event_mask)?;
 
         Ok(info.first_event)
@@ -347,9 +316,7 @@ impl ScreenResources {
         Self { modes: reply.modes, crtcs: reply.crtcs }
     }
 
-    pub(crate) fn from_get_screen_resources_current_reply(
-        reply: randr::GetScreenResourcesCurrentReply,
-    ) -> Self {
+    pub(crate) fn from_get_screen_resources_current_reply(reply: randr::GetScreenResourcesCurrentReply) -> Self {
         Self { modes: reply.modes, crtcs: reply.crtcs }
     }
 }

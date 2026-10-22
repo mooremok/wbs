@@ -37,11 +37,7 @@ impl Ord for VideoModeHandle {
         self.monitor().cmp(&other.monitor()).then(
             self.size()
                 .cmp(&other.size())
-                .then(
-                    self.refresh_rate_millihertz()
-                        .cmp(&other.refresh_rate_millihertz())
-                        .then(self.bit_depth().cmp(&other.bit_depth())),
-                )
+                .then(self.refresh_rate_millihertz().cmp(&other.refresh_rate_millihertz()).then(self.bit_depth().cmp(&other.bit_depth())))
                 .reverse(),
         )
     }
@@ -83,14 +79,7 @@ impl VideoModeHandle {
 
 impl std::fmt::Display for VideoModeHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}x{} @ {} mHz ({} bpp)",
-            self.size().width,
-            self.size().height,
-            self.refresh_rate_millihertz(),
-            self.bit_depth()
-        )
+        write!(f, "{}x{} @ {} mHz ({} bpp)", self.size().width, self.size().height, self.refresh_rate_millihertz(), self.bit_depth())
     }
 }
 

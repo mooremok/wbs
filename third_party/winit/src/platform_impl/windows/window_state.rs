@@ -9,15 +9,12 @@ use std::sync::MutexGuard;
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AdjustWindowRectEx, EnableMenuItem, GetMenu, GetSystemMenu, GetWindowLongW, SendMessageW,
-    SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_BOTTOM, HWND_NOTOPMOST,
-    HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE, SWP_ASYNCWINDOWPOS,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
-    SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, SW_SHOWNOACTIVATE, WINDOWPLACEMENT,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
-    WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
-    WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE,
-    WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
+    AdjustWindowRectEx, EnableMenuItem, GetMenu, GetSystemMenu, GetWindowLongW, SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
+    GWL_STYLE, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, MF_BYCOMMAND, MF_DISABLED, MF_ENABLED, SC_CLOSE, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
+    SW_SHOWNOACTIVATE, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+    WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
+    WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 
 /// Contains information about states and the window that the callback is going to use.
@@ -136,12 +133,7 @@ pub enum ImeState {
 }
 
 impl WindowState {
-    pub(crate) fn new(
-        attributes: &WindowAttributes,
-        scale_factor: f64,
-        current_theme: Theme,
-        preferred_theme: Option<Theme>,
-    ) -> WindowState {
+    pub(crate) fn new(attributes: &WindowAttributes, scale_factor: f64, current_theme: Theme, preferred_theme: Option<Theme>) -> WindowState {
         WindowState {
             mouse: MouseProperties {
                 selected_cursor: SelectedCursor::default(),
@@ -238,7 +230,7 @@ impl MouseProperties {
             Err(e) => {
                 self.cursor_flags = old_flags;
                 return Err(e);
-            },
+            }
         }
 
         Ok(())
@@ -304,9 +296,7 @@ impl WindowFlags {
             style |= WS_CLIPCHILDREN;
         }
 
-        if self.intersects(
-            WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
-        ) {
+        if self.intersects(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN) {
             style &= !WS_OVERLAPPEDWINDOW;
         }
 
@@ -340,10 +330,7 @@ impl WindowFlags {
             unsafe {
                 SetWindowPos(
                     window,
-                    match (
-                        new.contains(WindowFlags::ALWAYS_ON_TOP),
-                        new.contains(WindowFlags::ALWAYS_ON_BOTTOM),
-                    ) {
+                    match (new.contains(WindowFlags::ALWAYS_ON_TOP), new.contains(WindowFlags::ALWAYS_ON_BOTTOM)) {
                         (true, false) => HWND_TOPMOST,
                         (false, false) => HWND_NOTOPMOST,
                         (false, true) => HWND_BOTTOM,
@@ -361,28 +348,33 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MAXIMIZED) {
-                    true => SW_MAXIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MAXIMIZED) {
+                        true => SW_MAXIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
         }
 
         // Minimize operations should execute after maximize for proper window animations
         if diff.contains(WindowFlags::MINIMIZED) {
             unsafe {
-                ShowWindow(window, match new.contains(WindowFlags::MINIMIZED) {
-                    true => SW_MINIMIZE,
-                    false => SW_RESTORE,
-                });
+                ShowWindow(
+                    window,
+                    match new.contains(WindowFlags::MINIMIZED) {
+                        true => SW_MINIMIZE,
+                        false => SW_RESTORE,
+                    },
+                );
             }
 
             diff.remove(WindowFlags::MINIMIZED);
         }
 
         if diff.contains(WindowFlags::CLOSABLE) || new.contains(WindowFlags::CLOSABLE) {
-            let flags = MF_BYCOMMAND
-                | if new.contains(WindowFlags::CLOSABLE) { MF_ENABLED } else { MF_DISABLED };
+            let flags = MF_BYCOMMAND | if new.contains(WindowFlags::CLOSABLE) { MF_ENABLED } else { MF_DISABLED };
 
             unsafe {
                 EnableMenuItem(GetSystemMenu(window, 0), SC_CLOSE, flags);
@@ -412,9 +404,7 @@ impl WindowFlags {
                 // We generally don't want style changes here to affect window
                 // focus, but for fullscreen windows they must be activated
                 // (i.e. focused) so that they appear on top of the taskbar
-                if !new.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN)
-                    && !new.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN)
-                {
+                if !new.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) && !new.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN) {
                     flags |= SWP_NOACTIVATE;
                 }
 
@@ -465,15 +455,7 @@ impl WindowFlags {
     pub fn set_size(self, hwnd: HWND, size: PhysicalSize<u32>) {
         unsafe {
             let (width, height): (u32, u32) = self.adjust_size(hwnd, size).into();
-            SetWindowPos(
-                hwnd,
-                0,
-                0,
-                0,
-                width as _,
-                height as _,
-                SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
-            );
+            SetWindowPos(hwnd, 0, 0, 0, width as _, height as _, SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE);
             InvalidateRgn(hwnd, 0, false.into());
         }
     }
@@ -488,12 +470,7 @@ impl CursorFlags {
                 true => {
                     if self.contains(CursorFlags::LOCKED) {
                         if let Ok(pos) = util::get_cursor_position() {
-                            Some(RECT {
-                                left: pos.x,
-                                right: pos.x + 1,
-                                top: pos.y,
-                                bottom: pos.y + 1,
-                            })
+                            Some(RECT { left: pos.x, right: pos.x + 1, top: pos.y, bottom: pos.y + 1 })
                         } else {
                             // If lock is applied while the cursor is not available, lock it to the
                             // middle of the window.
@@ -511,7 +488,7 @@ impl CursorFlags {
                     } else {
                         Some(client_rect)
                     }
-                },
+                }
                 false => None,
             };
 

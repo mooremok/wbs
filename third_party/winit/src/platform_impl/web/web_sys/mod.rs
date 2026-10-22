@@ -22,9 +22,7 @@ use js_sys::Array;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState, Window,
-};
+use web_sys::{Document, HtmlCanvasElement, Navigator, PageTransitionEvent, VisibilityState, Window};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -43,8 +41,7 @@ pub fn on_page_transition(
     let show_closure = Closure::new(show_handler);
     let hide_closure = Closure::new(hide_handler);
 
-    let show_listener =
-        event_handle::EventListenerHandle::new(window.clone(), "pageshow", show_closure);
+    let show_listener = event_handle::EventListenerHandle::new(window.clone(), "pageshow", show_closure);
     let hide_listener = event_handle::EventListenerHandle::new(window, "pagehide", hide_closure);
     PageTransitionEventHandle { _show_listener: show_listener, _hide_listener: hide_listener }
 }
@@ -68,12 +65,7 @@ fn fix_canvas_size(style: &Style, mut size: LogicalSize<f64>) -> LogicalSize<f64
     size
 }
 
-pub fn set_canvas_size(
-    document: &Document,
-    raw: &HtmlCanvasElement,
-    style: &Style,
-    new_size: LogicalSize<f64>,
-) {
+pub fn set_canvas_size(document: &Document, raw: &HtmlCanvasElement, style: &Style, new_size: LogicalSize<f64>) {
     if !document.contains(Some(raw)) || style.get("display") == "none" {
         return;
     }
@@ -84,12 +76,7 @@ pub fn set_canvas_size(
     style.set("height", &format!("{}px", new_size.height));
 }
 
-pub fn set_canvas_min_size(
-    document: &Document,
-    raw: &HtmlCanvasElement,
-    style: &Style,
-    dimensions: Option<LogicalSize<f64>>,
-) {
+pub fn set_canvas_min_size(document: &Document, raw: &HtmlCanvasElement, style: &Style, dimensions: Option<LogicalSize<f64>>) {
     if let Some(dimensions) = dimensions {
         if !document.contains(Some(raw)) || style.get("display") == "none" {
             return;
@@ -105,12 +92,7 @@ pub fn set_canvas_min_size(
     }
 }
 
-pub fn set_canvas_max_size(
-    document: &Document,
-    raw: &HtmlCanvasElement,
-    style: &Style,
-    dimensions: Option<LogicalSize<f64>>,
-) {
+pub fn set_canvas_max_size(document: &Document, raw: &HtmlCanvasElement, style: &Style, dimensions: Option<LogicalSize<f64>>) {
     if let Some(dimensions) = dimensions {
         if !document.contains(Some(raw)) || style.get("display") == "none" {
             return;
@@ -126,19 +108,12 @@ pub fn set_canvas_max_size(
     }
 }
 
-pub fn set_canvas_position(
-    document: &Document,
-    raw: &HtmlCanvasElement,
-    style: &Style,
-    mut position: LogicalPosition<f64>,
-) {
+pub fn set_canvas_position(document: &Document, raw: &HtmlCanvasElement, style: &Style, mut position: LogicalPosition<f64>) {
     if document.contains(Some(raw)) && style.get("display") != "none" {
-        position.x -= style_size_property(style, "margin-left")
-            + style_size_property(style, "border-left-width")
-            + style_size_property(style, "padding-left");
-        position.y -= style_size_property(style, "margin-top")
-            + style_size_property(style, "border-top-width")
-            + style_size_property(style, "padding-top");
+        position.x -=
+            style_size_property(style, "margin-left") + style_size_property(style, "border-left-width") + style_size_property(style, "padding-left");
+        position.y -=
+            style_size_property(style, "margin-top") + style_size_property(style, "border-top-width") + style_size_property(style, "padding-top");
     }
 
     style.set("position", "fixed");
@@ -199,12 +174,7 @@ pub fn engine(window: &Window) -> Option<Engine> {
         let navigator: NavigatorExt = window.navigator().unchecked_into();
 
         if let Some(data) = navigator.user_agent_data() {
-            for brand in data
-                .brands()
-                .iter()
-                .map(NavigatorUaBrandVersion::unchecked_from_js)
-                .map(|brand| brand.brand())
-            {
+            for brand in data.brands().iter().map(NavigatorUaBrandVersion::unchecked_from_js).map(|brand| brand.brand()) {
                 match brand.as_str() {
                     "Chromium" => return Some(Engine::Chromium),
                     // TODO: verify when Firefox actually implements it.

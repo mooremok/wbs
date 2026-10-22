@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
-    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
-    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceRef,
+    CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::rc::{autoreleasepool, Retained};
 use objc2::runtime::ProtocolObject;
@@ -27,9 +27,7 @@ use super::monitor::{self, MonitorHandle};
 use super::observer::setup_control_flow_observers;
 use crate::error::EventLoopError;
 use crate::event::Event;
-use crate::event_loop::{
-    ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed,
-};
+use crate::event_loop::{ActiveEventLoop as RootWindowTarget, ControlFlow, DeviceEvents, EventLoopClosed};
 use crate::platform::macos::ActivationPolicy;
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::cursor::CustomCursor;
@@ -119,9 +117,7 @@ impl ActiveEventLoop {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
     }
 
@@ -176,7 +172,7 @@ fn map_user_event<T: 'static>(
             for event in receiver.try_iter() {
                 (handler)(Event::UserEvent(event), window_target);
             }
-        },
+        }
     }
 }
 
@@ -214,11 +210,8 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> Result<Self, EventLoopError> {
-        let mtm = MainThreadMarker::new()
-            .expect("on macOS, `EventLoop` must be created on the main thread!");
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
+        let mtm = MainThreadMarker::new().expect("on macOS, `EventLoop` must be created on the main thread!");
 
         // Initialize the application (if it has not already been).
         let app = NSApplication::sharedApplication(mtm);
@@ -229,12 +222,7 @@ impl<T> EventLoop<T> {
             Some(ActivationPolicy::Accessory) => Some(NSApplicationActivationPolicy::Accessory),
             Some(ActivationPolicy::Prohibited) => Some(NSApplicationActivationPolicy::Prohibited),
         };
-        let delegate = ApplicationDelegate::new(
-            mtm,
-            activation_policy,
-            attributes.default_menu,
-            attributes.activate_ignoring_other_apps,
-        );
+        let delegate = ApplicationDelegate::new(mtm, activation_policy, attributes.default_menu, attributes.activate_ignoring_other_apps);
 
         autoreleasepool(|_| {
             app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
@@ -252,10 +240,7 @@ impl<T> EventLoop<T> {
             delegate: delegate.clone(),
             sender,
             receiver: Rc::new(receiver),
-            window_target: RootWindowTarget {
-                p: ActiveEventLoop { delegate, mtm },
-                _marker: PhantomData,
-            },
+            window_target: RootWindowTarget { p: ActiveEventLoop { delegate, mtm }, _marker: PhantomData },
             panic_info,
         })
     }
@@ -347,18 +332,18 @@ impl<T> EventLoop<T> {
                         Some(Duration::ZERO) => {
                             self.delegate.set_wait_timeout(None);
                             self.delegate.set_stop_before_wait(true);
-                        },
+                        }
                         Some(duration) => {
                             self.delegate.set_stop_before_wait(false);
                             let timeout = Instant::now() + duration;
                             self.delegate.set_wait_timeout(Some(timeout));
                             self.delegate.set_stop_after_wait(true);
-                        },
+                        }
                         None => {
                             self.delegate.set_wait_timeout(None);
                             self.delegate.set_stop_before_wait(false);
                             self.delegate.set_stop_after_wait(true);
-                        },
+                        }
                     }
                     self.delegate.set_stop_on_redraw(true);
                     // SAFETY: We do not run the application re-entrantly
@@ -401,9 +386,7 @@ impl OwnedDisplayHandle {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::AppKitDisplayHandle::new().into())
     }
 }
@@ -436,11 +419,7 @@ pub(super) fn notify_windows_of_exit(app: &NSApplication) {
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
 #[inline]
-pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
-    mtm: MainThreadMarker,
-    panic_info: Weak<PanicInfo>,
-    f: F,
-) -> Option<R> {
+pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(mtm: MainThreadMarker, panic_info: Weak<PanicInfo>, f: F) -> Option<R> {
     match catch_unwind(f) {
         Ok(r) => Some(r),
         Err(e) => {
@@ -455,7 +434,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             let app = NSApplication::sharedApplication(mtm);
             stop_app_immediately(&app);
             None
-        },
+        }
     }
 }
 

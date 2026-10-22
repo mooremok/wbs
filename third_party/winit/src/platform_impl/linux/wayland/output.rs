@@ -47,9 +47,7 @@ impl MonitorHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        let dimensions = output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.dimensions))
-        });
+        let dimensions = output_data.with_output_info(|info| info.modes.iter().find_map(|mode| mode.current.then_some(mode.dimensions)));
 
         match dimensions {
             Some((width, height)) => (width as u32, height as u32),
@@ -63,14 +61,8 @@ impl MonitorHandle {
         let output_data = self.proxy.data::<OutputData>().unwrap();
         output_data.with_output_info(|info| {
             info.logical_position.map_or_else(
-                || {
-                    LogicalPosition::<i32>::from(info.location)
-                        .to_physical(info.scale_factor as f64)
-                },
-                |logical_position| {
-                    LogicalPosition::<i32>::from(logical_position)
-                        .to_physical(info.scale_factor as f64)
-                },
+                || LogicalPosition::<i32>::from(info.location).to_physical(info.scale_factor as f64),
+                |logical_position| LogicalPosition::<i32>::from(logical_position).to_physical(info.scale_factor as f64),
             )
         })
     }
@@ -78,9 +70,7 @@ impl MonitorHandle {
     #[inline]
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         let output_data = self.proxy.data::<OutputData>().unwrap();
-        output_data.with_output_info(|info| {
-            info.modes.iter().find_map(|mode| mode.current.then_some(mode.refresh_rate as u32))
-        })
+        output_data.with_output_info(|info| info.modes.iter().find_map(|mode| mode.current.then_some(mode.refresh_rate as u32)))
     }
 
     #[inline]

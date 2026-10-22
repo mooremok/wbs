@@ -12,9 +12,7 @@ use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 
 use tracing::debug;
 
-use crate::platform_impl::platform::definitions::{
-    IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl,
-};
+use crate::platform_impl::platform::definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl};
 use crate::platform_impl::platform::WindowId;
 
 use crate::event::Event;
@@ -50,11 +48,7 @@ impl FileDropHandler {
     }
 
     // Implement IUnknown
-    pub unsafe extern "system" fn QueryInterface(
-        _this: *mut IUnknown,
-        _riid: *const GUID,
-        _ppvObject: *mut *mut c_void,
-    ) -> HRESULT {
+    pub unsafe extern "system" fn QueryInterface(_this: *mut IUnknown, _riid: *const GUID, _ppvObject: *mut *mut c_void) -> HRESULT {
         // This function doesn't appear to be required for an `IDropTarget`.
         // An implementation would be nice however.
         unimplemented!();
@@ -87,15 +81,11 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(drop_handler.window)),
-                    event: HoveredFile(filename),
-                });
+                drop_handler.send_event(Event::WindowEvent { window_id: RootWindowId(WindowId(drop_handler.window)), event: HoveredFile(filename) });
             })
         };
         drop_handler.hovered_is_valid = hdrop.is_some();
-        drop_handler.cursor_effect =
-            if drop_handler.hovered_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
+        drop_handler.cursor_effect = if drop_handler.hovered_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
         unsafe {
             *pdwEffect = drop_handler.cursor_effect;
         }
@@ -103,12 +93,7 @@ impl FileDropHandler {
         S_OK
     }
 
-    pub unsafe extern "system" fn DragOver(
-        this: *mut IDropTarget,
-        _grfKeyState: u32,
-        _pt: *const POINTL,
-        pdwEffect: *mut u32,
-    ) -> HRESULT {
+    pub unsafe extern "system" fn DragOver(this: *mut IDropTarget, _grfKeyState: u32, _pt: *const POINTL, pdwEffect: *mut u32) -> HRESULT {
         let drop_handler = unsafe { Self::from_interface(this) };
         unsafe {
             *pdwEffect = drop_handler.cursor_effect;
@@ -121,10 +106,7 @@ impl FileDropHandler {
         use crate::event::WindowEvent::HoveredFileCancelled;
         let drop_handler = unsafe { Self::from_interface(this) };
         if drop_handler.hovered_is_valid {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(drop_handler.window)),
-                event: HoveredFileCancelled,
-            });
+            drop_handler.send_event(Event::WindowEvent { window_id: RootWindowId(WindowId(drop_handler.window)), event: HoveredFileCancelled });
         }
 
         S_OK
@@ -141,10 +123,7 @@ impl FileDropHandler {
         let drop_handler = unsafe { Self::from_interface(this) };
         let hdrop = unsafe {
             Self::iterate_filenames(pDataObj, |filename| {
-                drop_handler.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(drop_handler.window)),
-                    event: DroppedFile(filename),
-                });
+                drop_handler.send_event(Event::WindowEvent { window_id: RootWindowId(WindowId(drop_handler.window)), event: DroppedFile(filename) });
             })
         };
         if let Some(hdrop) = hdrop {
@@ -162,13 +141,7 @@ impl FileDropHandler {
     where
         F: Fn(PathBuf),
     {
-        let drop_format = FORMATETC {
-            cfFormat: CF_HDROP,
-            ptd: ptr::null_mut(),
-            dwAspect: DVASPECT_CONTENT,
-            lindex: -1,
-            tymed: TYMED_HGLOBAL as u32,
-        };
+        let drop_format = FORMATETC { cfFormat: CF_HDROP, ptd: ptr::null_mut(), dwAspect: DVASPECT_CONTENT, lindex: -1, tymed: TYMED_HGLOBAL as u32 };
 
         let mut medium = unsafe { std::mem::zeroed() };
         let get_data_fn = unsafe { (*(*data_obj).cast::<IDataObjectVtbl>()).GetData };
@@ -183,8 +156,7 @@ impl FileDropHandler {
                 // Get the length of the path string NOT including the terminating null character.
                 // Previously, this was using a fixed size array of MAX_PATH length, but the
                 // Windows API allows longer paths under certain circumstances.
-                let character_count =
-                    unsafe { DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize };
+                let character_count = unsafe { DragQueryFileW(hdrop, i, ptr::null_mut(), 0) as usize };
                 let str_len = character_count + 1;
 
                 // Fill path_buf with the null-terminated file name
@@ -225,11 +197,7 @@ impl Drop for FileDropHandler {
 }
 
 static DROP_TARGET_VTBL: IDropTargetVtbl = IDropTargetVtbl {
-    parent: IUnknownVtbl {
-        QueryInterface: FileDropHandler::QueryInterface,
-        AddRef: FileDropHandler::AddRef,
-        Release: FileDropHandler::Release,
-    },
+    parent: IUnknownVtbl { QueryInterface: FileDropHandler::QueryInterface, AddRef: FileDropHandler::AddRef, Release: FileDropHandler::Release },
     DragEnter: FileDropHandler::DragEnter,
     DragOver: FileDropHandler::DragOver,
     DragLeave: FileDropHandler::DragLeave,

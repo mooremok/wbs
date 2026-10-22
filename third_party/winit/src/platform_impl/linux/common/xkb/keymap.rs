@@ -10,10 +10,7 @@ use x11_dl::xlib_xcb::xcb_connection_t;
 use {memmap2::MmapOptions, std::os::unix::io::OwnedFd};
 
 use xkb::XKB_MOD_INVALID;
-use xkbcommon_dl::{
-    self as xkb, xkb_keycode_t, xkb_keymap, xkb_keymap_compile_flags, xkb_keysym_t,
-    xkb_layout_index_t, xkb_mod_index_t,
-};
+use xkbcommon_dl::{self as xkb, xkb_keycode_t, xkb_keymap, xkb_keymap_compile_flags, xkb_keysym_t, xkb_layout_index_t, xkb_mod_index_t};
 
 use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 #[cfg(x11_platform)]
@@ -296,7 +293,7 @@ pub fn physicalkey_to_scancode(key: PhysicalKey) -> Option<u32> {
                 NativeKeyCode::Xkb(raw) => Some(raw),
                 _ => None,
             };
-        },
+        }
     };
 
     match code {
@@ -857,18 +854,8 @@ pub fn keysym_to_key(keysym: u32) -> Key {
 pub fn keysym_location(keysym: u32) -> KeyLocation {
     use xkbcommon_dl::keysyms;
     match keysym {
-        keysyms::Shift_L
-        | keysyms::Control_L
-        | keysyms::Meta_L
-        | keysyms::Alt_L
-        | keysyms::Super_L
-        | keysyms::Hyper_L => KeyLocation::Left,
-        keysyms::Shift_R
-        | keysyms::Control_R
-        | keysyms::Meta_R
-        | keysyms::Alt_R
-        | keysyms::Super_R
-        | keysyms::Hyper_R => KeyLocation::Right,
+        keysyms::Shift_L | keysyms::Control_L | keysyms::Meta_L | keysyms::Alt_L | keysyms::Super_L | keysyms::Hyper_L => KeyLocation::Left,
+        keysyms::Shift_R | keysyms::Control_R | keysyms::Meta_R | keysyms::Alt_R | keysyms::Super_R | keysyms::Hyper_R => KeyLocation::Right,
         keysyms::KP_0
         | keysyms::KP_1
         | keysyms::KP_2
@@ -934,18 +921,9 @@ impl XkbKeymap {
     }
 
     #[cfg(x11_platform)]
-    pub fn from_x11_keymap(
-        context: &XkbContext,
-        xcb: *mut xcb_connection_t,
-        core_keyboard_id: i32,
-    ) -> Option<Self> {
+    pub fn from_x11_keymap(context: &XkbContext, xcb: *mut xcb_connection_t, core_keyboard_id: i32) -> Option<Self> {
         let keymap = unsafe {
-            (XKBXH.xkb_x11_keymap_new_from_device)(
-                context.as_ptr(),
-                xcb,
-                core_keyboard_id,
-                xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
-            )
+            (XKBXH.xkb_x11_keymap_new_from_device)(context.as_ptr(), xcb, core_keyboard_id, xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS)
         };
         let keymap = NonNull::new(keymap)?;
         Some(Self::new_inner(keymap, core_keyboard_id))
@@ -971,11 +949,7 @@ impl XkbKeymap {
         self._mods_indices
     }
 
-    pub fn first_keysym_by_level(
-        &mut self,
-        layout: xkb_layout_index_t,
-        keycode: xkb_keycode_t,
-    ) -> xkb_keysym_t {
+    pub fn first_keysym_by_level(&mut self, layout: xkb_layout_index_t, keycode: xkb_keycode_t) -> xkb_keysym_t {
         unsafe {
             let mut keysyms = ptr::null();
             let count = (XKBH.xkb_keymap_key_get_syms_by_level)(
@@ -1033,8 +1007,7 @@ pub struct ModsIndices {
 
 fn mod_index_for_name(keymap: NonNull<xkb_keymap>, name: &[u8]) -> Option<xkb_mod_index_t> {
     unsafe {
-        let mod_index =
-            (XKBH.xkb_keymap_mod_get_index)(keymap.as_ptr(), name.as_ptr() as *const c_char);
+        let mod_index = (XKBH.xkb_keymap_mod_get_index)(keymap.as_ptr(), name.as_ptr() as *const c_char);
         if mod_index == XKB_MOD_INVALID {
             None
         } else {

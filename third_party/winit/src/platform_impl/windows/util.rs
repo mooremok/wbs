@@ -11,17 +11,13 @@ use windows_sys::Win32::Foundation::{BOOL, HANDLE, HMODULE, HWND, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, HMONITOR};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
-use windows_sys::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
-};
+use windows_sys::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::Input::Pointer::{POINTER_INFO, POINTER_PEN_INFO, POINTER_TOUCH_INFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics, GetWindowPlacement,
-    GetWindowRect, IsIconic, ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
-    IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
-    SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE,
-    WINDOWPLACEMENT,
+    ClipCursor, GetClientRect, GetClipCursor, GetCursorPos, GetSystemMetrics, GetWindowPlacement, GetWindowRect, IsIconic, ShowCursor,
+    IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
+    IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_MAXIMIZE, WINDOWPLACEMENT,
 };
 
 use crate::window::CursorIcon;
@@ -65,7 +61,7 @@ impl WindowArea {
         match self {
             WindowArea::Outer => {
                 win_to_err(unsafe { GetWindowRect(hwnd, &mut rect) })?;
-            },
+            }
             WindowArea::Inner => unsafe {
                 let mut top_left = mem::zeroed();
 
@@ -127,12 +123,7 @@ pub fn get_desktop_rect() -> RECT {
     unsafe {
         let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
         let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
-        RECT {
-            left,
-            top,
-            right: left + GetSystemMetrics(SM_CXVIRTUALSCREEN),
-            bottom: top + GetSystemMetrics(SM_CYVIRTUALSCREEN),
-        }
+        RECT { left, top, right: left + GetSystemMetrics(SM_CXVIRTUALSCREEN), bottom: top + GetSystemMetrics(SM_CYVIRTUALSCREEN) }
     }
 }
 
@@ -166,17 +157,9 @@ pub(crate) fn to_windows_cursor(cursor: CursorIcon) -> PCWSTR {
         CursorIcon::Crosshair => IDC_CROSS,
         CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
         CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
-        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-            IDC_SIZEALL
-        },
-        CursorIcon::EResize
-        | CursorIcon::WResize
-        | CursorIcon::EwResize
-        | CursorIcon::ColResize => IDC_SIZEWE,
-        CursorIcon::NResize
-        | CursorIcon::SResize
-        | CursorIcon::NsResize
-        | CursorIcon::RowResize => IDC_SIZENS,
+        CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => IDC_SIZEALL,
+        CursorIcon::EResize | CursorIcon::WResize | CursorIcon::EwResize | CursorIcon::ColResize => IDC_SIZEWE,
+        CursorIcon::NResize | CursorIcon::SResize | CursorIcon::NsResize | CursorIcon::RowResize => IDC_SIZENS,
         CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
         CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
         CursorIcon::Wait => IDC_WAIT,
@@ -205,76 +188,43 @@ pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const 
 
 macro_rules! get_function {
     ($lib:expr, $func:ident) => {
-        crate::platform_impl::platform::util::get_function_impl(
-            concat!($lib, '\0'),
-            concat!(stringify!($func), '\0'),
-        )
-        .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
+        crate::platform_impl::platform::util::get_function_impl(concat!($lib, '\0'), concat!(stringify!($func), '\0'))
+            .map(|f| unsafe { std::mem::transmute::<*const _, $func>(f) })
     };
 }
 
 pub type SetProcessDPIAware = unsafe extern "system" fn() -> BOOL;
-pub type SetProcessDpiAwareness =
-    unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
-pub type SetProcessDpiAwarenessContext =
-    unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
+pub type SetProcessDpiAwareness = unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
+pub type SetProcessDpiAwarenessContext = unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
 pub type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> u32;
-pub type GetDpiForMonitor = unsafe extern "system" fn(
-    hmonitor: HMONITOR,
-    dpi_type: MONITOR_DPI_TYPE,
-    dpi_x: *mut u32,
-    dpi_y: *mut u32,
-) -> HRESULT;
+pub type GetDpiForMonitor = unsafe extern "system" fn(hmonitor: HMONITOR, dpi_type: MONITOR_DPI_TYPE, dpi_x: *mut u32, dpi_y: *mut u32) -> HRESULT;
 pub type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
-pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(
-    rect: *mut RECT,
-    dw_style: u32,
-    b_menu: BOOL,
-    dw_ex_style: u32,
-    dpi: u32,
-) -> BOOL;
+pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(rect: *mut RECT, dw_style: u32, b_menu: BOOL, dw_ex_style: u32, dpi: u32) -> BOOL;
 
-pub type GetPointerFrameInfoHistory = unsafe extern "system" fn(
-    pointer_id: u32,
-    entries_count: *mut u32,
-    pointer_count: *mut u32,
-    pointer_info: *mut POINTER_INFO,
-) -> BOOL;
+pub type GetPointerFrameInfoHistory =
+    unsafe extern "system" fn(pointer_id: u32, entries_count: *mut u32, pointer_count: *mut u32, pointer_info: *mut POINTER_INFO) -> BOOL;
 
 pub type SkipPointerFrameMessages = unsafe extern "system" fn(pointer_id: u32) -> BOOL;
-pub type GetPointerDeviceRects = unsafe extern "system" fn(
-    device: HANDLE,
-    pointer_device_rect: *mut RECT,
-    display_rect: *mut RECT,
-) -> BOOL;
+pub type GetPointerDeviceRects = unsafe extern "system" fn(device: HANDLE, pointer_device_rect: *mut RECT, display_rect: *mut RECT) -> BOOL;
 
-pub type GetPointerTouchInfo =
-    unsafe extern "system" fn(pointer_id: u32, touch_info: *mut POINTER_TOUCH_INFO) -> BOOL;
+pub type GetPointerTouchInfo = unsafe extern "system" fn(pointer_id: u32, touch_info: *mut POINTER_TOUCH_INFO) -> BOOL;
 
-pub type GetPointerPenInfo =
-    unsafe extern "system" fn(point_id: u32, pen_info: *mut POINTER_PEN_INFO) -> BOOL;
+pub type GetPointerPenInfo = unsafe extern "system" fn(point_id: u32, pen_info: *mut POINTER_PEN_INFO) -> BOOL;
 
-pub(crate) static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
-    Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
+pub(crate) static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> = Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
 pub(crate) static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
     Lazy::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
-pub(crate) static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
-    Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
+pub(crate) static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> = Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
 pub(crate) static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
     Lazy::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
 pub(crate) static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
     Lazy::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
-pub(crate) static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
-    Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
-pub(crate) static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
-    Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));
+pub(crate) static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> = Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
+pub(crate) static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> = Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));
 pub(crate) static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
 pub(crate) static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
     Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
-pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
-pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
-pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
-    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
+pub(crate) static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> = Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+pub(crate) static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> = Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+pub(crate) static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> = Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));

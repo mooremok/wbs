@@ -51,12 +51,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
             }
         });
 
-        Some(Self {
-            value: Value { value, local: PhantomData },
-            handler,
-            sender_data,
-            sender_handler,
-        })
+        Some(Self { value: Value { value, local: PhantomData }, handler, sender_data, sender_handler })
     }
 
     pub fn send(&self, event: E) {
@@ -68,8 +63,7 @@ impl<V, S: Clone + Send, E> Wrapper<V, S, E> {
     }
 
     pub fn value(&self) -> Option<Ref<'_, V>> {
-        MainThreadMarker::new()
-            .map(|_| Ref::map(self.value.value.borrow(), |value| value.as_ref().unwrap()))
+        MainThreadMarker::new().map(|_| Ref::map(self.value.value.borrow(), |value| value.as_ref().unwrap()))
     }
 
     pub fn with_sender_data<T>(&self, f: impl FnOnce(&S) -> T) -> T {

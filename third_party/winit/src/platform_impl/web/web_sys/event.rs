@@ -61,9 +61,7 @@ pub fn mouse_button(event: &MouseEvent) -> Option<MouseButton> {
         2 => Some(MouseButton::Right),
         3 => Some(MouseButton::Back),
         4 => Some(MouseButton::Forward),
-        i => {
-            Some(MouseButton::Other(i.try_into().expect("unexpected negative mouse button value")))
-        },
+        i => Some(MouseButton::Other(i.try_into().expect("unexpected negative mouse button value"))),
     }
 }
 
@@ -114,10 +112,7 @@ impl MouseDelta {
             // Firefox has wrong movement values in coalesced events.
             Some(Engine::Gecko) if has_coalesced_events_support(event) => Self::Gecko {
                 old_position: mouse_position(event),
-                old_delta: LogicalPosition::new(
-                    event.movement_x() as f64,
-                    event.movement_y() as f64,
-                ),
+                old_delta: LogicalPosition::new(event.movement_x() as f64, event.movement_y() as f64),
             },
             _ => Self::Other,
         }
@@ -125,9 +120,7 @@ impl MouseDelta {
 
     pub fn delta(&mut self, event: &MouseEvent) -> Position {
         match self {
-            MouseDelta::Chromium => {
-                PhysicalPosition::new(event.movement_x(), event.movement_y()).into()
-            },
+            MouseDelta::Chromium => PhysicalPosition::new(event.movement_x(), event.movement_y()).into(),
             MouseDelta::Gecko { old_position, old_delta } => {
                 let new_position = mouse_position(event);
                 let x = new_position.x - old_position.x + old_delta.x;
@@ -135,18 +128,13 @@ impl MouseDelta {
                 *old_position = new_position;
                 *old_delta = LogicalPosition::new(0., 0.);
                 LogicalPosition::new(x, y).into()
-            },
-            MouseDelta::Other => {
-                LogicalPosition::new(event.movement_x(), event.movement_y()).into()
-            },
+            }
+            MouseDelta::Other => LogicalPosition::new(event.movement_x(), event.movement_y()).into(),
         }
     }
 }
 
-pub fn mouse_scroll_delta(
-    window: &web_sys::Window,
-    event: &WheelEvent,
-) -> Option<MouseScrollDelta> {
+pub fn mouse_scroll_delta(window: &web_sys::Window, event: &WheelEvent) -> Option<MouseScrollDelta> {
     let x = -event.delta_x();
     let y = -event.delta_y();
 
@@ -155,7 +143,7 @@ pub fn mouse_scroll_delta(
         WheelEvent::DOM_DELTA_PIXEL => {
             let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor(window));
             Some(MouseScrollDelta::PixelDelta(delta))
-        },
+        }
         _ => None,
     }
 }
@@ -191,7 +179,7 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
         location => {
             tracing::warn!("Unexpected key location: {location}");
             KeyLocation::Standard
-        },
+        }
     }
 }
 
@@ -236,11 +224,7 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
 pub fn pointer_move_event(event: PointerEvent) -> impl Iterator<Item = PointerEvent> {
     // make a single iterator depending on the availability of coalesced events
     if has_coalesced_events_support(&event) {
-        None.into_iter().chain(
-            Some(event.get_coalesced_events().into_iter().map(PointerEvent::unchecked_from_js))
-                .into_iter()
-                .flatten(),
-        )
+        None.into_iter().chain(Some(event.get_coalesced_events().into_iter().map(PointerEvent::unchecked_from_js)).into_iter().flatten())
     } else {
         Some(event).into_iter().chain(None.into_iter().flatten())
     }

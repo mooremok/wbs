@@ -54,6 +54,10 @@ impl Session {
     }
     /// A delayed restore can't replace edits made while it was loading. Restores have no path.
     pub fn recovery_tick(&mut self) {
+        self.recovery_tick_at(std::time::Instant::now());
+    }
+    /// [`recovery_tick`] with the clock handed in (tests drive past the save interval).
+    pub(crate) fn recovery_tick_at(&mut self, now: std::time::Instant) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let Some(mut r) = self.recovery.take() else { return };
@@ -68,7 +72,7 @@ impl Session {
                     r.error = Some("Recovery cancelled: the document changed while the copy was loading.".into());
                 }
             }
-            if let Err(e) = r.tick(self, std::time::Instant::now()) {
+            if let Err(e) = r.tick(self, now) {
                 r.error = Some(e);
             }
             if let Some(e) = &r.error {
@@ -91,6 +95,14 @@ impl Session {
     /// Only an explicit protect/save action waits for the worker and removes plaintext copies.
     /// A failure prevents applying the password; typing never waits.
     pub(crate) fn clear_recovery_before_password(&mut self) -> Result<(), CmdError> {
+        self.purge_recovery()
+    }
+    /// Remove this session's own crash-recovery copy from disk, waiting for the worker. Called
+    /// once the document's fate is settled — it closed (saved, or discarded at the prompt) or the
+    /// app is quitting after asking about every document — so the next launch doesn't offer to
+    /// restore work the user has already dealt with. A crash never runs this, which is the point
+    /// of the copy; a session without one (clean, or headless) is a no-op.
+    pub fn purge_recovery(&mut self) -> Result<(), CmdError> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let document = self.document_id();

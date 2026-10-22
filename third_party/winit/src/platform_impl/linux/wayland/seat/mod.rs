@@ -70,57 +70,37 @@ impl SeatHandler for WinitState {
         &mut self.seat_state
     }
 
-    fn new_capability(
-        &mut self,
-        _: &Connection,
-        queue_handle: &QueueHandle<Self>,
-        seat: WlSeat,
-        capability: SeatCapability,
-    ) {
+    fn new_capability(&mut self, _: &Connection, queue_handle: &QueueHandle<Self>, seat: WlSeat, capability: SeatCapability) {
         let seat_state = match self.seats.get_mut(&seat.id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received wl_seat::new_capability for unknown seat");
                 return;
-            },
+            }
         };
 
         match capability {
             SeatCapability::Touch if seat_state.touch.is_none() => {
                 seat_state.touch = self.seat_state.get_touch(queue_handle, &seat).ok();
-            },
+            }
             SeatCapability::Keyboard if seat_state.keyboard_state.is_none() => {
                 let keyboard = seat.get_keyboard(queue_handle, KeyboardData::new(seat.clone()));
-                seat_state.keyboard_state =
-                    Some(KeyboardState::new(keyboard, self.loop_handle.clone()));
-            },
+                seat_state.keyboard_state = Some(KeyboardState::new(keyboard, self.loop_handle.clone()));
+            }
             SeatCapability::Pointer if seat_state.pointer.is_none() => {
                 let surface = self.compositor_state.create_surface(queue_handle);
-                let viewport = self
-                    .viewporter_state
-                    .as_ref()
-                    .map(|state| state.get_viewport(&surface, queue_handle));
+                let viewport = self.viewporter_state.as_ref().map(|state| state.get_viewport(&surface, queue_handle));
                 let surface_id = surface.id();
                 let pointer_data = WinitPointerData::new(seat.clone(), viewport);
                 let themed_pointer = self
                     .seat_state
-                    .get_pointer_with_theme_and_data(
-                        queue_handle,
-                        &seat,
-                        self.shm.wl_shm(),
-                        surface,
-                        ThemeSpec::System,
-                        pointer_data,
-                    )
+                    .get_pointer_with_theme_and_data(queue_handle, &seat, self.shm.wl_shm(), surface, ThemeSpec::System, pointer_data)
                     .expect("failed to create pointer with present capability.");
 
-                seat_state.relative_pointer = self.relative_pointer.as_ref().map(|manager| {
-                    manager.get_relative_pointer(
-                        themed_pointer.pointer(),
-                        queue_handle,
-                        sctk::globals::GlobalData,
-                    )
-                });
+                seat_state.relative_pointer = self
+                    .relative_pointer
+                    .as_ref()
+                    .map(|manager| manager.get_relative_pointer(themed_pointer.pointer(), queue_handle, sctk::globals::GlobalData));
 
                 let themed_pointer = Arc::new(themed_pointer);
 
@@ -128,34 +108,22 @@ impl SeatHandler for WinitState {
                 self.pointer_surfaces.insert(surface_id, themed_pointer.clone());
 
                 seat_state.pointer = Some(themed_pointer);
-            },
+            }
             _ => (),
         }
 
-        if let Some(text_input_state) =
-            seat_state.text_input.is_none().then_some(self.text_input_state.as_ref()).flatten()
-        {
-            seat_state.text_input = Some(Arc::new(text_input_state.get_text_input(
-                &seat,
-                queue_handle,
-                TextInputData::default(),
-            )));
+        if let Some(text_input_state) = seat_state.text_input.is_none().then_some(self.text_input_state.as_ref()).flatten() {
+            seat_state.text_input = Some(Arc::new(text_input_state.get_text_input(&seat, queue_handle, TextInputData::default())));
         }
     }
 
-    fn remove_capability(
-        &mut self,
-        _: &Connection,
-        _queue_handle: &QueueHandle<Self>,
-        seat: WlSeat,
-        capability: SeatCapability,
-    ) {
+    fn remove_capability(&mut self, _: &Connection, _queue_handle: &QueueHandle<Self>, seat: WlSeat, capability: SeatCapability) {
         let seat_state = match self.seats.get_mut(&seat.id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received wl_seat::remove_capability for unknown seat");
                 return;
-            },
+            }
         };
 
         if let Some(text_input) = seat_state.text_input.take() {
@@ -169,7 +137,7 @@ impl SeatHandler for WinitState {
                         touch.release();
                     }
                 }
-            },
+            }
             SeatCapability::Pointer => {
                 if let Some(relative_pointer) = seat_state.relative_pointer.take() {
                     relative_pointer.destroy();
@@ -190,30 +158,20 @@ impl SeatHandler for WinitState {
                         pointer.pointer().release();
                     }
                 }
-            },
+            }
             SeatCapability::Keyboard => {
                 seat_state.keyboard_state = None;
                 self.on_keyboard_destroy(&seat.id());
-            },
+            }
             _ => (),
         }
     }
 
-    fn new_seat(
-        &mut self,
-        _connection: &Connection,
-        _queue_handle: &QueueHandle<Self>,
-        seat: WlSeat,
-    ) {
+    fn new_seat(&mut self, _connection: &Connection, _queue_handle: &QueueHandle<Self>, seat: WlSeat) {
         self.seats.insert(seat.id(), WinitSeatState::new());
     }
 
-    fn remove_seat(
-        &mut self,
-        _connection: &Connection,
-        _queue_handle: &QueueHandle<Self>,
-        seat: WlSeat,
-    ) {
+    fn remove_seat(&mut self, _connection: &Connection, _queue_handle: &QueueHandle<Self>, seat: WlSeat) {
         let _ = self.seats.remove(&seat.id());
         self.on_keyboard_destroy(&seat.id());
     }

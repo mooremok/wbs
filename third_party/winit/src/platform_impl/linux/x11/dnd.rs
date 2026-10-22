@@ -61,84 +61,46 @@ impl Dnd {
         self.result = None;
     }
 
-    pub unsafe fn send_status(
-        &self,
-        this_window: xproto::Window,
-        target_window: xproto::Window,
-        state: DndState,
-    ) -> Result<(), X11Error> {
+    pub unsafe fn send_status(&self, this_window: xproto::Window, target_window: xproto::Window, state: DndState) -> Result<(), X11Error> {
         let atoms = self.xconn.atoms();
         let (accepted, action) = match state {
             DndState::Accepted => (1, atoms[XdndActionPrivate]),
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndStatus] as _, None, [
-                this_window,
-                accepted,
-                0,
-                0,
-                action as _,
-            ])?
+            .send_client_msg(target_window, target_window, atoms[XdndStatus] as _, None, [this_window, accepted, 0, 0, action as _])?
             .ignore_error();
 
         Ok(())
     }
 
-    pub unsafe fn send_finished(
-        &self,
-        this_window: xproto::Window,
-        target_window: xproto::Window,
-        state: DndState,
-    ) -> Result<(), X11Error> {
+    pub unsafe fn send_finished(&self, this_window: xproto::Window, target_window: xproto::Window, state: DndState) -> Result<(), X11Error> {
         let atoms = self.xconn.atoms();
         let (accepted, action) = match state {
             DndState::Accepted => (1, atoms[XdndActionPrivate]),
             DndState::Rejected => (0, atoms[DndNone]),
         };
         self.xconn
-            .send_client_msg(target_window, target_window, atoms[XdndFinished] as _, None, [
-                this_window,
-                accepted,
-                action as _,
-                0,
-                0,
-            ])?
+            .send_client_msg(target_window, target_window, atoms[XdndFinished] as _, None, [this_window, accepted, action as _, 0, 0])?
             .ignore_error();
 
         Ok(())
     }
 
-    pub unsafe fn get_type_list(
-        &self,
-        source_window: xproto::Window,
-    ) -> Result<Vec<xproto::Atom>, util::GetPropertyError> {
+    pub unsafe fn get_type_list(&self, source_window: xproto::Window) -> Result<Vec<xproto::Atom>, util::GetPropertyError> {
         let atoms = self.xconn.atoms();
-        self.xconn.get_property(
-            source_window,
-            atoms[XdndTypeList],
-            xproto::Atom::from(xproto::AtomEnum::ATOM),
-        )
+        self.xconn.get_property(source_window, atoms[XdndTypeList], xproto::Atom::from(xproto::AtomEnum::ATOM))
     }
 
     pub unsafe fn convert_selection(&self, window: xproto::Window, time: xproto::Timestamp) {
         let atoms = self.xconn.atoms();
         self.xconn
             .xcb_connection()
-            .convert_selection(
-                window,
-                atoms[XdndSelection],
-                atoms[TextUriList],
-                atoms[XdndSelection],
-                time,
-            )
+            .convert_selection(window, atoms[XdndSelection], atoms[TextUriList], atoms[XdndSelection], time)
             .expect_then_ignore_error("Failed to send XdndSelection event")
     }
 
-    pub unsafe fn read_data(
-        &self,
-        window: xproto::Window,
-    ) -> Result<Vec<c_uchar>, util::GetPropertyError> {
+    pub unsafe fn read_data(&self, window: xproto::Window) -> Result<Vec<c_uchar>, util::GetPropertyError> {
         let atoms = self.xconn.atoms();
         self.xconn.get_property(window, atoms[XdndSelection], atoms[TextUriList])
     }

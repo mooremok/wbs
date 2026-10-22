@@ -1,13 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::mem;
 use std::rc::Weak;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use objc2::rc::Retained;
 use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
-use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSRunningApplication,
-};
+use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSApplicationTerminateReply, NSRunningApplication};
 use objc2_foundation::{MainThreadMarker, NSNotification, NSObject, NSObjectProtocol};
 
 use super::event_handler::EventHandler;
@@ -70,8 +69,32 @@ declare_class!(
         fn app_will_terminate(&self, notification: &NSNotification) {
             self.will_terminate(notification)
         }
+
+        // WBS: route Command-Q and the menu's Quit through the window's close request, so the
+        // app can ask about unsaved documents exactly as the window's close button does. The
+        // first attempt is cancelled and the main window asked to close; once the app has
+        // settled every document it approves termination (see `approve_termination`) and the
+        // second attempt proceeds.
+        #[method(applicationShouldTerminate:)]
+        fn should_terminate(&self, sender: &NSApplication) -> NSApplicationTerminateReply {
+            self.handle_terminate_request(sender)
+        }
     }
 );
+
+/// Set by the app once every document's fate is settled: the next `terminate:` (the app's own,
+/// after the close request it was asked to make) goes ahead instead of asking again.
+static TERMINATION_APPROVED: AtomicBool = AtomicBool::new(false);
+
+/// Approve the next `terminate:`; see [`TERMINATION_APPROVED`].
+pub(crate) fn termination_approved() -> bool {
+    TERMINATION_APPROVED.swap(false, Ordering::Relaxed)
+}
+
+/// Mark termination approved; see [`TERMINATION_APPROVED`].
+pub(crate) fn approve_termination() {
+    TERMINATION_APPROVED.store(true, Ordering::Relaxed);
+}
 
 impl ApplicationDelegate {
     pub(super) fn new(
@@ -102,6 +125,25 @@ impl ApplicationDelegate {
         unsafe { msg_send_id![super(this), init] }
     }
 
+    /// See the `applicationShouldTerminate:` declaration above: cancel and ask the main window
+    /// to close (which reaches the app as a close request, like the window's close button),
+    /// unless the app has already settled its documents and approved quitting.
+    fn handle_terminate_request(&self, _sender: &NSApplication) -> NSApplicationTerminateReply {
+        trace_scope!("applicationShouldTerminate:");
+        if termination_approved() {
+            return NSApplicationTerminateReply::NSTerminateNow;
+        }
+        let mtm = MainThreadMarker::from(self);
+        let app = NSApplication::sharedApplication(mtm);
+        match unsafe { app.mainWindow() } {
+            Some(window) => {
+                unsafe { window.performClose(None) };
+                NSApplicationTerminateReply::NSTerminateCancel
+            }
+            None => NSApplicationTerminateReply::NSTerminateNow,
+        }
+    }
+
     // NOTE: This will, globally, only be run once, no matter how many
     // `EventLoop`s the user creates.
     fn did_finish_launching(&self, _notification: &NSNotification) {
@@ -125,8 +167,7 @@ impl ApplicationDelegate {
             // See:
             // - https://github.com/rust-windowing/winit/issues/261
             // - https://github.com/rust-windowing/winit/issues/3958
-            let is_bundled =
-                unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
+            let is_bundled = unsafe { NSRunningApplication::currentApplication().bundleIdentifier().is_some() };
             if !is_bundled {
                 app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
             }
@@ -173,8 +214,7 @@ impl ApplicationDelegate {
 
     pub fn get(mtm: MainThreadMarker) -> Retained<Self> {
         let app = NSApplication::sharedApplication(mtm);
-        let delegate =
-            unsafe { app.delegate() }.expect("a delegate was not configured on the application");
+        let delegate = unsafe { app.delegate() }.expect("a delegate was not configured on the application");
         if delegate.is_kind_of::<Self>() {
             // SAFETY: Just checked that the delegate is an instance of `ApplicationDelegate`
             unsafe { Retained::cast(delegate) }
@@ -185,11 +225,7 @@ impl ApplicationDelegate {
 
     /// Place the event handler in the application delegate for the duration
     /// of the given closure.
-    pub fn set_event_handler<R>(
-        &self,
-        handler: impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop),
-        closure: impl FnOnce() -> R,
-    ) -> R {
+    pub fn set_event_handler<R>(&self, handler: impl FnMut(Event<HandlePendingUserEvents>, &RootActiveEventLoop), closure: impl FnOnce() -> R) -> R {
         self.ivars().event_handler.set(handler, closure)
     }
 
@@ -279,10 +315,7 @@ impl ApplicationDelegate {
         // Redraw request might come out of order from the OS.
         // -> Don't go back into the event handler when our callstack originates from there
         if !self.ivars().event_handler.in_use() {
-            self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
-                event: WindowEvent::RedrawRequested,
-            });
+            self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event: WindowEvent::RedrawRequested });
 
             // `pump_events` will request to stop immediately _after_ dispatching RedrawRequested
             // events as a way to ensure that `pump_events` can't block an external loop
@@ -335,9 +368,7 @@ impl ApplicationDelegate {
     // Called by RunLoopObserver after finishing waiting for new events
     pub fn wakeup(&self, panic_info: Weak<PanicInfo>) {
         let mtm = MainThreadMarker::from(self);
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+        let panic_info = panic_info.upgrade().expect("The panic info must exist here. This failure indicates a developer error.");
 
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking() || !self.ivars().event_handler.ready() || !self.is_running() {
@@ -359,7 +390,7 @@ impl ApplicationDelegate {
                 } else {
                     StartCause::WaitCancelled { start, requested_resume: Some(requested_resume) }
                 }
-            },
+            }
         };
 
         self.handle_event(Event::NewEvents(cause));
@@ -368,9 +399,7 @@ impl ApplicationDelegate {
     // Called by RunLoopObserver before waiting for new events
     pub fn cleared(&self, panic_info: Weak<PanicInfo>) {
         let mtm = MainThreadMarker::from(self);
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+        let panic_info = panic_info.upgrade().expect("The panic info must exist here. This failure indicates a developer error.");
 
         // Return when in event handler due to https://github.com/rust-windowing/winit/issues/1779
         // XXX: how does it make sense that `event_handler.ready()` can ever return `false` here if
@@ -383,10 +412,7 @@ impl ApplicationDelegate {
 
         let redraw = mem::take(&mut *self.ivars().pending_redraw.borrow_mut());
         for window_id in redraw {
-            self.handle_event(Event::WindowEvent {
-                window_id: RootWindowId(window_id),
-                event: WindowEvent::RedrawRequested,
-            });
+            self.handle_event(Event::WindowEvent { window_id: RootWindowId(window_id), event: WindowEvent::RedrawRequested });
         }
 
         self.handle_event(Event::AboutToWait);

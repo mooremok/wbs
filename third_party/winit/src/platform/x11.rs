@@ -58,8 +58,7 @@ pub enum WindowType {
 /// indicator whether the error was handled by the callback.
 ///
 /// [`XErrorEvent`]: https://linux.die.net/man/3/xerrorevent
-pub type XlibErrorHook =
-    Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
+pub type XlibErrorHook = Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
 
 /// A unique identifier for an X11 visual.
 pub type XVisualID = u32;
@@ -210,8 +209,7 @@ impl WindowAttributesExtX11 for WindowAttributes {
 
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name =
-            Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
+        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(general.into(), instance.into()));
         self
     }
 

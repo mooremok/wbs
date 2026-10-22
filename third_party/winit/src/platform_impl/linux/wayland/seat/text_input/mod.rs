@@ -21,10 +21,7 @@ pub struct TextInputState {
 }
 
 impl TextInputState {
-    pub fn new(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> Result<Self, BindError> {
+    pub fn new(globals: &GlobalList, queue_handle: &QueueHandle<WinitState>) -> Result<Self, BindError> {
         let text_input_manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { text_input_manager })
     }
@@ -79,7 +76,7 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 }
 
                 window.text_input_entered(text_input);
-            },
+            }
             TextInputEvent::Leave { surface } => {
                 text_input_data.surface = None;
 
@@ -99,22 +96,18 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 window.text_input_left(text_input);
 
                 state.events_sink.push_window_event(WindowEvent::Ime(Ime::Disabled), window_id);
-            },
+            }
             TextInputEvent::PreeditString { text, cursor_begin, cursor_end } => {
                 let text = text.unwrap_or_default();
-                let cursor_begin = usize::try_from(cursor_begin)
-                    .ok()
-                    .and_then(|idx| text.is_char_boundary(idx).then_some(idx));
-                let cursor_end = usize::try_from(cursor_end)
-                    .ok()
-                    .and_then(|idx| text.is_char_boundary(idx).then_some(idx));
+                let cursor_begin = usize::try_from(cursor_begin).ok().and_then(|idx| text.is_char_boundary(idx).then_some(idx));
+                let cursor_end = usize::try_from(cursor_end).ok().and_then(|idx| text.is_char_boundary(idx).then_some(idx));
 
                 text_input_data.pending_preedit = Some(Preedit { text, cursor_begin, cursor_end })
-            },
+            }
             TextInputEvent::CommitString { text } => {
                 text_input_data.pending_preedit = None;
                 text_input_data.pending_commit = text;
-            },
+            }
             TextInputEvent::Done { .. } => {
                 let window_id = match text_input_data.surface.as_ref() {
                     Some(surface) => wayland::make_wid(surface),
@@ -122,37 +115,26 @@ impl Dispatch<ZwpTextInputV3, TextInputData, WinitState> for TextInputState {
                 };
 
                 // Clear preedit, unless all we'll be doing next is sending a new preedit.
-                if text_input_data.pending_commit.is_some()
-                    || text_input_data.pending_preedit.is_none()
-                {
-                    state.events_sink.push_window_event(
-                        WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                        window_id,
-                    );
+                if text_input_data.pending_commit.is_some() || text_input_data.pending_preedit.is_none() {
+                    state.events_sink.push_window_event(WindowEvent::Ime(Ime::Preedit(String::new(), None)), window_id);
                 }
 
                 // Send `Commit`.
                 if let Some(text) = text_input_data.pending_commit.take() {
-                    state
-                        .events_sink
-                        .push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
+                    state.events_sink.push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
                 }
 
                 // Send preedit.
                 if let Some(preedit) = text_input_data.pending_preedit.take() {
-                    let cursor_range =
-                        preedit.cursor_begin.map(|b| (b, preedit.cursor_end.unwrap_or(b)));
+                    let cursor_range = preedit.cursor_begin.map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
-                    state.events_sink.push_window_event(
-                        WindowEvent::Ime(Ime::Preedit(preedit.text, cursor_range)),
-                        window_id,
-                    );
+                    state.events_sink.push_window_event(WindowEvent::Ime(Ime::Preedit(preedit.text, cursor_range)), window_id);
                 }
-            },
+            }
             TextInputEvent::DeleteSurroundingText { .. } => {
                 // Not handled.
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
 }

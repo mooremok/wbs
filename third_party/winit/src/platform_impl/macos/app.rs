@@ -31,9 +31,7 @@ extern "C" fn send_event(app: &NSApplication, sel: Sel, event: &NSEvent) {
     // but that doesn't really matter here.
     let event_type = unsafe { event.r#type() };
     let modifier_flags = unsafe { event.modifierFlags() };
-    if event_type == NSEventType::KeyUp
-        && modifier_flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand)
-    {
+    if event_type == NSEventType::KeyUp && modifier_flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand) {
         if let Some(key_window) = app.keyWindow() {
             key_window.sendEvent(event);
         }
@@ -70,8 +68,7 @@ pub(crate) fn override_send_event(global_app: &NSApplication) {
     let mtm = MainThreadMarker::from(global_app);
     let class = global_app.class();
 
-    let method =
-        class.instance_method(sel!(sendEvent:)).expect("NSApplication must have sendEvent: method");
+    let method = class.instance_method(sel!(sendEvent:)).expect("NSApplication must have sendEvent: method");
 
     // SAFETY: Converting our `sendEvent:` implementation to an IMP.
     let overridden = unsafe { mem::transmute::<SendEvent, Imp>(send_event) };
@@ -104,10 +101,7 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
     let event_type = unsafe { event.r#type() };
     #[allow(non_upper_case_globals)]
     match event_type {
-        NSEventType::MouseMoved
-        | NSEventType::LeftMouseDragged
-        | NSEventType::OtherMouseDragged
-        | NSEventType::RightMouseDragged => {
+        NSEventType::MouseMoved | NSEventType::LeftMouseDragged | NSEventType::OtherMouseDragged | NSEventType::RightMouseDragged => {
             let delta_x = unsafe { event.deltaX() } as f64;
             let delta_y = unsafe { event.deltaY() } as f64;
 
@@ -120,23 +114,15 @@ fn maybe_dispatch_device_event(delegate: &ApplicationDelegate, event: &NSEvent) 
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                delegate.maybe_queue_device_event(DeviceEvent::MouseMotion {
-                    delta: (delta_x, delta_y),
-                });
+                delegate.maybe_queue_device_event(DeviceEvent::MouseMotion { delta: (delta_x, delta_y) });
             }
-        },
+        }
         NSEventType::LeftMouseDown | NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
-            delegate.maybe_queue_device_event(DeviceEvent::Button {
-                button: unsafe { event.buttonNumber() } as u32,
-                state: ElementState::Pressed,
-            });
-        },
+            delegate.maybe_queue_device_event(DeviceEvent::Button { button: unsafe { event.buttonNumber() } as u32, state: ElementState::Pressed });
+        }
         NSEventType::LeftMouseUp | NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
-            delegate.maybe_queue_device_event(DeviceEvent::Button {
-                button: unsafe { event.buttonNumber() } as u32,
-                state: ElementState::Released,
-            });
-        },
+            delegate.maybe_queue_device_event(DeviceEvent::Button { button: unsafe { event.buttonNumber() } as u32, state: ElementState::Released });
+        }
         _ => (),
     }
 }

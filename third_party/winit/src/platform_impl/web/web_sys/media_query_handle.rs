@@ -12,10 +12,7 @@ impl MediaQueryListHandle {
     where
         F: 'static + FnMut(&MediaQueryList),
     {
-        let mql = window
-            .match_media(media_query)
-            .expect("Failed to parse media query")
-            .expect("Found empty media query");
+        let mql = window.match_media(media_query).expect("Failed to parse media query").expect("Found empty media query");
 
         let closure = Closure::new({
             let mql = mql.clone();
@@ -24,8 +21,7 @@ impl MediaQueryListHandle {
         // TODO: Replace obsolete `addListener()` with `addEventListener()` and use
         // `MediaQueryListEvent` instead of cloning the `MediaQueryList`.
         // Requires Safari v14.
-        mql.add_listener_with_opt_callback(Some(closure.as_ref().unchecked_ref()))
-            .expect("Invalid listener");
+        mql.add_listener_with_opt_callback(Some(closure.as_ref().unchecked_ref())).expect("Invalid listener");
 
         Self { mql, closure }
     }
@@ -42,7 +38,6 @@ impl Drop for MediaQueryListHandle {
 }
 
 fn remove_listener(mql: &MediaQueryList, listener: &Closure<dyn FnMut()>) {
-    mql.remove_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref())).unwrap_or_else(
-        |e| web_sys::console::error_2(&"Error removing media query listener".into(), &e),
-    );
+    mql.remove_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref()))
+        .unwrap_or_else(|e| web_sys::console::error_2(&"Error removing media query listener".into(), &e));
 }

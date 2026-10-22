@@ -3,18 +3,15 @@
 use std::sync::Once;
 
 use windows_sys::Win32::Foundation::{HWND, S_OK};
-use windows_sys::Win32::Graphics::Gdi::{
-    GetDC, GetDeviceCaps, MonitorFromWindow, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST,
-};
+use windows_sys::Win32::Graphics::Gdi::{GetDC, GetDeviceCaps, MonitorFromWindow, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST};
 use windows_sys::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
-    MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE,
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::IsProcessDPIAware;
 
 use crate::platform_impl::platform::util::{
-    ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
-    SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
+    ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE, SET_PROCESS_DPI_AWARENESS,
+    SET_PROCESS_DPI_AWARENESS_CONTEXT,
 };
 
 pub fn become_dpi_aware() {
@@ -23,9 +20,7 @@ pub fn become_dpi_aware() {
         unsafe {
             if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT {
                 // We are on Windows 10 Anniversary Update (1607) or later.
-                if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-                    == false.into()
-                {
+                if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == false.into() {
                     // V2 only works with Windows 10 Creators Update (1703). Try using the older
                     // V1 if we can't set V2.
                     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);

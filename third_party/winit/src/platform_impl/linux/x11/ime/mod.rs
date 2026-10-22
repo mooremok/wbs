@@ -57,18 +57,14 @@ pub(crate) struct Ime {
 }
 
 impl Ime {
-    pub fn new(
-        xconn: Arc<XConnection>,
-        event_sender: ImeEventSender,
-    ) -> Result<Self, ImeCreationError> {
+    pub fn new(xconn: Arc<XConnection>, event_sender: ImeEventSender) -> Result<Self, ImeCreationError> {
         let potential_input_methods = PotentialInputMethods::new(&xconn);
 
         let (mut inner, client_data) = {
             let mut inner = Box::new(ImeInner::new(xconn, potential_input_methods, event_sender));
             let inner_ptr = Box::into_raw(inner);
             let client_data = inner_ptr as _;
-            let destroy_callback =
-                ffi::XIMCallback { client_data, callback: Some(xim_destroy_callback) };
+            let destroy_callback = ffi::XIMCallback { client_data, callback: Some(xim_destroy_callback) };
             inner = unsafe { Box::from_raw(inner_ptr) };
             inner.destroy_callback = destroy_callback;
             (inner, client_data)
@@ -87,8 +83,7 @@ impl Ime {
         if let Some(input_method) = input_method.ok() {
             inner.is_fallback = is_fallback;
             unsafe {
-                let result = set_destroy_callback(&xconn, input_method.im, &inner)
-                    .map_err(ImeCreationError::SetDestroyCallbackFailed);
+                let result = set_destroy_callback(&xconn, input_method.im, &inner).map_err(ImeCreationError::SetDestroyCallbackFailed);
                 if result.is_err() {
                     let _ = close_im(&xconn, input_method.im);
                 }
@@ -109,27 +104,14 @@ impl Ime {
     // Ok(_) indicates that nothing went wrong internally
     // Ok(true) indicates that the action was actually performed
     // Ok(false) indicates that the action is not presently applicable
-    pub fn create_context(
-        &mut self,
-        window: ffi::Window,
-        with_ime: bool,
-    ) -> Result<bool, ImeContextCreationError> {
+    pub fn create_context(&mut self, window: ffi::Window, with_ime: bool) -> Result<bool, ImeContextCreationError> {
         let context = if self.is_destroyed() {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
             let im = self.inner.im.as_ref().unwrap();
 
-            let context = unsafe {
-                ImeContext::new(
-                    &self.inner.xconn,
-                    im,
-                    window,
-                    None,
-                    self.inner.event_sender.clone(),
-                    with_ime,
-                )?
-            };
+            let context = unsafe { ImeContext::new(&self.inner.xconn, im, window, None, self.inner.event_sender.clone(), with_ime)? };
 
             let event = if context.is_allowed() { ImeEvent::Enabled } else { ImeEvent::Disabled };
             self.inner.event_sender.send((window, event)).expect("Failed to send enabled event");

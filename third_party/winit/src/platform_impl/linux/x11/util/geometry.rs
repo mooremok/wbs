@@ -23,14 +23,8 @@ impl AaRect {
     }
 
     pub fn get_overlapping_area(&self, other: &Self) -> i64 {
-        let x_overlap = cmp::max(
-            0,
-            cmp::min(self.x + self.width, other.x + other.width) - cmp::max(self.x, other.x),
-        );
-        let y_overlap = cmp::max(
-            0,
-            cmp::min(self.y + self.height, other.y + other.height) - cmp::max(self.y, other.y),
-        );
+        let x_overlap = cmp::max(0, cmp::min(self.x + self.width, other.x + other.width) - cmp::max(self.x, other.x));
+        let y_overlap = cmp::max(0, cmp::min(self.y + self.height, other.y + other.height) - cmp::max(self.y, other.y));
         x_overlap * y_overlap
     }
 }
@@ -78,31 +72,20 @@ impl FrameExtentsHeuristic {
 
     pub fn inner_size_to_outer(&self, width: u32, height: u32) -> (u32, u32) {
         (
-            width.saturating_add(
-                self.frame_extents.left.saturating_add(self.frame_extents.right) as _
-            ),
-            height.saturating_add(
-                self.frame_extents.top.saturating_add(self.frame_extents.bottom) as _
-            ),
+            width.saturating_add(self.frame_extents.left.saturating_add(self.frame_extents.right) as _),
+            height.saturating_add(self.frame_extents.top.saturating_add(self.frame_extents.bottom) as _),
         )
     }
 }
 
 impl XConnection {
     // This is adequate for inner_position
-    pub fn translate_coords(
-        &self,
-        window: xproto::Window,
-        root: xproto::Window,
-    ) -> Result<xproto::TranslateCoordinatesReply, X11Error> {
+    pub fn translate_coords(&self, window: xproto::Window, root: xproto::Window) -> Result<xproto::TranslateCoordinatesReply, X11Error> {
         self.xcb_connection().translate_coordinates(window, root, 0, 0)?.reply().map_err(Into::into)
     }
 
     // This is adequate for inner_size
-    pub fn get_geometry(
-        &self,
-        window: xproto::Window,
-    ) -> Result<xproto::GetGeometryReply, X11Error> {
+    pub fn get_geometry(&self, window: xproto::Window) -> Result<xproto::GetGeometryReply, X11Error> {
         self.xcb_connection().get_geometry(window)?.reply().map_err(Into::into)
     }
 
@@ -117,18 +100,11 @@ impl XConnection {
         // Of the WMs tested, xmonad, i3, dwm, IceWM (1.3.x and earlier), and blackbox don't
         // support this. As this is part of EWMH (Extended Window Manager Hints), it's likely to
         // be unsupported by many smaller WMs.
-        let extents: Option<Vec<u32>> = self
-            .get_property(window, extents_atom, xproto::Atom::from(xproto::AtomEnum::CARDINAL))
-            .ok();
+        let extents: Option<Vec<u32>> = self.get_property(window, extents_atom, xproto::Atom::from(xproto::AtomEnum::CARDINAL)).ok();
 
         extents.and_then(|extents| {
             if extents.len() >= 4 {
-                Some(FrameExtents {
-                    left: extents[0],
-                    right: extents[1],
-                    top: extents[2],
-                    bottom: extents[3],
-                })
+                Some(FrameExtents { left: extents[0], right: extents[1], top: extents[2], bottom: extents[3] })
             } else {
                 None
             }
@@ -143,9 +119,7 @@ impl XConnection {
             return None;
         }
 
-        let client_list: Option<Vec<xproto::Window>> = self
-            .get_property(root, client_list_atom, xproto::Atom::from(xproto::AtomEnum::WINDOW))
-            .ok();
+        let client_list: Option<Vec<xproto::Window>> = self.get_property(root, client_list_atom, xproto::Atom::from(xproto::AtomEnum::WINDOW)).ok();
 
         client_list.map(|client_list| client_list.contains(&(window as xproto::Window)))
     }
@@ -155,11 +129,7 @@ impl XConnection {
         Ok(parent)
     }
 
-    fn climb_hierarchy(
-        &self,
-        window: xproto::Window,
-        root: xproto::Window,
-    ) -> Result<xproto::Window, X11Error> {
+    fn climb_hierarchy(&self, window: xproto::Window, root: xproto::Window) -> Result<xproto::Window, X11Error> {
         let mut outer_window = window;
         loop {
             let candidate = self.get_parent_window(outer_window)?;
@@ -171,11 +141,7 @@ impl XConnection {
         Ok(outer_window)
     }
 
-    pub fn get_frame_extents_heuristic(
-        &self,
-        window: xproto::Window,
-        root: xproto::Window,
-    ) -> FrameExtentsHeuristic {
+    pub fn get_frame_extents_heuristic(&self, window: xproto::Window, root: xproto::Window) -> FrameExtentsHeuristic {
         use self::FrameExtentsHeuristicPath::*;
 
         // Position relative to root window.
@@ -183,15 +149,12 @@ impl XConnection {
         // isn't nested are outlined in the comments throughout this function, but in addition to
         // that, fullscreen windows often aren't nested.
         let (inner_y_rel_root, child) = {
-            let coords = self
-                .translate_coords(window, root)
-                .expect("Failed to translate window coordinates");
+            let coords = self.translate_coords(window, root).expect("Failed to translate window coordinates");
             (coords.dst_y, coords.child)
         };
 
         let (width, height, border) = {
-            let inner_geometry =
-                self.get_geometry(window).expect("Failed to get inner window geometry");
+            let inner_geometry = self.get_geometry(window).expect("Failed to get inner window geometry");
             (inner_geometry.width, inner_geometry.height, inner_geometry.border_width)
         };
 
@@ -234,11 +197,9 @@ impl XConnection {
             // If the position value we have is for a nested window used as the client area, we'll
             // just climb up the hierarchy and get the geometry of the outermost window we're
             // nested in.
-            let outer_window =
-                self.climb_hierarchy(window, root).expect("Failed to climb window hierarchy");
+            let outer_window = self.climb_hierarchy(window, root).expect("Failed to climb window hierarchy");
             let (outer_y, outer_width, outer_height) = {
-                let outer_geometry =
-                    self.get_geometry(outer_window).expect("Failed to get outer window geometry");
+                let outer_geometry = self.get_geometry(outer_window).expect("Failed to get outer window geometry");
                 (outer_geometry.y, outer_geometry.width, outer_geometry.height)
             };
 

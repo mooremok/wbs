@@ -970,7 +970,10 @@ impl WordApp {
             return;
         }
         let i = self.active_slot.min(self.tabs.len() - 1);
-        let tab = self.tabs.remove(i);
+        let mut tab = self.tabs.remove(i);
+        // Its document's fate is settled (saved, or discarded at the prompt): the recovery copy
+        // would only offer to restore what the user already dealt with.
+        let _ = tab.session.purge_recovery();
         self.active_slot = i;
         self.session = tab.session;
         self.autosave_path = tab.autosave_path;
@@ -987,7 +990,8 @@ impl WordApp {
             return;
         }
         let i = if d > self.active_slot { d - 1 } else { d };
-        self.tabs.remove(i);
+        let mut tab = self.tabs.remove(i);
+        let _ = tab.session.purge_recovery();
         if d < self.active_slot {
             self.active_slot -= 1;
         }
@@ -1594,6 +1598,17 @@ impl WordApp {
         saved
     }
 
+    /// Remove every open document's crash-recovery copy: the quit has asked about each of them
+    /// (or they are clean), so what is left to recover is nothing and the next launch must not
+    /// offer copies of documents the user settled. Blocking, but only for a worker round-trip
+    /// per document; safe to call again (a purged session has no copy).
+    pub fn purge_recovery_all(&mut self) {
+        let _ = self.session.purge_recovery();
+        for t in &mut self.tabs {
+            let _ = t.session.purge_recovery();
+        }
+    }
+
     /// The window's close button (or the system) asked to quit. Returns true to let the window
     /// close; with unsaved changes anywhere it asks first, document by document, and returns
     /// false.
@@ -1652,6 +1667,8 @@ impl WordApp {
                 self.activate_tab(if i >= self.active_slot { i + 1 } else { i });
                 return self.run("file.close", json!({"quit": true}));
             }
+            // Every document's fate is settled: nothing is left to recover.
+            self.purge_recovery_all();
             self.quit_requested = true;
             return Ok(json!({"quit": true}));
         }
@@ -1662,6 +1679,8 @@ impl WordApp {
             self.close_active_tab();
             return Ok(json!({"closed": true}));
         }
+        // The last document gives way to a fresh one; its fate is settled as above.
+        let _ = self.session.purge_recovery();
         self.execute("file.new", json!({}))?;
         self.no_document = Some(self.session.document_id());
         self.home = true;

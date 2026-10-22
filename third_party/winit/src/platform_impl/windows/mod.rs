@@ -2,10 +2,7 @@ use smol_str::SmolStr;
 use windows_sys::Win32::Foundation::{HANDLE, HWND};
 use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::event_loop::{
-    ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle,
-    PlatformSpecificEventLoopAttributes,
-};
+pub(crate) use self::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy, OwnedDisplayHandle, PlatformSpecificEventLoopAttributes};
 pub(crate) use self::icon::{SelectedCursor, WinIcon};
 pub(crate) use self::keyboard::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use self::monitor::{MonitorHandle, VideoModeHandle};
@@ -161,22 +158,15 @@ unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
     #[cfg(target_pointer_width = "64")]
     return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, nindex) };
     #[cfg(target_pointer_width = "32")]
-    return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize
-    };
+    return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize };
 }
 
 #[inline(always)]
 unsafe fn set_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
     #[cfg(target_pointer_width = "64")]
-    return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, nindex, dwnewlong)
-    };
+    return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, nindex, dwnewlong) };
     #[cfg(target_pointer_width = "32")]
-    return unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, nindex, dwnewlong as i32)
-            as isize
-    };
+    return unsafe { windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(hwnd, nindex, dwnewlong as i32) as isize };
 }
 
 #[macro_use]

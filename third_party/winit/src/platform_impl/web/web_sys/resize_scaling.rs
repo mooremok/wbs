@@ -3,8 +3,8 @@ use tracing::warn;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions,
-    ResizeObserverEntry, ResizeObserverOptions, ResizeObserverSize, Window,
+    Document, HtmlCanvasElement, MediaQueryList, ResizeObserver, ResizeObserverBoxOptions, ResizeObserverEntry, ResizeObserverOptions,
+    ResizeObserverSize, Window,
 };
 
 use crate::dpi::{LogicalSize, PhysicalSize};
@@ -19,26 +19,12 @@ use std::rc::Rc;
 pub struct ResizeScaleHandle(Rc<ResizeScaleInternal>);
 
 impl ResizeScaleHandle {
-    pub(crate) fn new<S, R>(
-        window: Window,
-        document: Document,
-        canvas: HtmlCanvasElement,
-        style: Style,
-        scale_handler: S,
-        resize_handler: R,
-    ) -> Self
+    pub(crate) fn new<S, R>(window: Window, document: Document, canvas: HtmlCanvasElement, style: Style, scale_handler: S, resize_handler: R) -> Self
     where
         S: 'static + Fn(PhysicalSize<u32>, f64),
         R: 'static + Fn(PhysicalSize<u32>),
     {
-        Self(ResizeScaleInternal::new(
-            window,
-            document,
-            canvas,
-            style,
-            scale_handler,
-            resize_handler,
-        ))
+        Self(ResizeScaleInternal::new(window, document, canvas, style, scale_handler, resize_handler))
     }
 
     pub(crate) fn notify_resize(&self) {
@@ -62,14 +48,7 @@ struct ResizeScaleInternal {
 }
 
 impl ResizeScaleInternal {
-    fn new<S, R>(
-        window: Window,
-        document: Document,
-        canvas: HtmlCanvasElement,
-        style: Style,
-        scale_handler: S,
-        resize_handler: R,
-    ) -> Rc<Self>
+    fn new<S, R>(window: Window, document: Document, canvas: HtmlCanvasElement, style: Style, scale_handler: S, resize_handler: R) -> Rc<Self>
     where
         S: 'static + Fn(PhysicalSize<u32>, f64),
         R: 'static + Fn(PhysicalSize<u32>),
@@ -125,17 +104,12 @@ impl ResizeScaleInternal {
              (-webkit-device-pixel-ratio: {current_scale})",
         );
         let mql = MediaQueryListHandle::new(window, &media_query, closure);
-        debug_assert!(
-            mql.mql().matches(),
-            "created media query doesn't match, {current_scale} != {}",
-            super::scale_factor(window)
-        );
+        debug_assert!(mql.mql().matches(), "created media query doesn't match, {current_scale} != {}", super::scale_factor(window));
         mql
     }
 
     fn create_observer(canvas: &HtmlCanvasElement, closure: &JsValue) -> ResizeObserver {
-        let observer = ResizeObserver::new(closure.as_ref().unchecked_ref())
-            .expect("Failed to create `ResizeObserver`");
+        let observer = ResizeObserver::new(closure.as_ref().unchecked_ref()).expect("Failed to create `ResizeObserver`");
 
         // Safari doesn't support `devicePixelContentBoxSize`
         if has_device_pixel_support() {
@@ -171,10 +145,7 @@ impl ResizeScaleInternal {
             return;
         }
 
-        let mut size = LogicalSize::new(
-            backend::style_size_property(&self.style, "width"),
-            backend::style_size_property(&self.style, "height"),
-        );
+        let mut size = LogicalSize::new(backend::style_size_property(&self.style, "width"), backend::style_size_property(&self.style, "height"));
 
         if self.style.get("box-sizing") == "border-box" {
             size.width -= backend::style_size_property(&self.style, "border-left-width")
@@ -231,12 +202,10 @@ impl ResizeScaleInternal {
         if !has_device_pixel_support() {
             let rect = entry.content_rect();
 
-            return LogicalSize::new(rect.width(), rect.height())
-                .to_physical(backend::scale_factor(&self.window));
+            return LogicalSize::new(rect.width(), rect.height()).to_physical(backend::scale_factor(&self.window));
         }
 
-        let entry: ResizeObserverSize =
-            entry.device_pixel_content_box_size().get(0).unchecked_into();
+        let entry: ResizeObserverSize = entry.device_pixel_content_box_size().get(0).unchecked_into();
 
         let writing_mode = self.style.get("writing-mode");
 
@@ -250,16 +219,14 @@ impl ResizeScaleInternal {
 
         let horizontal = match writing_mode.as_str() {
             _ if writing_mode.starts_with("horizontal") => true,
-            _ if writing_mode.starts_with("vertical") | writing_mode.starts_with("sideways") => {
-                false
-            },
+            _ if writing_mode.starts_with("vertical") | writing_mode.starts_with("sideways") => false,
             // deprecated values
             "lr" | "lr-tb" | "rl" => true,
             "tb" | "tb-lr" | "tb-rl" => false,
             _ => {
                 warn!("unrecognized `writing-mode`, assuming horizontal");
                 true
-            },
+            }
         };
 
         if horizontal {

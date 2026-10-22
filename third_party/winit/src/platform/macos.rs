@@ -529,3 +529,14 @@ pub enum OptionAsAlt {
     #[default]
     None,
 }
+
+/// WBS: approve the next `terminate:`.
+///
+/// Command-Q and the menu's Quit are routed through the window's close request (see
+/// `applicationShouldTerminate` in the AppKit backend), so the app can ask about unsaved
+/// documents first; once it has settled them and is ready to quit, it calls this and then
+/// `NSApplication::terminate` again, which then goes ahead.
+#[cfg(target_os = "macos")]
+pub fn approve_termination() {
+    crate::platform_impl::approve_termination();
+}

@@ -8,10 +8,7 @@ use objc2_foundation::{run_on_main, NSPoint};
 use smol_str::SmolStr;
 
 use crate::event::{ElementState, KeyEvent, Modifiers};
-use crate::keyboard::{
-    Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
-    PhysicalKey,
-};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
 use crate::platform_impl::platform::ffi;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -31,8 +28,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
             tracing::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
             return Key::Unidentified(NativeKey::MacOS(scancode));
         }
-        let layout_data =
-            ffi::TISGetInputSourceProperty(input_source, ffi::kTISPropertyUnicodeKeyLayoutData);
+        let layout_data = ffi::TISGetInputSourceProperty(input_source, ffi::kTISPropertyUnicodeKeyLayoutData);
         if layout_data.is_null() {
             CFRelease(input_source as *mut c_void);
             tracing::error!("`TISGetInputSourceProperty` returned null ptr");
@@ -78,9 +74,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key {
 
 // Ignores all modifiers except for SHIFT (yes, even ALT is ignored).
 fn get_logical_key_char(ns_event: &NSEvent, modifierless_chars: &str) -> Key {
-    let string = unsafe { ns_event.charactersIgnoringModifiers() }
-        .map(|s| s.to_string())
-        .unwrap_or_default();
+    let string = unsafe { ns_event.charactersIgnoringModifiers() }.map(|s| s.to_string()).unwrap_or_default();
     if string.is_empty() {
         // Probably a dead key
         let first_char = modifierless_chars.chars().next();
@@ -135,7 +129,7 @@ pub(crate) fn create_key_event(ns_event: &NSEvent, is_press: bool, is_repeat: bo
             Some(text) if !has_ctrl && !has_cmd => {
                 // Character heeding both SHIFT and ALT.
                 Key::Character(text.clone())
-            },
+            }
 
             _ => match key_without_modifiers.as_ref() {
                 // Character heeding just SHIFT, ignoring ALT.
@@ -308,15 +302,11 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     let mut state = ModifiersState::empty();
     let mut pressed_mods = ModifiersKeys::empty();
 
-    state
-        .set(ModifiersState::SHIFT, flags.contains(NSEventModifierFlags::NSEventModifierFlagShift));
+    state.set(ModifiersState::SHIFT, flags.contains(NSEventModifierFlags::NSEventModifierFlagShift));
     pressed_mods.set(ModifiersKeys::LSHIFT, flags.contains(NX_DEVICELSHIFTKEYMASK));
     pressed_mods.set(ModifiersKeys::RSHIFT, flags.contains(NX_DEVICERSHIFTKEYMASK));
 
-    state.set(
-        ModifiersState::CONTROL,
-        flags.contains(NSEventModifierFlags::NSEventModifierFlagControl),
-    );
+    state.set(ModifiersState::CONTROL, flags.contains(NSEventModifierFlags::NSEventModifierFlagControl));
     pressed_mods.set(ModifiersKeys::LCONTROL, flags.contains(NX_DEVICELCTLKEYMASK));
     pressed_mods.set(ModifiersKeys::RCONTROL, flags.contains(NX_DEVICERCTLKEYMASK));
 
@@ -324,10 +314,7 @@ pub(super) fn event_mods(event: &NSEvent) -> Modifiers {
     pressed_mods.set(ModifiersKeys::LALT, flags.contains(NX_DEVICELALTKEYMASK));
     pressed_mods.set(ModifiersKeys::RALT, flags.contains(NX_DEVICERALTKEYMASK));
 
-    state.set(
-        ModifiersState::SUPER,
-        flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand),
-    );
+    state.set(ModifiersState::SUPER, flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand));
     pressed_mods.set(ModifiersKeys::LSUPER, flags.contains(NX_DEVICELCMDKEYMASK));
     pressed_mods.set(ModifiersKeys::RSUPER, flags.contains(NX_DEVICERCMDKEYMASK));
 

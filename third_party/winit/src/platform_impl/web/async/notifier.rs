@@ -46,17 +46,16 @@ impl<T: Clone> Future for Notified<T> {
                         self.0 = Some(this);
                         return Poll::Pending;
                     }
-                },
+                }
                 Err(PushError::Closed(_)) => (),
                 Err(PushError::Full(_)) => {
                     unreachable!("found full queue despite using unbounded queue")
-                },
+                }
             }
         }
 
-        let (Ok(Some(value)) | Err(Some(value))) = Arc::try_unwrap(this)
-            .map(|mut inner| inner.value.take())
-            .map_err(|this| this.value.get().cloned())
+        let (Ok(Some(value)) | Err(Some(value))) =
+            Arc::try_unwrap(this).map(|mut inner| inner.value.take()).map_err(|this| this.value.get().cloned())
         else {
             unreachable!("found no value despite being ready")
         };

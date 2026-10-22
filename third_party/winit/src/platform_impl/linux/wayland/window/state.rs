@@ -12,9 +12,7 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
-use sctk::reexports::csd_frame::{
-    DecorationsFrame, FrameAction, FrameClick, ResizeEdge, WindowState as XdgWindowState,
-};
+use sctk::reexports::csd_frame::{DecorationsFrame, FrameAction, FrameClick, ResizeEdge, WindowState as XdgWindowState};
 use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::WpFractionalScaleV1;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use sctk::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
@@ -39,9 +37,7 @@ use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
 use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
-use crate::platform_impl::wayland::seat::{
-    PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext,
-};
+use crate::platform_impl::wayland::seat::{PointerConstraintsState, WinitPointerData, WinitPointerDataExt, ZwpTextInputV3Ext};
 use crate::platform_impl::wayland::state::{WindowCompositorUpdate, WinitState};
 
 #[cfg(feature = "sctk-adwaita")]
@@ -174,14 +170,8 @@ impl WindowState {
     ) -> Self {
         let compositor = winit_state.compositor_state.clone();
         let pointer_constraints = winit_state.pointer_constraints.clone();
-        let viewport = winit_state
-            .viewporter_state
-            .as_ref()
-            .map(|state| state.get_viewport(window.wl_surface(), queue_handle));
-        let fractional_scale = winit_state
-            .fractional_scaling_manager
-            .as_ref()
-            .map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
+        let viewport = winit_state.viewporter_state.as_ref().map(|state| state.get_viewport(window.wl_surface(), queue_handle));
+        let fractional_scale = winit_state.fractional_scaling_manager.as_ref().map(|fsm| fsm.fractional_scaling(window.wl_surface(), queue_handle));
 
         Self {
             blur: None,
@@ -224,10 +214,7 @@ impl WindowState {
     }
 
     /// Apply closure on the given pointer.
-    fn apply_on_pointer<F: FnMut(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
-        &self,
-        mut callback: F,
-    ) {
+    fn apply_on_pointer<F: FnMut(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(&self, mut callback: F) {
         self.pointers.iter().filter_map(Weak::upgrade).for_each(|pointer| {
             let data = pointer.pointer().winit_data();
             callback(pointer.as_ref(), data);
@@ -256,17 +243,12 @@ impl WindowState {
             FrameCallbackState::None | FrameCallbackState::Received => {
                 self.frame_callback_state = FrameCallbackState::Requested;
                 surface.frame(&self.queue_handle, surface.clone());
-            },
+            }
             FrameCallbackState::Requested => (),
         }
     }
 
-    pub fn configure(
-        &mut self,
-        configure: WindowConfigure,
-        shm: &Shm,
-        subcompositor: &Option<Arc<SubcompositorState>>,
-    ) -> bool {
+    pub fn configure(&mut self, configure: WindowConfigure, shm: &Shm, subcompositor: &Option<Arc<SubcompositorState>>) -> bool {
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
         // should be delivered before the first configure, thus apply it to
         // properly scale the physical sizes provided by the users.
@@ -275,11 +257,9 @@ impl WindowState {
             self.stateless_size = self.size;
         }
 
-        if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
-            configure.decoration_mode == DecorationMode::Client
-                && self.frame.is_none()
-                && !self.csd_fails
-        }) {
+        if let Some(subcompositor) =
+            subcompositor.as_ref().filter(|_| configure.decoration_mode == DecorationMode::Client && self.frame.is_none() && !self.csd_fails)
+        {
             match WinitFrame::new(
                 &self.window,
                 shm,
@@ -296,11 +276,11 @@ impl WindowState {
                     // Hide the frame if we were asked to not decorate.
                     frame.set_hidden(!self.decorate);
                     self.frame = Some(frame);
-                },
+                }
                 Err(err) => {
                     warn!("Failed to create client side decorations frame: {err}");
                     self.csd_fails = true;
-                },
+                }
             }
         } else if configure.decoration_mode == DecorationMode::Server {
             // Drop the frame for server side decorations to save resources.
@@ -319,7 +299,7 @@ impl WindowState {
                     let width = width.map(|w| w.get()).unwrap_or(1);
                     let height = height.map(|h| h.get()).unwrap_or(1);
                     ((width, height).into(), false)
-                },
+                }
                 (..) if stateless => (self.stateless_size, true),
                 _ => (self.size, true),
             }
@@ -334,12 +314,8 @@ impl WindowState {
         // Apply configure bounds only when compositor let the user decide what size to pick.
         if constrain {
             let bounds = self.inner_size_bounds(&configure);
-            new_size.width =
-                bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
-            new_size.height = bounds
-                .1
-                .map(|bound_h| new_size.height.min(bound_h.get()))
-                .unwrap_or(new_size.height);
+            new_size.width = bounds.0.map(|bound_w| new_size.width.min(bound_w.get())).unwrap_or(new_size.width);
+            new_size.height = bounds.1.map(|bound_h| new_size.height.min(bound_h.get())).unwrap_or(new_size.height);
         }
 
         // Apply size increments.
@@ -354,25 +330,17 @@ impl WindowState {
         // or states like Maximized/Tiled). Snapping in these cases (e.g. corner tiling) would
         // shrink the window below the allocated area, creating visible gaps between valid
         // windows or screen edges.
-        if (constrain || configure.is_resizing())
-            && !configure.is_maximized()
-            && !configure.is_fullscreen()
-            && !configure.is_tiled()
-        {
+        if (constrain || configure.is_resizing()) && !configure.is_maximized() && !configure.is_fullscreen() && !configure.is_tiled() {
             if let Some(increments) = self.resize_increments {
                 // We use min size as a base size for the increments, similar to how X11 does it.
                 //
                 // This ensures that we can always reach the min size and the increments are
                 // calculated from it.
-                let (delta_width, delta_height) = (
-                    new_size.width.saturating_sub(self.min_inner_size.width),
-                    new_size.height.saturating_sub(self.min_inner_size.height),
-                );
+                let (delta_width, delta_height) =
+                    (new_size.width.saturating_sub(self.min_inner_size.width), new_size.height.saturating_sub(self.min_inner_size.height));
 
-                let width =
-                    self.min_inner_size.width + (delta_width / increments.width) * increments.width;
-                let height = self.min_inner_size.height
-                    + (delta_height / increments.height) * increments.height;
+                let width = self.min_inner_size.width + (delta_width / increments.width) * increments.width;
+                let height = self.min_inner_size.height + (delta_height / increments.height) * increments.height;
 
                 new_size = (width, height).into();
             }
@@ -382,12 +350,7 @@ impl WindowState {
         let old_state = self.last_configure.as_ref().map(|configure| configure.state);
 
         let state_change_requires_resize = old_state
-            .map(|old_state| {
-                !old_state
-                    .symmetric_difference(new_state)
-                    .difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED)
-                    .is_empty()
-            })
+            .map(|old_state| !old_state.symmetric_difference(new_state).difference(XdgWindowState::ACTIVATED | XdgWindowState::SUSPENDED).is_empty())
             // NOTE: `None` is present for the initial configure, thus we must always resize.
             .unwrap_or(true);
 
@@ -403,10 +366,7 @@ impl WindowState {
     }
 
     /// Compute the bounds for the inner size of the surface.
-    fn inner_size_bounds(
-        &self,
-        configure: &WindowConfigure,
-    ) -> (Option<NonZeroU32>, Option<NonZeroU32>) {
+    fn inner_size_bounds(&self, configure: &WindowConfigure) -> (Option<NonZeroU32>, Option<NonZeroU32>) {
         let configure_bounds = match configure.suggested_bounds {
             Some((width, height)) => (NonZeroU32::new(width), NonZeroU32::new(height)),
             None => (None, None),
@@ -487,7 +447,7 @@ impl WindowState {
                     _ => return None,
                 };
                 self.window.resize(seat, serial, edge);
-            },
+            }
             FrameAction::ShowMenu(x, y) => self.window.show_window_menu(seat, serial, (x, y)),
             _ => (),
         };
@@ -502,14 +462,7 @@ impl WindowState {
     }
 
     // Move the point over decorations.
-    pub fn frame_point_moved(
-        &mut self,
-        seat: &WlSeat,
-        surface: &WlSurface,
-        timestamp: Duration,
-        x: f64,
-        y: f64,
-    ) -> Option<CursorIcon> {
+    pub fn frame_point_moved(&mut self, seat: &WlSeat, surface: &WlSurface, timestamp: Duration, x: f64, y: f64) -> Option<CursorIcon> {
         // Take the serial if we had any, so it doesn't stick around.
         let serial = self.has_pending_move.take();
 
@@ -586,11 +539,7 @@ impl WindowState {
 
     #[inline]
     pub fn is_decorated(&mut self) -> bool {
-        let csd = self
-            .last_configure
-            .as_ref()
-            .map(|configure| configure.decoration_mode == DecorationMode::Client)
-            .unwrap_or(false);
+        let csd = self.last_configure.as_ref().map(|configure| configure.decoration_mode == DecorationMode::Client).unwrap_or(false);
         if let Some(frame) = csd.then_some(self.frame.as_ref()).flatten() {
             !frame.is_hidden()
         } else {
@@ -602,10 +551,7 @@ impl WindowState {
     /// Get the outer size of the window.
     #[inline]
     pub fn outer_size(&self) -> LogicalSize<u32> {
-        self.frame
-            .as_ref()
-            .map(|frame| frame.add_borders(self.size.width, self.size.height).into())
-            .unwrap_or(self.size)
+        self.frame.as_ref().map(|frame| frame.add_borders(self.size.width, self.size.height).into()).unwrap_or(self.size)
     }
 
     /// Register pointer on the top-level.
@@ -690,10 +636,7 @@ impl WindowState {
         let ((x, y), outer_size) = if let Some(frame) = self.frame.as_mut() {
             // Resize only visible frame.
             if !frame.is_hidden() {
-                frame.resize(
-                    NonZeroU32::new(self.size.width).unwrap(),
-                    NonZeroU32::new(self.size.height).unwrap(),
-                );
+                frame.resize(NonZeroU32::new(self.size.width).unwrap(), NonZeroU32::new(self.size.height).unwrap());
             }
 
             (frame.location(), frame.add_borders(self.size.width, self.size.height).into())
@@ -705,12 +648,7 @@ impl WindowState {
         self.reload_transparency_hint();
 
         // Set the window geometry.
-        self.window.xdg_surface().set_window_geometry(
-            x,
-            y,
-            outer_size.width as i32,
-            outer_size.height as i32,
-        );
+        self.window.xdg_surface().set_window_geometry(x, y, outer_size.width as i32, outer_size.height as i32);
 
         // Update the target viewport, this is used if and only if fractional scaling is in use.
         if let Some(viewport) = self.viewport.as_ref() {
@@ -748,7 +686,7 @@ impl WindowState {
             RootCustomCursor { inner: PlatformCustomCursor::X(_) } => {
                 tracing::error!("passed a X11 cursor to Wayland backend");
                 return;
-            },
+            }
         };
 
         let cursor = {
@@ -799,14 +737,9 @@ impl WindowState {
             }
             surface.commit();
 
-            let serial = pointer
-                .pointer()
-                .data::<WinitPointerData>()
-                .and_then(|data| data.pointer_data().latest_enter_serial())
-                .unwrap();
+            let serial = pointer.pointer().data::<WinitPointerData>().and_then(|data| data.pointer_data().latest_enter_serial()).unwrap();
 
-            let hotspot =
-                PhysicalPosition::new(cursor.hotspot_x, cursor.hotspot_y).to_logical(scale);
+            let hotspot = PhysicalPosition::new(cursor.hotspot_x, cursor.hotspot_y).to_logical(scale);
             pointer.pointer().set_cursor(serial, Some(surface), hotspot.x, hotspot.y);
         });
     }
@@ -819,11 +752,7 @@ impl WindowState {
         size.height = size.height.max(MIN_WINDOW_SIZE.height);
 
         // Add the borders.
-        let size = self
-            .frame
-            .as_ref()
-            .map(|frame| frame.add_borders(size.width, size.height).into())
-            .unwrap_or(size);
+        let size = self.frame.as_ref().map(|frame| frame.add_borders(size.width, size.height).into()).unwrap_or(size);
 
         self.min_inner_size = size;
         self.window.set_min_size(Some(size.into()));
@@ -831,12 +760,7 @@ impl WindowState {
 
     /// Set maximum inner window size.
     pub fn set_max_inner_size(&mut self, size: Option<LogicalSize<u32>>) {
-        let size = size.map(|size| {
-            self.frame
-                .as_ref()
-                .map(|frame| frame.add_borders(size.width, size.height).into())
-                .unwrap_or(size)
-        });
+        let size = size.map(|size| self.frame.as_ref().map(|frame| frame.add_borders(size.width, size.height).into()).unwrap_or(size));
 
         self.max_inner_size = size;
         self.window.set_max_size(size.map(Into::into));
@@ -895,7 +819,7 @@ impl WindowState {
                     data.unlock_pointer();
                     unset_old = true;
                 });
-            },
+            }
         }
 
         // In case we haven't unset the old mode, it means that we don't have a cursor above
@@ -920,7 +844,7 @@ impl WindowState {
             CursorGrabMode::None => {
                 // Current lock/confine was already removed.
                 set_mode = true;
-            },
+            }
         }
 
         // Replace the current grab mode after we've ensure that it got updated.
@@ -948,9 +872,7 @@ impl WindowState {
 
         // Position can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
-            return Err(ExternalError::Os(os_error!(crate::platform_impl::OsError::Misc(
-                "cursor position can be set only for locked cursor."
-            ))));
+            return Err(ExternalError::Os(os_error!(crate::platform_impl::OsError::Misc("cursor position can be set only for locked cursor."))));
         }
 
         self.apply_on_pointer(|_, data| {
@@ -991,7 +913,7 @@ impl WindowState {
             Some(DecorationMode::Server) if !self.decorate => {
                 // To disable decorations we should request client and hide the frame.
                 self.window.request_decoration_mode(Some(DecorationMode::Client))
-            },
+            }
             _ if self.decorate => self.window.request_decoration_mode(Some(DecorationMode::Server)),
             _ => (),
         }

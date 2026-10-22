@@ -21,12 +21,7 @@ impl XConnection {
         let pid = rustix::process::getpid();
         let time = self.timestamp();
 
-        let activation_token = format!(
-            "{}{}_TIME{}",
-            uname.nodename().to_str().unwrap_or("winit"),
-            pid.as_raw_nonzero(),
-            time
-        );
+        let activation_token = format!("{}{}_TIME{}", uname.nodename().to_str().unwrap_or("winit"), pid.as_raw_nonzero(), time);
 
         // Set up the new startup notification.
         let notification = {
@@ -38,9 +33,7 @@ impl XConnection {
             buffer.extend_from_slice(b" SCREEN=");
             push_display(&mut buffer, &self.default_screen_index());
 
-            CString::new(buffer)
-                .map_err(|err| X11Error::InvalidActivationToken(err.into_vec()))?
-                .into_bytes_with_nul()
+            CString::new(buffer).map_err(|err| X11Error::InvalidActivationToken(err.into_vec()))?.into_bytes_with_nul()
         };
         self.send_message(&notification)?;
 
@@ -48,11 +41,7 @@ impl XConnection {
     }
 
     /// Finish launching a window with the given startup ID.
-    pub(crate) fn remove_activation_token(
-        &self,
-        window: xproto::Window,
-        startup_id: &str,
-    ) -> Result<(), X11Error> {
+    pub(crate) fn remove_activation_token(&self, window: xproto::Window, startup_id: &str) -> Result<(), X11Error> {
         let atoms = self.atoms();
 
         // Set the _NET_STARTUP_ID property on the window.
@@ -72,18 +61,10 @@ impl XConnection {
         let message = {
             const MESSAGE_ROOT: &str = "remove: ID=";
 
-            let mut buffer = Vec::with_capacity(
-                MESSAGE_ROOT
-                    .len()
-                    .checked_add(startup_id.len())
-                    .and_then(|x| x.checked_add(1))
-                    .unwrap(),
-            );
+            let mut buffer = Vec::with_capacity(MESSAGE_ROOT.len().checked_add(startup_id.len()).and_then(|x| x.checked_add(1)).unwrap());
             buffer.extend_from_slice(MESSAGE_ROOT.as_bytes());
             quote_string(startup_id, &mut buffer);
-            CString::new(buffer)
-                .map_err(|err| X11Error::InvalidActivationToken(err.into_vec()))?
-                .into_bytes_with_nul()
+            CString::new(buffer).map_err(|err| X11Error::InvalidActivationToken(err.into_vec()))?.into_bytes_with_nul()
         };
 
         self.send_message(&message)
@@ -106,9 +87,7 @@ impl XConnection {
             0,
             xproto::WindowClass::INPUT_OUTPUT,
             screen.root_visual,
-            &xproto::CreateWindowAux::new().override_redirect(1).event_mask(
-                xproto::EventMask::STRUCTURE_NOTIFY | xproto::EventMask::PROPERTY_CHANGE,
-            ),
+            &xproto::CreateWindowAux::new().override_redirect(1).event_mask(xproto::EventMask::STRUCTURE_NOTIFY | xproto::EventMask::PROPERTY_CHANGE),
         )?;
 
         // Serialize the messages in 20-byte chunks.
@@ -118,8 +97,7 @@ impl XConnection {
             .map(|chunk| {
                 let mut buffer = [0u8; 20];
                 buffer[..chunk.len()].copy_from_slice(chunk);
-                let event =
-                    xproto::ClientMessageEvent::new(8, window.window(), message_type, buffer);
+                let event = xproto::ClientMessageEvent::new(8, window.window(), message_type, buffer);
 
                 // Set the message type to the continuation atom for the next chunk.
                 message_type = atoms[_NET_STARTUP_INFO];
@@ -128,9 +106,7 @@ impl XConnection {
             })
             .try_for_each(|event| {
                 // Send each event in order.
-                self.xcb_connection()
-                    .send_event(false, screen.root, xproto::EventMask::PROPERTY_CHANGE, event)
-                    .map(VoidCookie::ignore_error)
+                self.xcb_connection().send_event(false, screen.root, xproto::EventMask::PROPERTY_CHANGE, event).map(VoidCookie::ignore_error)
             })?;
 
         Ok(())

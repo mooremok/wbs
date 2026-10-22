@@ -4,9 +4,7 @@ use std::time::Duration;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{
-    AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker,
-};
+use web_sys::{AbortController, AbortSignal, Blob, BlobPropertyBag, MessageChannel, MessagePort, Url, Worker};
 
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 
@@ -18,19 +16,9 @@ pub struct Schedule {
 
 #[derive(Debug)]
 enum Inner {
-    Scheduler {
-        controller: AbortController,
-    },
-    IdleCallback {
-        window: web_sys::Window,
-        handle: u32,
-    },
-    Timeout {
-        window: web_sys::Window,
-        handle: i32,
-        port: MessagePort,
-        _timeout_closure: Closure<dyn FnMut()>,
-    },
+    Scheduler { controller: AbortController },
+    IdleCallback { window: web_sys::Window, handle: u32 },
+    Timeout { window: web_sys::Window, handle: i32, port: MessagePort, _timeout_closure: Closure<dyn FnMut()> },
     Worker(MessagePort),
 }
 
@@ -48,12 +36,7 @@ impl Schedule {
         }
     }
 
-    pub fn new_with_duration<F>(
-        strategy: WaitUntilStrategy,
-        window: &web_sys::Window,
-        f: F,
-        duration: Duration,
-    ) -> Schedule
+    pub fn new_with_duration<F>(strategy: WaitUntilStrategy, window: &web_sys::Window, f: F, duration: Duration) -> Schedule
     where
         F: 'static + FnMut(),
     {
@@ -64,7 +47,7 @@ impl Schedule {
                 } else {
                     Self::new_timeout(window.clone(), f, Some(duration))
                 }
-            },
+            }
             WaitUntilStrategy::Worker => Self::new_worker(f, duration),
         }
     }
@@ -84,11 +67,8 @@ impl Schedule {
         if let Some(duration) = duration {
             // `Duration::as_millis()` always rounds down (because of truncation), we want to round
             // up instead. This makes sure that the we never wake up **before** the given time.
-            let duration = duration
-                .as_secs()
-                .checked_mul(1000)
-                .and_then(|secs| secs.checked_add(duration_millis_ceil(duration).into()))
-                .unwrap_or(u64::MAX);
+            let duration =
+                duration.as_secs().checked_mul(1000).and_then(|secs| secs.checked_add(duration_millis_ceil(duration).into())).unwrap_or(u64::MAX);
 
             options.delay(duration as f64);
         }
@@ -97,9 +77,7 @@ impl Schedule {
             static REJECT_HANDLER: Closure<dyn FnMut(JsValue)> = Closure::new(|_| ());
         }
         REJECT_HANDLER.with(|handler| {
-            let _ = scheduler
-                .post_task_with_options(closure.as_ref().unchecked_ref(), &options)
-                .catch(handler);
+            let _ = scheduler.post_task_with_options(closure.as_ref().unchecked_ref(), &options).catch(handler);
         });
 
         Schedule { _closure: closure, inner: Inner::Scheduler { controller } }
@@ -110,9 +88,7 @@ impl Schedule {
         F: 'static + FnMut(),
     {
         let closure = Closure::new(f);
-        let handle = window
-            .request_idle_callback(closure.as_ref().unchecked_ref())
-            .expect("Failed to request idle callback");
+        let handle = window.request_idle_callback(closure.as_ref().unchecked_ref()).expect("Failed to request idle callback");
 
         Schedule { _closure: closure, inner: Inner::IdleCallback { window, handle } }
     }
@@ -128,9 +104,7 @@ impl Schedule {
         port_1.start();
 
         let port_2 = channel.port2();
-        let timeout_closure = Closure::new(move || {
-            port_2.post_message(&JsValue::UNDEFINED).expect("Failed to send message")
-        });
+        let timeout_closure = Closure::new(move || port_2.post_message(&JsValue::UNDEFINED).expect("Failed to send message"));
         let handle = if let Some(duration) = duration {
             // `Duration::as_millis()` always rounds down (because of truncation), we want to round
             // up instead. This makes sure that the we never wake up **before** the given time.
@@ -140,31 +114,18 @@ impl Schedule {
                 .ok()
                 .and_then(|secs: i32| secs.checked_mul(1000))
                 .and_then(|secs: i32| {
-                    let millis: i32 = duration_millis_ceil(duration)
-                        .try_into()
-                        .expect("millis are somehow bigger then 1K");
+                    let millis: i32 = duration_millis_ceil(duration).try_into().expect("millis are somehow bigger then 1K");
                     secs.checked_add(millis)
                 })
                 .unwrap_or(i32::MAX);
 
-            window.set_timeout_with_callback_and_timeout_and_arguments_0(
-                timeout_closure.as_ref().unchecked_ref(),
-                duration,
-            )
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(timeout_closure.as_ref().unchecked_ref(), duration)
         } else {
             window.set_timeout_with_callback(timeout_closure.as_ref().unchecked_ref())
         }
         .expect("Failed to set timeout");
 
-        Schedule {
-            _closure: closure,
-            inner: Inner::Timeout {
-                window,
-                handle,
-                port: port_1,
-                _timeout_closure: timeout_closure,
-            },
-        }
+        Schedule { _closure: closure, inner: Inner::Timeout { window, handle, port: port_1, _timeout_closure: timeout_closure } }
     }
 
     fn new_worker<F>(f: F, duration: Duration) -> Schedule
@@ -195,10 +156,7 @@ impl Schedule {
         WORKER
             .with(|worker| {
                 let port_2 = channel.port2();
-                worker.post_message_with_transfer(
-                    &Array::of2(&port_2, &duration.into()),
-                    &Array::of1(&port_2).into(),
-                )
+                worker.post_message_with_transfer(&Array::of2(&port_2, &duration.into()), &Array::of1(&port_2).into())
             })
             .expect("`Worker.postMessage()` is not expected to fail");
 
@@ -215,11 +173,11 @@ impl Drop for Schedule {
                 window.clear_timeout_with_handle(*handle);
                 port.close();
                 port.set_onmessage(None);
-            },
+            }
             Inner::Worker(port) => {
                 port.close();
                 port.set_onmessage(None);
-            },
+            }
         }
     }
 }
@@ -288,11 +246,9 @@ impl ScriptUrl {
         let sequence = Array::of1(&script.into());
         let property = BlobPropertyBag::new();
         property.set_type("text/javascript");
-        let blob = Blob::new_with_str_sequence_and_options(&sequence, &property)
-            .expect("`new Blob()` should never throw");
+        let blob = Blob::new_with_str_sequence_and_options(&sequence, &property).expect("`new Blob()` should never throw");
 
-        let url = Url::create_object_url_with_blob(&blob)
-            .expect("`URL.createObjectURL()` should never throw");
+        let url = Url::create_object_url_with_blob(&blob).expect("`URL.createObjectURL()` should never throw");
 
         Self(url)
     }
@@ -314,11 +270,7 @@ extern "C" {
     type Scheduler;
 
     #[wasm_bindgen(method, js_name = postTask)]
-    fn post_task_with_options(
-        this: &Scheduler,
-        callback: &Function,
-        options: &SchedulerPostTaskOptions,
-    ) -> Promise;
+    fn post_task_with_options(this: &Scheduler, callback: &Function, options: &SchedulerPostTaskOptions) -> Promise;
 
     type SchedulerPostTaskOptions;
 }

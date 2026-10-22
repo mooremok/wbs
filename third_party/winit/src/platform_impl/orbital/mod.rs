@@ -156,11 +156,7 @@ impl<'a> WindowProperties<'a> {
 
 impl fmt::Display for WindowProperties<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "orbital:{}/{}/{}/{}/{}/{}",
-            self.flags, self.x, self.y, self.w, self.h, self.title
-        )
+        write!(f, "orbital:{}/{}/{}/{}/{}/{}", self.flags, self.x, self.y, self.w, self.h, self.title)
     }
 }
 
@@ -179,9 +175,7 @@ impl Display for OsError {
     }
 }
 
-pub(crate) use crate::cursor::{
-    NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource,
-};
+pub(crate) use crate::cursor::{NoCustomCursor as PlatformCustomCursor, NoCustomCursor as PlatformCustomCursorSource};
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -213,12 +207,7 @@ impl MonitorHandle {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(VideoModeHandle {
-            size,
-            bit_depth: 32,
-            refresh_rate_millihertz: 60000,
-            monitor: self.clone(),
-        })
+        std::iter::once(VideoModeHandle { size, bit_depth: 32, refresh_rate_millihertz: 60000, monitor: self.clone() })
     }
 }
 

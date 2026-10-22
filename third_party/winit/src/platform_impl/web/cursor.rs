@@ -16,8 +16,8 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap,
-    ImageBitmapOptions, ImageBitmapRenderingContext, ImageData, PremultiplyAlpha, Url, Window,
+    Blob, Document, DomException, HtmlCanvasElement, HtmlImageElement, ImageBitmap, ImageBitmapOptions, ImageBitmapRenderingContext, ImageData,
+    PremultiplyAlpha, Url, Window,
 };
 
 use super::backend::Style;
@@ -35,16 +35,8 @@ pub(crate) enum CustomCursorSource {
 }
 
 impl CustomCursorSource {
-    pub fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<CustomCursorSource, BadImage> {
-        Ok(CustomCursorSource::Image(CursorImage::from_rgba(
-            rgba, width, height, hotspot_x, hotspot_y,
-        )?))
+    pub fn from_rgba(rgba: Vec<u8>, width: u16, height: u16, hotspot_x: u16, hotspot_y: u16) -> Result<CustomCursorSource, BadImage> {
+        Ok(CustomCursorSource::Image(CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?))
     }
 }
 
@@ -71,23 +63,15 @@ impl Eq for CustomCursor {}
 impl CustomCursor {
     pub(crate) fn new(event_loop: &ActiveEventLoop, source: CustomCursorSource) -> Self {
         match source {
-            CustomCursorSource::Image(image) => Self::build_spawn(
-                event_loop,
-                from_rgba(event_loop.runner.window(), event_loop.runner.document().clone(), &image),
-                false,
-            ),
-            CustomCursorSource::Url { url, hotspot_x, hotspot_y } => Self::build_spawn(
-                event_loop,
-                from_url(UrlType::Plain(url), hotspot_x, hotspot_y),
-                false,
-            ),
+            CustomCursorSource::Image(image) => {
+                Self::build_spawn(event_loop, from_rgba(event_loop.runner.window(), event_loop.runner.document().clone(), &image), false)
+            }
+            CustomCursorSource::Url { url, hotspot_x, hotspot_y } => {
+                Self::build_spawn(event_loop, from_url(UrlType::Plain(url), hotspot_x, hotspot_y), false)
+            }
             CustomCursorSource::Animation { duration, cursors } => Self::build_spawn(
                 event_loop,
-                from_animation(
-                    event_loop.runner.main_thread(),
-                    duration,
-                    cursors.into_iter().map(|cursor| cursor.inner),
-                ),
+                from_animation(event_loop.runner.main_thread(), duration, cursors.into_iter().map(|cursor| cursor.inner)),
                 true,
             ),
         }
@@ -103,10 +87,7 @@ impl CustomCursor {
             animation,
             state: Arc::new(MainThreadSafe::new(
                 window_target.runner.main_thread(),
-                RefCell::new(ImageState::Loading {
-                    notifier: Notifier::new(),
-                    _handle: DropAbortHandle::new(handle.clone()),
-                }),
+                RefCell::new(ImageState::Loading { notifier: Notifier::new(), _handle: DropAbortHandle::new(handle.clone()) }),
             )),
         };
         let weak = Arc::downgrade(&this.state);
@@ -121,21 +102,17 @@ impl CustomCursor {
 
                 match result {
                     Ok(new_state) => {
-                        let ImageState::Loading { notifier, .. } =
-                            mem::replace(this.deref_mut(), new_state.into())
-                        else {
+                        let ImageState::Loading { notifier, .. } = mem::replace(this.deref_mut(), new_state.into()) else {
                             unreachable!("found invalid state");
                         };
                         notifier.notify(Ok(()));
-                    },
+                    }
                     Err(error) => {
-                        let ImageState::Loading { notifier, .. } =
-                            mem::replace(this.deref_mut(), ImageState::Failed(error.clone()))
-                        else {
+                        let ImageState::Loading { notifier, .. } = mem::replace(this.deref_mut(), ImageState::Failed(error.clone())) else {
                             unreachable!("found invalid state");
                         };
                         notifier.notify(Err(error));
-                    },
+                    }
                 }
             }
         });
@@ -147,15 +124,10 @@ impl CustomCursor {
         this
     }
 
-    pub(crate) fn new_async(
-        event_loop: &ActiveEventLoop,
-        source: CustomCursorSource,
-    ) -> CustomCursorFuture {
+    pub(crate) fn new_async(event_loop: &ActiveEventLoop, source: CustomCursorSource) -> CustomCursorFuture {
         let CustomCursor { animation, state } = Self::new(event_loop, source);
         let binding = state.get(event_loop.runner.main_thread()).borrow();
-        let ImageState::Loading { notifier, .. } = binding.deref() else {
-            unreachable!("found invalid state")
-        };
+        let ImageState::Loading { notifier, .. } = binding.deref() else { unreachable!("found invalid state") };
         let notified = notifier.notified();
         drop(binding);
 
@@ -198,18 +170,8 @@ struct Inner {
 }
 
 impl CursorHandler {
-    pub(crate) fn new(
-        main_thread: MainThreadMarker,
-        canvas: HtmlCanvasElement,
-        style: Style,
-    ) -> Self {
-        Self(Rc::new(RefCell::new(Inner {
-            main_thread,
-            canvas,
-            style,
-            visible: true,
-            cursor: SelectedCursor::default(),
-        })))
+    pub(crate) fn new(main_thread: MainThreadMarker, canvas: HtmlCanvasElement, style: Style) -> Self {
+        Self(Rc::new(RefCell::new(Inner { main_thread, canvas, style, visible: true, cursor: SelectedCursor::default() })))
     }
 
     pub fn set_cursor(&self, cursor: Cursor) {
@@ -217,10 +179,7 @@ impl CursorHandler {
 
         match cursor {
             Cursor::Icon(icon) => {
-                if let SelectedCursor::Icon(old_icon)
-                | SelectedCursor::Loading { previous: Previous::Icon(old_icon), .. } =
-                    &this.cursor
-                {
+                if let SelectedCursor::Icon(old_icon) | SelectedCursor::Loading { previous: Previous::Icon(old_icon), .. } = &this.cursor {
                     if *old_icon == icon {
                         return;
                     }
@@ -228,7 +187,7 @@ impl CursorHandler {
 
                 this.cursor = SelectedCursor::Icon(icon);
                 this.set_style();
-            },
+            }
             Cursor::Custom(cursor) => {
                 let cursor = cursor.inner;
 
@@ -251,9 +210,7 @@ impl CursorHandler {
                             let weak = Rc::downgrade(&self.0);
                             async move {
                                 let _ = notified.await;
-                                let handler = weak
-                                    .upgrade()
-                                    .expect("`CursorHandler` invalidated without aborting");
+                                let handler = weak.upgrade().expect("`CursorHandler` invalidated without aborting");
                                 handler.borrow_mut().notify();
                             }
                         });
@@ -262,42 +219,30 @@ impl CursorHandler {
                         });
 
                         drop(state);
-                        this.cursor = SelectedCursor::Loading {
-                            cursor,
-                            previous: mem::take(&mut this.cursor).into(),
-                            _handle: handle,
-                        };
-                    },
+                        this.cursor = SelectedCursor::Loading { cursor, previous: mem::take(&mut this.cursor).into(), _handle: handle };
+                    }
                     ImageState::Failed(error) => {
-                        tracing::error!(
-                            "trying to load custom cursor that has failed to load: {error}"
-                        )
-                    },
+                        tracing::error!("trying to load custom cursor that has failed to load: {error}")
+                    }
                     ImageState::Image(_) => {
                         drop(state);
                         this.cursor = SelectedCursor::Image(cursor);
                         this.set_style();
-                    },
+                    }
                     ImageState::Animation(animation) => {
                         let canvas: &CanvasAnimateExt = this.canvas.unchecked_ref();
-                        let animation = canvas.animate_with_keyframe_animation_options(
-                            Some(&animation.keyframes),
-                            &animation.options,
-                        );
+                        let animation = canvas.animate_with_keyframe_animation_options(Some(&animation.keyframes), &animation.options);
                         drop(state);
 
                         if !this.visible {
                             animation.cancel();
                         }
 
-                        this.cursor = SelectedCursor::Animation {
-                            animation: AnimationDropper(animation),
-                            cursor,
-                        };
+                        this.cursor = SelectedCursor::Animation { animation: AnimationDropper(animation), cursor };
                         this.set_style();
-                    },
+                    }
                 };
-            },
+            }
         }
     }
 
@@ -322,36 +267,29 @@ impl Inner {
     fn set_style(&self) {
         if self.visible {
             match &self.cursor {
-                SelectedCursor::Icon(icon)
-                | SelectedCursor::Loading { previous: Previous::Icon(icon), .. } => {
+                SelectedCursor::Icon(icon) | SelectedCursor::Loading { previous: Previous::Icon(icon), .. } => {
                     if let CursorIcon::Default = icon {
                         self.style.remove("cursor")
                     } else {
                         self.style.set("cursor", icon.name())
                     }
-                },
-                SelectedCursor::Loading { previous: Previous::Image(cursor), .. }
-                | SelectedCursor::Image(cursor) => {
+                }
+                SelectedCursor::Loading { previous: Previous::Image(cursor), .. } | SelectedCursor::Image(cursor) => {
                     match cursor.state.get(self.main_thread).borrow().deref() {
                         ImageState::Image(Image { style, .. }) => self.style.set("cursor", style),
                         _ => unreachable!("found invalid saved state"),
                     }
-                },
-                SelectedCursor::Loading {
-                    previous: Previous::Animation { animation, .. }, ..
                 }
-                | SelectedCursor::Animation { animation, .. } => {
+                SelectedCursor::Loading { previous: Previous::Animation { animation, .. }, .. } | SelectedCursor::Animation { animation, .. } => {
                     self.style.remove("cursor");
                     animation.0.play()
-                },
+                }
             }
         }
     }
 
     fn notify(&mut self) {
-        let SelectedCursor::Loading { cursor, previous, .. } = mem::take(&mut self.cursor) else {
-            unreachable!("found wrong state")
-        };
+        let SelectedCursor::Loading { cursor, previous, .. } = mem::take(&mut self.cursor) else { unreachable!("found wrong state") };
 
         let state = cursor.state.get(self.main_thread).borrow();
         match state.deref() {
@@ -359,27 +297,23 @@ impl Inner {
                 drop(state);
                 self.cursor = SelectedCursor::Image(cursor);
                 self.set_style();
-            },
+            }
             ImageState::Animation(animation) => {
                 let canvas: &CanvasAnimateExt = self.canvas.unchecked_ref();
-                let animation = canvas.animate_with_keyframe_animation_options(
-                    Some(&animation.keyframes),
-                    &animation.options,
-                );
+                let animation = canvas.animate_with_keyframe_animation_options(Some(&animation.keyframes), &animation.options);
                 drop(state);
 
                 if !self.visible {
                     animation.cancel();
                 }
 
-                self.cursor =
-                    SelectedCursor::Animation { animation: AnimationDropper(animation), cursor };
+                self.cursor = SelectedCursor::Animation { animation: AnimationDropper(animation), cursor };
                 self.set_style();
-            },
+            }
             ImageState::Failed(error) => {
                 tracing::error!("custom cursor failed to load: {error}");
                 self.cursor = previous.into()
-            },
+            }
             ImageState::Loading { .. } => unreachable!("notified without being ready"),
         }
     }
@@ -422,9 +356,7 @@ impl From<SelectedCursor> for Previous {
             SelectedCursor::Icon(icon) => Self::Icon(icon),
             SelectedCursor::Loading { previous, .. } => previous,
             SelectedCursor::Image(image) => Self::Image(image),
-            SelectedCursor::Animation { cursor, animation } => {
-                Self::Animation { cursor, animation }
-            },
+            SelectedCursor::Animation { cursor, animation } => Self::Animation { cursor, animation },
         }
     }
 }
@@ -496,11 +428,7 @@ impl Drop for AnimationDropper {
     }
 }
 
-fn from_rgba(
-    window: &Window,
-    document: Document,
-    image: &CursorImage,
-) -> impl Future<Output = Result<Image, CustomCursorError>> {
+fn from_rgba(window: &Window, document: Document, image: &CursorImage) -> impl Future<Output = Result<Image, CustomCursorError>> {
     // 1. Create an `ImageData` from the RGBA data.
     // 2. Create an `ImageBitmap` from the `ImageData`.
     // 3. Draw `ImageBitmap` on an `HTMLCanvasElement`.
@@ -527,15 +455,10 @@ fn from_rgba(
         let array = Uint8Array::new_with_length(image.rgba.len() as u32);
         array.copy_from(&image.rgba);
         let array = Uint8ClampedArray::new(&array);
-        ImageDataExt::new(array, image.width as u32)
-            .map(JsValue::from)
-            .map(ImageData::unchecked_from_js)
+        ImageDataExt::new(array, image.width as u32).map(JsValue::from).map(ImageData::unchecked_from_js)
     };
     #[cfg(not(target_feature = "atomics"))]
-    let result = ImageData::new_with_u8_clamped_array(
-        wasm_bindgen::Clamped(&image.rgba),
-        image.width as u32,
-    );
+    let result = ImageData::new_with_u8_clamped_array(wasm_bindgen::Clamped(&image.rgba), image.width as u32);
     let image_data = result.expect("found wrong image size");
 
     // 2. Create an `ImageBitmap` from the `ImageData`.
@@ -552,11 +475,9 @@ fn from_rgba(
 
     let CursorImage { width, height, hotspot_x, hotspot_y, .. } = *image;
     async move {
-        let bitmap: ImageBitmap =
-            bitmap.await.expect("found invalid state in `ImageData`").unchecked_into();
+        let bitmap: ImageBitmap = bitmap.await.expect("found invalid state in `ImageData`").unchecked_into();
 
-        let canvas: HtmlCanvasElement =
-            document.create_element("canvas").expect("invalid tag name").unchecked_into();
+        let canvas: HtmlCanvasElement = document.create_element("canvas").expect("invalid tag name").unchecked_into();
         #[allow(clippy::disallowed_methods)]
         canvas.set_width(width as u32);
         #[allow(clippy::disallowed_methods)]
@@ -590,9 +511,7 @@ fn from_rgba(
                 }
             }
         });
-        canvas
-            .to_blob(callback.as_ref().unchecked_ref())
-            .expect("failed with `SecurityError` despite only source coming from memory");
+        canvas.to_blob(callback.as_ref().unchecked_ref()).expect("failed with `SecurityError` despite only source coming from memory");
         let blob = future::poll_fn(|cx| {
             if let Some(blob) = value.borrow_mut().take() {
                 Poll::Ready(blob)
@@ -609,19 +528,14 @@ fn from_rgba(
         };
 
         // 5. Create an object URL from the `Blob`.
-        let url = Url::create_object_url_with_blob(&blob)
-            .expect("unexpected exception in `URL.createObjectURL()`");
+        let url = Url::create_object_url_with_blob(&blob).expect("unexpected exception in `URL.createObjectURL()`");
         let url = UrlType::Object(ObjectUrl(url));
 
         from_url(url, hotspot_x, hotspot_y).await
     }
 }
 
-async fn from_url(
-    url: UrlType,
-    hotspot_x: u16,
-    hotspot_y: u16,
-) -> Result<Image, CustomCursorError> {
+async fn from_url(url: UrlType, hotspot_x: u16, hotspot_y: u16) -> Result<Image, CustomCursorError> {
     // 6. Decode the image on an `HTMLImageElement` from the URL.
     let image = HtmlImageElement::new().expect("unexpected exception in `new HtmlImageElement`");
     image.set_src(url.url());
@@ -663,7 +577,7 @@ async fn from_animation(
                 let notified = notifier.notified();
                 drop(state);
                 notified.await?;
-            },
+            }
             ImageState::Failed(error) => return Err(error.clone()),
             ImageState::Image(_) => drop(state),
             ImageState::Animation(_) => unreachable!("check in `CustomCursorSource` failed"),

@@ -23,18 +23,10 @@ impl Drop for Window {
 }
 
 impl Window {
-    pub(crate) fn new(
-        window_target: &ActiveEventLoop,
-        attributes: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
+    pub(crate) fn new(window_target: &ActiveEventLoop, attributes: WindowAttributes) -> Result<Self, RootOsError> {
         let mtm = window_target.mtm;
-        let delegate = autoreleasepool(|_| {
-            WindowDelegate::new(window_target.app_delegate(), attributes, mtm)
-        })?;
-        Ok(Window {
-            window: MainThreadBound::new(delegate.window().retain(), mtm),
-            delegate: MainThreadBound::new(delegate, mtm),
-        })
+        let delegate = autoreleasepool(|_| WindowDelegate::new(window_target.app_delegate(), attributes, mtm))?;
+        Ok(Window { window: MainThreadBound::new(delegate.window().retain(), mtm), delegate: MainThreadBound::new(delegate, mtm) })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&WindowDelegate) + Send + 'static) {
@@ -42,18 +34,13 @@ impl Window {
         self.maybe_wait_on_main(f)
     }
 
-    pub(crate) fn maybe_wait_on_main<R: Send>(
-        &self,
-        f: impl FnOnce(&WindowDelegate) -> R + Send,
-    ) -> R {
+    pub(crate) fn maybe_wait_on_main<R: Send>(&self, f: impl FnOnce(&WindowDelegate) -> R + Send) -> R {
         self.delegate.get_on_main(|delegate| f(delegate))
     }
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub(crate) fn raw_window_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
+    pub(crate) fn raw_window_handle_rwh_06(&self) -> Result<rwh_06::RawWindowHandle, rwh_06::HandleError> {
         if let Some(mtm) = MainThreadMarker::new() {
             Ok(self.delegate.get(mtm).raw_window_handle_rwh_06())
         } else {
@@ -63,9 +50,7 @@ impl Window {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub(crate) fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub(crate) fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::AppKit(rwh_06::AppKitDisplayHandle::new()))
     }
 }

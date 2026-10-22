@@ -28,14 +28,7 @@ pub struct CustomCursor {
 
 impl CustomCursor {
     pub(crate) fn new(pool: &mut SlotPool, image: &CursorImage) -> Self {
-        let (buffer, canvas) = pool
-            .create_buffer(
-                image.width as i32,
-                image.height as i32,
-                4 * (image.width as i32),
-                Format::Argb8888,
-            )
-            .unwrap();
+        let (buffer, canvas) = pool.create_buffer(image.width as i32, image.height as i32, 4 * (image.width as i32), Format::Argb8888).unwrap();
 
         for (canvas_chunk, rgba) in canvas.chunks_exact_mut(4).zip(image.rgba.chunks_exact(4)) {
             // Alpha in buffer is premultiplied.
@@ -48,12 +41,6 @@ impl CustomCursor {
             *array = color.to_le_bytes();
         }
 
-        CustomCursor {
-            buffer,
-            w: image.width as i32,
-            h: image.height as i32,
-            hotspot_x: image.hotspot_x as i32,
-            hotspot_y: image.hotspot_y as i32,
-        }
+        CustomCursor { buffer, w: image.width as i32, h: image.height as i32, hotspot_x: image.hotspot_x as i32, hotspot_y: image.hotspot_y as i32 }
     }
 }

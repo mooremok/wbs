@@ -17,19 +17,12 @@ pub struct KWinBlurManager {
 }
 
 impl KWinBlurManager {
-    pub fn new(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> Result<Self, BindError> {
+    pub fn new(globals: &GlobalList, queue_handle: &QueueHandle<WinitState>) -> Result<Self, BindError> {
         let manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { manager })
     }
 
-    pub fn blur(
-        &self,
-        surface: &WlSurface,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> OrgKdeKwinBlur {
+    pub fn blur(&self, surface: &WlSurface, queue_handle: &QueueHandle<WinitState>) -> OrgKdeKwinBlur {
         self.manager.create(surface, queue_handle, ())
     }
 
@@ -52,14 +45,7 @@ impl Dispatch<OrgKdeKwinBlurManager, GlobalData, WinitState> for KWinBlurManager
 }
 
 impl Dispatch<OrgKdeKwinBlur, (), WinitState> for KWinBlurManager {
-    fn event(
-        _: &mut WinitState,
-        _: &OrgKdeKwinBlur,
-        _: <OrgKdeKwinBlur as Proxy>::Event,
-        _: &(),
-        _: &Connection,
-        _: &QueueHandle<WinitState>,
-    ) {
+    fn event(_: &mut WinitState, _: &OrgKdeKwinBlur, _: <OrgKdeKwinBlur as Proxy>::Event, _: &(), _: &Connection, _: &QueueHandle<WinitState>) {
         unreachable!("no events defined for org_kde_kwin_blur");
     }
 }

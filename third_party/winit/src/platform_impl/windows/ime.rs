@@ -5,10 +5,9 @@ use std::ptr::null_mut;
 use windows_sys::Win32::Foundation::{POINT, RECT};
 use windows_sys::Win32::Globalization::HIMC;
 use windows_sys::Win32::UI::Input::Ime::{
-    ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
-    ImmSetCandidateWindow, ImmSetCompositionWindow, ATTR_TARGET_CONVERTED,
-    ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM, GCS_COMPATTR,
-    GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
+    ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow, ImmSetCompositionWindow,
+    ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM, CFS_EXCLUDE, CFS_POINT, COMPOSITIONFORM, GCS_COMPATTR, GCS_COMPSTR,
+    GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
@@ -26,9 +25,7 @@ impl ImeContext {
         ImeContext { hwnd, himc }
     }
 
-    pub unsafe fn get_composing_text_and_cursor(
-        &self,
-    ) -> Option<(String, Option<usize>, Option<usize>)> {
+    pub unsafe fn get_composing_text_and_cursor(&self) -> Option<(String, Option<usize>, Option<usize>)> {
         let text = unsafe { self.get_composition_string(GCS_COMPSTR) }?;
         let attrs = unsafe { self.get_composition_data(GCS_COMPATTR) }.unwrap_or_default();
 
@@ -42,8 +39,7 @@ impl ImeContext {
                 break;
             };
 
-            let char_is_targeted =
-                attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
+            let char_is_targeted = attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
             if first.is_none() && char_is_targeted {
                 first = Some(boundary_before_char);
@@ -95,14 +91,7 @@ impl ImeContext {
         };
 
         let mut buf = Vec::<u8>::with_capacity(size as _);
-        let size = unsafe {
-            ImmGetCompositionStringW(
-                self.himc,
-                gcs_mode,
-                buf.as_mut_ptr() as *mut c_void,
-                size as _,
-            )
-        };
+        let size = unsafe { ImmGetCompositionStringW(self.himc, gcs_mode, buf.as_mut_ptr() as *mut c_void, size as _) };
 
         if size < 0 {
             None
@@ -120,17 +109,8 @@ impl ImeContext {
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
         let (width, height): (i32, i32) = size.to_physical::<i32>(scale_factor).into();
         let rc_area = RECT { left: x, top: y, right: x + width, bottom: y + height };
-        let candidate_form = CANDIDATEFORM {
-            dwIndex: 0,
-            dwStyle: CFS_EXCLUDE,
-            ptCurrentPos: POINT { x, y },
-            rcArea: rc_area,
-        };
-        let composition_form = COMPOSITIONFORM {
-            dwStyle: CFS_POINT,
-            ptCurrentPos: POINT { x, y: y + height },
-            rcArea: rc_area,
-        };
+        let candidate_form = CANDIDATEFORM { dwIndex: 0, dwStyle: CFS_EXCLUDE, ptCurrentPos: POINT { x, y }, rcArea: rc_area };
+        let composition_form = COMPOSITIONFORM { dwStyle: CFS_POINT, ptCurrentPos: POINT { x, y: y + height }, rcArea: rc_area };
 
         unsafe {
             ImmSetCompositionWindow(self.himc, &composition_form);

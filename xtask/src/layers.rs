@@ -51,6 +51,9 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ui-egui", Class::Layer(6)),
     ("testkit", Class::Testkit),
     // apps and tooling
+    // winit: the vendored third_party copy (IME patch, Command-Q interception), exempt like a
+    // system dep; only apps touch it directly.
+    ("winit", Class::Exempt),
     ("wbs", Class::Exempt),
     ("cli", Class::Exempt),
     ("web", Class::Exempt),

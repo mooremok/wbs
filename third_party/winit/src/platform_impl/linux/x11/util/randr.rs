@@ -15,10 +15,7 @@ pub enum EnvVarDPI {
     NotSet,
 }
 
-pub fn calc_dpi_factor(
-    (width_px, height_px): (u32, u32),
-    (width_mm, height_mm): (u64, u64),
-) -> f64 {
+pub fn calc_dpi_factor((width_px, height_px): (u32, u32), (width_mm, height_mm): (u64, u64)) -> f64 {
     // See http://xpra.org/trac/ticket/728 for more information.
     if width_mm == 0 || height_mm == 0 {
         warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
@@ -43,10 +40,10 @@ impl XConnection {
         if let Some(xsettings_screen) = self.xsettings_screen() {
             match self.xsettings_dpi(xsettings_screen) {
                 Ok(Some(dpi)) => return Some(dpi),
-                Ok(None) => {},
+                Ok(None) => {}
                 Err(err) => {
                     tracing::warn!("failed to fetch XSettings: {err}");
-                },
+                }
             }
         }
 
@@ -68,7 +65,7 @@ impl XConnection {
             Err(err) => {
                 warn!("Failed to get output info: {:?}", err);
                 return None;
-            },
+            }
         };
 
         let bit_depth = self.default_root().root_depth;
@@ -83,8 +80,7 @@ impl XConnection {
             .map(|mode| {
                 VideoModeHandle {
                     size: (mode.width.into(), mode.height.into()),
-                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
-                        .unwrap_or(0),
+                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode).unwrap_or(0),
                     bit_depth: bit_depth as u16,
                     native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the
@@ -99,7 +95,7 @@ impl XConnection {
             Err(err) => {
                 warn!("Failed to get output name: {:?}", err);
                 return None;
-            },
+            }
         };
         // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
         let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
@@ -128,10 +124,7 @@ impl XConnection {
         );
 
         let scale_factor = match dpi_env {
-            EnvVarDPI::Randr => calc_dpi_factor(
-                (crtc.width.into(), crtc.height.into()),
-                (output_info.mm_width as _, output_info.mm_height as _),
-            ),
+            EnvVarDPI::Randr => calc_dpi_factor((crtc.width.into(), crtc.height.into()), (output_info.mm_width as _, output_info.mm_height as _)),
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
@@ -140,41 +133,24 @@ impl XConnection {
                     );
                 }
                 dpi_override
-            },
+            }
             EnvVarDPI::NotSet => {
                 if let Some(dpi) = self.get_xft_dpi() {
                     dpi / 96.
                 } else {
-                    calc_dpi_factor(
-                        (crtc.width.into(), crtc.height.into()),
-                        (output_info.mm_width as _, output_info.mm_height as _),
-                    )
+                    calc_dpi_factor((crtc.width.into(), crtc.height.into()), (output_info.mm_width as _, output_info.mm_height as _))
                 }
-            },
+            }
         };
 
         Some((name, scale_factor, modes))
     }
 
-    pub fn set_crtc_config(
-        &self,
-        crtc_id: randr::Crtc,
-        mode_id: randr::Mode,
-    ) -> Result<(), X11Error> {
-        let crtc =
-            self.xcb_connection().randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?.reply()?;
+    pub fn set_crtc_config(&self, crtc_id: randr::Crtc, mode_id: randr::Mode) -> Result<(), X11Error> {
+        let crtc = self.xcb_connection().randr_get_crtc_info(crtc_id, x11rb::CURRENT_TIME)?.reply()?;
 
         self.xcb_connection()
-            .randr_set_crtc_config(
-                crtc_id,
-                crtc.timestamp,
-                x11rb::CURRENT_TIME,
-                crtc.x,
-                crtc.y,
-                mode_id,
-                crtc.rotation,
-                &crtc.outputs,
-            )?
+            .randr_set_crtc_config(crtc_id, crtc.timestamp, x11rb::CURRENT_TIME, crtc.x, crtc.y, mode_id, crtc.rotation, &crtc.outputs)?
             .reply()
             .map(|_| ())
             .map_err(Into::into)

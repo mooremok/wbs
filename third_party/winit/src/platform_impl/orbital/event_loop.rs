@@ -7,25 +7,19 @@ use std::{mem, slice};
 
 use bitflags::bitflags;
 use orbclient::{
-    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MouseRelativeEvent,
-    MoveEvent, QuitEvent, ResizeEvent, ScrollEvent, TextInputEvent,
+    ButtonEvent, EventOption, FocusEvent, HoverEvent, KeyEvent, MouseEvent, MouseRelativeEvent, MoveEvent, QuitEvent, ResizeEvent, ScrollEvent,
+    TextInputEvent,
 };
 use smol_str::SmolStr;
 
 use crate::error::EventLoopError;
 use crate::event::{self, Ime, Modifiers, StartCause};
 use crate::event_loop::{self, ControlFlow, DeviceEvents};
-use crate::keyboard::{
-    Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode,
-    PhysicalKey,
-};
-use crate::window::{
-    CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId,
-};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersKeys, ModifiersState, NamedKey, NativeKey, NativeKeyCode, PhysicalKey};
+use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, Theme, WindowId as RootWindowId};
 
 use super::{
-    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes,
-    RedoxSocket, TimeSocket, WindowId, WindowProperties,
+    DeviceId, KeyEventExtra, MonitorHandle, OsError, PlatformSpecificEventLoopAttributes, RedoxSocket, TimeSocket, WindowId, WindowProperties,
 };
 
 fn convert_scancode(scancode: u8) -> (PhysicalKey, Option<NamedKey>) {
@@ -173,9 +167,7 @@ impl EventState {
     fn character_all_modifiers(&self, character: char) -> char {
         // Modify character if Ctrl is pressed
         #[allow(clippy::collapsible_if)]
-        if self.keyboard.contains(KeyboardModifierState::LCTRL)
-            || self.keyboard.contains(KeyboardModifierState::RCTRL)
-        {
+        if self.keyboard.contains(KeyboardModifierState::LCTRL) || self.keyboard.contains(KeyboardModifierState::RCTRL) {
             if character.is_ascii_lowercase() {
                 return ((character as u8 - b'a') + 1) as char;
             }
@@ -205,12 +197,7 @@ impl EventState {
         }
     }
 
-    fn mouse(
-        &mut self,
-        left: bool,
-        middle: bool,
-        right: bool,
-    ) -> Option<(event::MouseButton, event::ElementState)> {
+    fn mouse(&mut self, left: bool, middle: bool, right: bool) -> Option<(event::MouseButton, event::ElementState)> {
         if self.mouse.contains(MouseButtonState::LEFT) != left {
             self.mouse.set(MouseButtonState::LEFT, left);
             return Some((event::MouseButton::Left, element_state(left)));
@@ -237,19 +224,15 @@ impl EventState {
             state |= ModifiersState::SHIFT;
         }
 
-        pressed_mods
-            .set(ModifiersKeys::LSHIFT, self.keyboard.contains(KeyboardModifierState::LSHIFT));
-        pressed_mods
-            .set(ModifiersKeys::RSHIFT, self.keyboard.contains(KeyboardModifierState::RSHIFT));
+        pressed_mods.set(ModifiersKeys::LSHIFT, self.keyboard.contains(KeyboardModifierState::LSHIFT));
+        pressed_mods.set(ModifiersKeys::RSHIFT, self.keyboard.contains(KeyboardModifierState::RSHIFT));
 
         if self.keyboard.intersects(KeyboardModifierState::LCTRL | KeyboardModifierState::RCTRL) {
             state |= ModifiersState::CONTROL;
         }
 
-        pressed_mods
-            .set(ModifiersKeys::LCONTROL, self.keyboard.contains(KeyboardModifierState::LCTRL));
-        pressed_mods
-            .set(ModifiersKeys::RCONTROL, self.keyboard.contains(KeyboardModifierState::RCTRL));
+        pressed_mods.set(ModifiersKeys::LCONTROL, self.keyboard.contains(KeyboardModifierState::LCTRL));
+        pressed_mods.set(ModifiersKeys::RCONTROL, self.keyboard.contains(KeyboardModifierState::RCTRL));
 
         if self.keyboard.intersects(KeyboardModifierState::LALT | KeyboardModifierState::RALT) {
             state |= ModifiersState::ALT;
@@ -262,10 +245,8 @@ impl EventState {
             state |= ModifiersState::SUPER
         }
 
-        pressed_mods
-            .set(ModifiersKeys::LSUPER, self.keyboard.contains(KeyboardModifierState::LSUPER));
-        pressed_mods
-            .set(ModifiersKeys::RSUPER, self.keyboard.contains(KeyboardModifierState::RSUPER));
+        pressed_mods.set(ModifiersKeys::LSUPER, self.keyboard.contains(KeyboardModifierState::LSUPER));
+        pressed_mods.set(ModifiersKeys::RSUPER, self.keyboard.contains(KeyboardModifierState::RSUPER));
 
         Modifiers { state, pressed_mods }
     }
@@ -282,24 +263,12 @@ impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Result<Self, EventLoopError> {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
 
-        let event_socket = Arc::new(
-            RedoxSocket::event()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let event_socket = Arc::new(RedoxSocket::event().map_err(OsError::new).map_err(|error| EventLoopError::Os(os_error!(error)))?);
 
-        let wake_socket = Arc::new(
-            TimeSocket::open()
-                .map_err(OsError::new)
-                .map_err(|error| EventLoopError::Os(os_error!(error)))?,
-        );
+        let wake_socket = Arc::new(TimeSocket::open().map_err(OsError::new).map_err(|error| EventLoopError::Os(os_error!(error)))?);
 
         event_socket
-            .write(&syscall::Event {
-                id: wake_socket.0.fd,
-                flags: syscall::EventFlags::EVENT_READ,
-                data: wake_socket.0.fd,
-            })
+            .write(&syscall::Event { id: wake_socket.0.fd, flags: syscall::EventFlags::EVENT_READ, data: wake_socket.0.fd })
             .map_err(OsError::new)
             .map_err(|error| EventLoopError::Os(os_error!(error)))?;
 
@@ -322,12 +291,8 @@ impl<T: 'static> EventLoop<T> {
         })
     }
 
-    fn process_event<F>(
-        window_id: WindowId,
-        event_option: EventOption,
-        event_state: &mut EventState,
-        mut event_handler: F,
-    ) where
+    fn process_event<F>(window_id: WindowId, event_option: EventOption, event_state: &mut EventState, mut event_handler: F)
+    where
         F: FnMut(event::Event<T>),
     {
         match event_option {
@@ -352,16 +317,13 @@ impl<T: 'static> EventLoop<T> {
                     // The key with Shift and Caps Lock applied (but not Ctrl)
                     logical_key = Key::Character(character_str.into());
                     // The key without Shift or Caps Lock applied
-                    key_without_modifiers =
-                        Key::Character(SmolStr::from_iter(character.to_lowercase()));
+                    key_without_modifiers = Key::Character(SmolStr::from_iter(character.to_lowercase()));
                     if pressed {
                         // The key with Shift and Caps Lock applied (but not Ctrl)
                         text = Some(character_str.into());
                         // The key with Shift, Caps Lock, and Ctrl applied
-                        let character_all_modifiers =
-                            event_state.character_all_modifiers(character);
-                        text_with_all_modifiers =
-                            Some(character_all_modifiers.encode_utf8(&mut tmp).into())
+                        let character_all_modifiers = event_state.character_all_modifiers(character);
+                        text_with_all_modifiers = Some(character_all_modifiers.encode_utf8(&mut tmp).into())
                     }
                 };
 
@@ -382,10 +344,7 @@ impl<T: 'static> EventLoop<T> {
                             state: element_state(pressed),
                             repeat: false,
                             text,
-                            platform_specific: KeyEventExtra {
-                                key_without_modifiers,
-                                text_with_all_modifiers,
-                            },
+                            platform_specific: KeyEventExtra { key_without_modifiers, text_with_all_modifiers },
                         },
                         is_synthetic: false,
                     },
@@ -398,7 +357,7 @@ impl<T: 'static> EventLoop<T> {
                         event: event::WindowEvent::ModifiersChanged(event_state.modifiers()),
                     })
                 }
-            },
+            }
             EventOption::TextInput(TextInputEvent { character }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
@@ -408,34 +367,27 @@ impl<T: 'static> EventLoop<T> {
                     window_id: RootWindowId(window_id),
                     event: event::WindowEvent::Ime(Ime::Commit(character.into())),
                 });
-            },
+            }
             EventOption::Mouse(MouseEvent { x, y }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CursorMoved {
-                        device_id: event::DeviceId(DeviceId),
-                        position: (x, y).into(),
-                    },
+                    event: event::WindowEvent::CursorMoved { device_id: event::DeviceId(DeviceId), position: (x, y).into() },
                 });
-            },
+            }
             EventOption::MouseRelative(MouseRelativeEvent { dx, dy }) => {
                 event_handler(event::Event::DeviceEvent {
                     device_id: event::DeviceId(DeviceId),
                     event: event::DeviceEvent::MouseMotion { delta: (dx as f64, dy as f64) },
                 });
-            },
+            }
             EventOption::Button(ButtonEvent { left, middle, right }) => {
                 while let Some((button, state)) = event_state.mouse(left, middle, right) {
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::MouseInput {
-                            device_id: event::DeviceId(DeviceId),
-                            state,
-                            button,
-                        },
+                        event: event::WindowEvent::MouseInput { device_id: event::DeviceId(DeviceId), state, button },
                     });
                 }
-            },
+            }
             EventOption::Scroll(ScrollEvent { x, y }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
@@ -445,25 +397,16 @@ impl<T: 'static> EventLoop<T> {
                         phase: event::TouchPhase::Moved,
                     },
                 });
-            },
+            }
             EventOption::Quit(QuitEvent {}) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::CloseRequested,
-                });
-            },
+                event_handler(event::Event::WindowEvent { window_id: RootWindowId(window_id), event: event::WindowEvent::CloseRequested });
+            }
             EventOption::Focus(FocusEvent { focused }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Focused(focused),
-                });
-            },
+                event_handler(event::Event::WindowEvent { window_id: RootWindowId(window_id), event: event::WindowEvent::Focused(focused) });
+            }
             EventOption::Move(MoveEvent { x, y }) => {
-                event_handler(event::Event::WindowEvent {
-                    window_id: RootWindowId(window_id),
-                    event: event::WindowEvent::Moved((x, y).into()),
-                });
-            },
+                event_handler(event::Event::WindowEvent { window_id: RootWindowId(window_id), event: event::WindowEvent::Moved((x, y).into()) });
+            }
             EventOption::Resize(ResizeEvent { width, height }) => {
                 event_handler(event::Event::WindowEvent {
                     window_id: RootWindowId(window_id),
@@ -472,28 +415,24 @@ impl<T: 'static> EventLoop<T> {
 
                 // Acknowledge resize after event loop.
                 event_state.resize_opt = Some((width, height));
-            },
+            }
             // TODO: Screen, Clipboard, Drop
             EventOption::Hover(HoverEvent { entered }) => {
                 if entered {
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorEntered {
-                            device_id: event::DeviceId(DeviceId),
-                        },
+                        event: event::WindowEvent::CursorEntered { device_id: event::DeviceId(DeviceId) },
                     });
                 } else {
                     event_handler(event::Event::WindowEvent {
                         window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::CursorLeft {
-                            device_id: event::DeviceId(DeviceId),
-                        },
+                        event: event::WindowEvent::CursorLeft { device_id: event::DeviceId(DeviceId) },
                     });
                 }
-            },
+            }
             other => {
                 tracing::warn!("unhandled event: {:?}", other);
-            },
+            }
         }
     }
 
@@ -501,10 +440,9 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(event::Event<T>, &event_loop::ActiveEventLoop),
     {
-        let mut event_handler =
-            move |event: event::Event<T>, window_target: &event_loop::ActiveEventLoop| {
-                event_handler_inner(event, window_target);
-            };
+        let mut event_handler = move |event: event::Event<T>, window_target: &event_loop::ActiveEventLoop| {
+            event_handler_inner(event, window_target);
+        };
 
         let mut start_cause = StartCause::Init;
 
@@ -553,10 +491,7 @@ impl<T: 'static> EventLoop<T> {
                 destroys.pop_front()
             } {
                 event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(destroy_id),
-                        event: event::WindowEvent::Destroyed,
-                    },
+                    event::Event::WindowEvent { window_id: RootWindowId(destroy_id), event: event::WindowEvent::Destroyed },
                     &self.window_target,
                 );
 
@@ -570,24 +505,14 @@ impl<T: 'static> EventLoop<T> {
                 let window_id = WindowId { fd: window.fd as u64 };
 
                 let mut event_buf = [0u8; 16 * mem::size_of::<orbclient::Event>()];
-                let count =
-                    syscall::read(window.fd, &mut event_buf).expect("failed to read window events");
+                let count = syscall::read(window.fd, &mut event_buf).expect("failed to read window events");
                 // Safety: orbclient::Event is a packed struct designed to be transferred over a
                 // socket.
-                let events = unsafe {
-                    slice::from_raw_parts(
-                        event_buf.as_ptr() as *const orbclient::Event,
-                        count / mem::size_of::<orbclient::Event>(),
-                    )
-                };
+                let events =
+                    unsafe { slice::from_raw_parts(event_buf.as_ptr() as *const orbclient::Event, count / mem::size_of::<orbclient::Event>()) };
 
                 for orbital_event in events {
-                    Self::process_event(
-                        window_id,
-                        orbital_event.to_option(),
-                        event_state,
-                        |event| event_handler(event, &self.window_target),
-                    );
+                    Self::process_event(window_id, orbital_event.to_option(), event_state, |event| event_handler(event, &self.window_target));
                 }
 
                 if count == event_buf.len() {
@@ -598,9 +523,7 @@ impl<T: 'static> EventLoop<T> {
 
                 // Acknowledge the latest resize event.
                 if let Some((w, h)) = event_state.resize_opt.take() {
-                    window
-                        .write(format!("S,{w},{h}").as_bytes())
-                        .expect("failed to acknowledge resize");
+                    window.write(format!("S,{w},{h}").as_bytes()).expect("failed to acknowledge resize");
 
                     // Require redraw after resize.
                     let mut redraws = self.window_target.p.redraws.lock().unwrap();
@@ -623,10 +546,7 @@ impl<T: 'static> EventLoop<T> {
                 redraws.pop_front()
             } {
                 event_handler(
-                    event::Event::WindowEvent {
-                        window_id: RootWindowId(window_id),
-                        event: event::WindowEvent::RedrawRequested,
-                    },
+                    event::Event::WindowEvent { window_id: RootWindowId(window_id), event: event::WindowEvent::RedrawRequested },
                     &self.window_target,
                 );
             }
@@ -641,7 +561,7 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     start_cause = StartCause::Poll;
                     continue;
-                },
+                }
                 ControlFlow::Wait => None,
                 ControlFlow::WaitUntil(instant) => Some(instant),
             };
@@ -653,11 +573,7 @@ impl<T: 'static> EventLoop<T> {
             self.window_target
                 .p
                 .event_socket
-                .write(&syscall::Event {
-                    id: timeout_socket.0.fd,
-                    flags: syscall::EventFlags::EVENT_READ,
-                    data: 0,
-                })
+                .write(&syscall::Event { id: timeout_socket.0.fd, flags: syscall::EventFlags::EVENT_READ, data: 0 })
                 .unwrap();
 
             let start = Instant::now();
@@ -687,11 +603,11 @@ impl<T: 'static> EventLoop<T> {
                     // If the event is from the special timeout socket, report that resume
                     // time was reached.
                     start_cause = StartCause::ResumeTimeReached { start, requested_resume };
-                },
+                }
                 _ => {
                     // Normal window event or spurious timeout.
                     start_cause = StartCause::WaitCancelled { start, requested_resume };
-                },
+                }
             }
         }
 
@@ -705,10 +621,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.window_target.p.wake_socket.clone(),
-        }
+        EventLoopProxy { user_events_sender: self.user_events_sender.clone(), wake_socket: self.window_target.p.wake_socket.clone() }
     }
 }
 
@@ -719,9 +632,7 @@ pub struct EventLoopProxy<T: 'static> {
 
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
-        self.user_events_sender
-            .send(event)
-            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
+        self.user_events_sender.send(event).map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
 
         self.wake_socket.wake().unwrap();
 
@@ -731,10 +642,7 @@ impl<T> EventLoopProxy<T> {
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            user_events_sender: self.user_events_sender.clone(),
-            wake_socket: self.wake_socket.clone(),
-        }
+        Self { user_events_sender: self.user_events_sender.clone(), wake_socket: self.wake_socket.clone() }
     }
 }
 
@@ -782,9 +690,7 @@ impl ActiveEventLoop {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
     }
 
@@ -821,9 +727,7 @@ impl OwnedDisplayHandle {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::OrbitalDisplayHandle::new().into())
     }
 }

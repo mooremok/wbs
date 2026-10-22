@@ -62,8 +62,7 @@ pub struct XConnection {
 unsafe impl Send for XConnection {}
 unsafe impl Sync for XConnection {}
 
-pub type XErrorHandler =
-    Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> std::os::raw::c_int>;
+pub type XErrorHandler = Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> std::os::raw::c_int>;
 
 impl XConnection {
     pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
@@ -88,13 +87,11 @@ impl XConnection {
         // Open the x11rb XCB connection.
         let xcb = {
             // Get a pointer to the underlying XCB connection
-            let xcb_connection =
-                unsafe { (xlib_xcb.XGetXCBConnection)(display as *mut ffi::Display) };
+            let xcb_connection = unsafe { (xlib_xcb.XGetXCBConnection)(display as *mut ffi::Display) };
             assert!(!xcb_connection.is_null());
 
             // Wrap the XCB connection in an x11rb XCB connection
-            let conn =
-                unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
+            let conn = unsafe { XCBConnection::from_raw_xcb_connection(xcb_connection.cast(), false) };
 
             conn.map_err(|e| XNotSupported::XcbConversionError(Arc::new(WrapConnectError(e))))?
         };
@@ -103,15 +100,10 @@ impl XConnection {
         let default_screen = unsafe { (xlib.XDefaultScreen)(display) } as usize;
 
         // Load the database.
-        let database = resource_manager::new_from_default(&xcb)
-            .map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
+        let database = resource_manager::new_from_default(&xcb).map_err(|e| XNotSupported::XcbConversionError(Arc::new(e)))?;
 
         // Load the RandR version.
-        let randr_version = xcb
-            .randr_query_version(1, 3)
-            .expect("failed to request XRandR version")
-            .reply()
-            .expect("failed to query XRandR version");
+        let randr_version = xcb.randr_query_version(1, 3).expect("failed to request XRandR version").reply().expect("failed to query XRandR version");
 
         let xsettings_screen = Self::new_xsettings_screen(&xcb, default_screen);
         if xsettings_screen.is_none() {
@@ -144,26 +136,17 @@ impl XConnection {
 
     fn new_xsettings_screen(xcb: &XCBConnection, default_screen: usize) -> Option<xproto::Atom> {
         // Fetch the _XSETTINGS_S[screen number] atom.
-        let xsettings_screen = xcb
-            .intern_atom(false, format!("_XSETTINGS_S{default_screen}").as_bytes())
-            .ok()?
-            .reply()
-            .ok()?
-            .atom;
+        let xsettings_screen = xcb.intern_atom(false, format!("_XSETTINGS_S{default_screen}").as_bytes()).ok()?.reply().ok()?.atom;
 
         // Get PropertyNotify events from the XSETTINGS window.
         // TODO: The XSETTINGS window here can change. In the future, listen for DestroyNotify on
         // this window in order to accommodate for a changed window here.
         let selector_window = xcb.get_selection_owner(xsettings_screen).ok()?.reply().ok()?.owner;
 
-        xcb.change_window_attributes(
-            selector_window,
-            &xproto::ChangeWindowAttributesAux::new()
-                .event_mask(xproto::EventMask::PROPERTY_CHANGE),
-        )
-        .ok()?
-        .check()
-        .ok()?;
+        xcb.change_window_attributes(selector_window, &xproto::ChangeWindowAttributesAux::new().event_mask(xproto::EventMask::PROPERTY_CHANGE))
+            .ok()?
+            .check()
+            .ok()?;
 
         Some(xsettings_screen)
     }
@@ -238,12 +221,7 @@ impl XConnection {
                 break;
             }
 
-            match self.timestamp.compare_exchange(
-                last_timestamp,
-                timestamp,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
+            match self.timestamp.compare_exchange(last_timestamp, timestamp, Ordering::Relaxed, Ordering::Relaxed) {
                 Ok(_) => break,
                 Err(x) => last_timestamp = x,
             }

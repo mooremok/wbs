@@ -6,10 +6,9 @@ use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, mutability, sel, ClassType, DeclaredClass};
 use objc2_foundation::{CGFloat, CGPoint, CGRect, MainThreadMarker, NSObject, NSSet, NSString};
 use objc2_ui_kit::{
-    UICoordinateSpace, UIEvent, UIForceTouchCapability, UIGestureRecognizer,
-    UIGestureRecognizerDelegate, UIGestureRecognizerState, UIKeyInput, UIPanGestureRecognizer,
-    UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer,
-    UITextInputTraits, UITouch, UITouchPhase, UITouchType, UITraitEnvironment, UIView,
+    UICoordinateSpace, UIEvent, UIForceTouchCapability, UIGestureRecognizer, UIGestureRecognizerDelegate, UIGestureRecognizerState, UIKeyInput,
+    UIPanGestureRecognizer, UIPinchGestureRecognizer, UIResponder, UIRotationGestureRecognizer, UITapGestureRecognizer, UITextInputTraits, UITouch,
+    UITouchPhase, UITouchType, UITraitEnvironment, UIView,
 };
 
 use super::app_state::{self, EventWrapper};
@@ -354,11 +353,7 @@ declare_class!(
 );
 
 impl WinitView {
-    pub(crate) fn new(
-        mtm: MainThreadMarker,
-        window_attributes: &WindowAttributes,
-        frame: CGRect,
-    ) -> Retained<Self> {
+    pub(crate) fn new(mtm: MainThreadMarker, window_attributes: &WindowAttributes, frame: CGRect) -> Retained<Self> {
         let this = mtm.alloc().set_ivars(WinitViewState {
             pinch_gesture_recognizer: RefCell::new(None),
             doubletap_gesture_recognizer: RefCell::new(None),
@@ -389,13 +384,7 @@ impl WinitView {
         let mtm = MainThreadMarker::from(self);
         if should_recognize {
             if self.ivars().pinch_gesture_recognizer.borrow().is_none() {
-                let pinch = unsafe {
-                    UIPinchGestureRecognizer::initWithTarget_action(
-                        mtm.alloc(),
-                        Some(self),
-                        Some(sel!(pinchGesture:)),
-                    )
-                };
+                let pinch = unsafe { UIPinchGestureRecognizer::initWithTarget_action(mtm.alloc(), Some(self), Some(sel!(pinchGesture:))) };
                 pinch.setDelegate(Some(ProtocolObject::from_ref(self)));
                 self.addGestureRecognizer(&pinch);
                 self.ivars().pinch_gesture_recognizer.replace(Some(pinch));
@@ -405,22 +394,11 @@ impl WinitView {
         }
     }
 
-    pub(crate) fn recognize_pan_gesture(
-        &self,
-        should_recognize: bool,
-        minimum_number_of_touches: u8,
-        maximum_number_of_touches: u8,
-    ) {
+    pub(crate) fn recognize_pan_gesture(&self, should_recognize: bool, minimum_number_of_touches: u8, maximum_number_of_touches: u8) {
         let mtm = MainThreadMarker::from(self);
         if should_recognize {
             if self.ivars().pan_gesture_recognizer.borrow().is_none() {
-                let pan = unsafe {
-                    UIPanGestureRecognizer::initWithTarget_action(
-                        mtm.alloc(),
-                        Some(self),
-                        Some(sel!(panGesture:)),
-                    )
-                };
+                let pan = unsafe { UIPanGestureRecognizer::initWithTarget_action(mtm.alloc(), Some(self), Some(sel!(panGesture:))) };
                 pan.setDelegate(Some(ProtocolObject::from_ref(self)));
                 pan.setMinimumNumberOfTouches(minimum_number_of_touches as _);
                 pan.setMaximumNumberOfTouches(maximum_number_of_touches as _);
@@ -436,13 +414,7 @@ impl WinitView {
         let mtm = MainThreadMarker::from(self);
         if should_recognize {
             if self.ivars().doubletap_gesture_recognizer.borrow().is_none() {
-                let tap = unsafe {
-                    UITapGestureRecognizer::initWithTarget_action(
-                        mtm.alloc(),
-                        Some(self),
-                        Some(sel!(doubleTapGesture:)),
-                    )
-                };
+                let tap = unsafe { UITapGestureRecognizer::initWithTarget_action(mtm.alloc(), Some(self), Some(sel!(doubleTapGesture:))) };
                 tap.setDelegate(Some(ProtocolObject::from_ref(self)));
                 tap.setNumberOfTapsRequired(2);
                 tap.setNumberOfTouchesRequired(1);
@@ -458,13 +430,7 @@ impl WinitView {
         let mtm = MainThreadMarker::from(self);
         if should_recognize {
             if self.ivars().rotation_gesture_recognizer.borrow().is_none() {
-                let rotation = unsafe {
-                    UIRotationGestureRecognizer::initWithTarget_action(
-                        mtm.alloc(),
-                        Some(self),
-                        Some(sel!(rotationGesture:)),
-                    )
-                };
+                let rotation = unsafe { UIRotationGestureRecognizer::initWithTarget_action(mtm.alloc(), Some(self), Some(sel!(rotationGesture:))) };
                 rotation.setDelegate(Some(ProtocolObject::from_ref(self)));
                 self.addGestureRecognizer(&rotation);
                 self.ivars().rotation_gesture_recognizer.replace(Some(rotation));
@@ -485,9 +451,7 @@ impl WinitView {
                 let trait_collection = self.traitCollection();
                 let touch_capability = trait_collection.forceTouchCapability();
                 // Both the OS _and_ the device need to be checked for force touch support.
-                if touch_capability == UIForceTouchCapability::Available
-                    || touch_type == UITouchType::Pencil
-                {
+                if touch_capability == UIForceTouchCapability::Available || touch_type == UITouchType::Pencil {
                     let force = touch.force();
                     let max_possible_force = touch.maximumPossibleForce();
                     let altitude_angle: Option<f64> = if touch_type == UITouchType::Pencil {
@@ -496,11 +460,7 @@ impl WinitView {
                     } else {
                         None
                     };
-                    Some(Force::Calibrated {
-                        force: force as _,
-                        max_possible_force: max_possible_force as _,
-                        altitude_angle,
-                    })
+                    Some(Force::Calibrated { force: force as _, max_possible_force: max_possible_force as _, altitude_angle })
                 } else {
                     None
                 }
@@ -520,20 +480,11 @@ impl WinitView {
 
             let physical_location = {
                 let scale_factor = self.contentScaleFactor();
-                PhysicalPosition::from_logical::<(f64, f64), f64>(
-                    (logical_location.x as _, logical_location.y as _),
-                    scale_factor as f64,
-                )
+                PhysicalPosition::from_logical::<(f64, f64), f64>((logical_location.x as _, logical_location.y as _), scale_factor as f64)
             };
             touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: RootWindowId(window.id()),
-                event: WindowEvent::Touch(Touch {
-                    device_id: DEVICE_ID,
-                    id: touch_id,
-                    location: physical_location,
-                    force,
-                    phase,
-                }),
+                event: WindowEvent::Touch(Touch { device_id: DEVICE_ID, id: touch_id, location: physical_location, force, phase }),
             }));
         }
         let mtm = MainThreadMarker::new().unwrap();
@@ -555,18 +506,12 @@ impl WinitView {
                         window_id,
                         event: WindowEvent::KeyboardInput {
                             event: KeyEvent {
-                                text: if state == ElementState::Pressed {
-                                    Some(text.clone())
-                                } else {
-                                    None
-                                },
+                                text: if state == ElementState::Pressed { Some(text.clone()) } else { None },
                                 state,
                                 location: KeyLocation::Standard,
                                 repeat: false,
                                 logical_key: Key::Character(text.clone()),
-                                physical_key: PhysicalKey::Unidentified(
-                                    NativeKeyCode::Unidentified,
-                                ),
+                                physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
                                 platform_specific: KeyEventExtra {},
                             },
                             is_synthetic: false,

@@ -21,32 +21,22 @@ const BIG_ENDIAN: u8 = b'B';
 
 impl XConnection {
     /// Get the DPI from XSettings.
-    pub(crate) fn xsettings_dpi(
-        &self,
-        xsettings_screen: xproto::Atom,
-    ) -> core::result::Result<Option<f64>, super::X11Error> {
+    pub(crate) fn xsettings_dpi(&self, xsettings_screen: xproto::Atom) -> core::result::Result<Option<f64>, super::X11Error> {
         let atoms = self.atoms();
 
         // Get the current owner of the screen's settings.
         let owner = self.xcb_connection().get_selection_owner(xsettings_screen)?.reply()?;
 
         // Read the _XSETTINGS_SETTINGS property.
-        let data: Vec<u8> =
-            self.get_property(owner.owner, atoms[_XSETTINGS_SETTINGS], atoms[_XSETTINGS_SETTINGS])?;
+        let data: Vec<u8> = self.get_property(owner.owner, atoms[_XSETTINGS_SETTINGS], atoms[_XSETTINGS_SETTINGS])?;
 
         // Parse the property.
-        let dpi_setting = read_settings(&data)?
-            .find(|res| res.as_ref().map_or(true, |s| s.name == DPI_NAME))
-            .transpose()?;
+        let dpi_setting = read_settings(&data)?.find(|res| res.as_ref().map_or(true, |s| s.name == DPI_NAME)).transpose()?;
         if let Some(dpi_setting) = dpi_setting {
             let base_dpi = match dpi_setting.data {
                 SettingData::Integer(dpi) => dpi as f64,
-                SettingData::String(_) => {
-                    return Err(ParserError::BadType(SettingType::String).into())
-                },
-                SettingData::Color(_) => {
-                    return Err(ParserError::BadType(SettingType::Color).into())
-                },
+                SettingData::String(_) => return Err(ParserError::BadType(SettingType::String).into()),
+                SettingData::Color(_) => return Err(ParserError::BadType(SettingType::Color).into()),
             };
 
             Ok(Some(base_dpi / DPI_MULTIPLIER))
@@ -106,7 +96,7 @@ impl<'a> Setting<'a> {
             SettingType::Integer => {
                 // Read a 32-bit integer.
                 SettingData::Integer(parser.i32()?)
-            },
+            }
 
             SettingType::String => {
                 // Read the data.
@@ -115,15 +105,14 @@ impl<'a> Setting<'a> {
                 parser.pad(data.len(), 4)?;
 
                 SettingData::String(data)
-            },
+            }
 
             SettingType::Color => {
                 // Read i16's of color.
-                let (red, blue, green, alpha) =
-                    (parser.i16()?, parser.i16()?, parser.i16()?, parser.i16()?);
+                let (red, blue, green, alpha) = (parser.i16()?, parser.i16()?, parser.i16()?, parser.i16()?);
 
                 SettingData::Color([red, blue, green, alpha])
-            },
+            }
         };
 
         Ok(Setting { name, data })
@@ -279,7 +268,7 @@ mod tests {
             ParserError::NoMoreBytes { expected, found } => {
                 assert_eq!(expected.get(), 1);
                 assert_eq!(found, 0);
-            },
+            }
 
             _ => panic!(),
         }

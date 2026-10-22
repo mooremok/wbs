@@ -7,9 +7,7 @@ use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
 use core_foundation::string::CFString;
 use core_foundation::uuid::{CFUUIDGetUUIDBytes, CFUUID};
-use core_graphics::display::{
-    CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode,
-};
+use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds, CGDisplayCopyDisplayMode};
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_app_kit::NSScreen;
@@ -259,17 +257,14 @@ impl MonitorHandle {
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
         unsafe {
-            let current_display_mode =
-                NativeDisplayMode(CGDisplayCopyDisplayMode(self.display_id()) as _);
+            let current_display_mode = NativeDisplayMode(CGDisplayCopyDisplayMode(self.display_id()) as _);
             let refresh_rate = ffi::CGDisplayModeGetRefreshRate(current_display_mode.0);
             if refresh_rate > 0.0 {
                 return Some((refresh_rate * 1000.0).round() as u32);
             }
 
             let mut display_link = std::ptr::null_mut();
-            if ffi::CVDisplayLinkCreateWithCGDisplay(self.display_id(), &mut display_link)
-                != ffi::kCVReturnSuccess
-            {
+            if ffi::CVDisplayLinkCreateWithCGDisplay(self.display_id(), &mut display_link) != ffi::kCVReturnSuccess {
                 return None;
             }
             let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
@@ -316,15 +311,10 @@ impl MonitorHandle {
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
-                let refresh_rate_millihertz = if cg_refresh_rate_hertz > 0.0 {
-                    (cg_refresh_rate_hertz * 1000.0).round() as u32
-                } else {
-                    refresh_rate_millihertz
-                };
+                let refresh_rate_millihertz =
+                    if cg_refresh_rate_hertz > 0.0 { (cg_refresh_rate_hertz * 1000.0).round() as u32 } else { refresh_rate_millihertz };
 
-                let pixel_encoding =
-                    CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode))
-                        .to_string();
+                let pixel_encoding = CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode)).to_string();
                 let bit_depth = if pixel_encoding.eq_ignore_ascii_case(ffi::IO32BitDirectPixels) {
                     32
                 } else if pixel_encoding.eq_ignore_ascii_case(ffi::IO16BitDirectPixels) {
@@ -336,10 +326,7 @@ impl MonitorHandle {
                 };
 
                 VideoModeHandle {
-                    size: PhysicalSize::new(
-                        ffi::CGDisplayModeGetPixelWidth(mode) as u32,
-                        ffi::CGDisplayModeGetPixelHeight(mode) as u32,
-                    ),
+                    size: PhysicalSize::new(ffi::CGDisplayModeGetPixelWidth(mode) as u32, ffi::CGDisplayModeGetPixelHeight(mode) as u32),
                     refresh_rate_millihertz,
                     bit_depth,
                     monitor: monitor.clone(),
@@ -376,9 +363,7 @@ pub(crate) fn get_display_id(screen: &NSScreen) -> u32 {
         // SAFETY: The value from @"NSScreenNumber" in deviceDescription is guaranteed
         // to be an NSNumber. See documentation for `deviceDescription` for details:
         // <https://developer.apple.com/documentation/appkit/nsscreen/1388360-devicedescription?language=objc>
-        let obj = device_description
-            .get(key)
-            .expect("failed getting screen display id from device description");
+        let obj = device_description.get(key).expect("failed getting screen display id from device description");
         let obj: *const AnyObject = obj;
         let obj: *const NSNumber = obj.cast();
         let obj: &NSNumber = unsafe { &*obj };

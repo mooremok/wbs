@@ -31,9 +31,7 @@ use crate::event_loop::{ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents, E
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::common::xkb::Context;
 use crate::platform_impl::platform::{min_timeout, WindowId};
-use crate::platform_impl::{
-    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
-};
+use crate::platform_impl::{ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor};
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource, WindowAttributes};
 
 mod activation;
@@ -108,12 +106,12 @@ impl<T> PeekableReceiver<T> {
             Ok(v) => {
                 self.first = Some(v);
                 true
-            },
+            }
             Err(TryRecvError::Empty) => false,
             Err(TryRecvError::Disconnected) => {
                 warn!("Channel was disconnected when checking incoming");
                 false
-            },
+            }
         }
     }
 
@@ -179,8 +177,7 @@ impl<T: 'static> EventLoop<T> {
         let wm_delete_window = atoms[WM_DELETE_WINDOW];
         let net_wm_ping = atoms[_NET_WM_PING];
 
-        let dnd = Dnd::new(Arc::clone(&xconn))
-            .expect("Failed to call XInternAtoms when initializing drag and drop");
+        let dnd = Dnd::new(Arc::clone(&xconn)).expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
         let (ime_event_sender, ime_event_receiver) = mpsc::channel();
@@ -217,8 +214,7 @@ impl<T: 'static> EventLoop<T> {
 
         let ime = ime.ok().map(RefCell::new);
 
-        let randr_event_offset =
-            xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
+        let randr_event_offset = xconn.select_xrandr_input(root).expect("Failed to query XRandR extension");
 
         let xi2ext = xconn
             .xcb_connection()
@@ -242,8 +238,7 @@ impl<T: 'static> EventLoop<T> {
         xconn.update_cached_wm_info(root);
 
         // Create an event loop.
-        let event_loop =
-            Loop::<EventLoopState>::try_new().expect("Failed to initialize the event loop");
+        let event_loop = Loop::<EventLoopState>::try_new().expect("Failed to initialize the event loop");
         let handle = event_loop.handle();
 
         // Create the X11 event dispatcher.
@@ -260,8 +255,7 @@ impl<T: 'static> EventLoop<T> {
             })
             .expect("Failed to register the X11 event dispatcher");
 
-        let (waker, waker_source) =
-            calloop::ping::make_ping().expect("Failed to create event loop waker");
+        let (waker, waker_source) = calloop::ping::make_ping().expect("Failed to create event loop waker");
         event_loop
             .handle()
             .insert_source(waker_source, move |_, _, _| {
@@ -278,8 +272,7 @@ impl<T: 'static> EventLoop<T> {
         // Create a channel for sending user events.
         let (user_sender, user_channel) = mpsc::channel();
 
-        let xkb_context =
-            Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
+        let xkb_context = Context::from_x11_xkb(xconn.xcb_connection().get_raw_xcb_connection()).unwrap();
 
         let mut xmodmap = util::ModifierKeymap::new();
         xmodmap.reload_from_x_connection(&xconn);
@@ -308,8 +301,7 @@ impl<T: 'static> EventLoop<T> {
         // Set initial device event filter.
         window_target.update_listen_device_events(true);
 
-        let root_window_target =
-            RootAEL { p: PlatformActiveEventLoop::X(window_target), _marker: PhantomData };
+        let root_window_target = RootAEL { p: PlatformActiveEventLoop::X(window_target), _marker: PhantomData };
 
         let event_processor = EventProcessor {
             target: root_window_target,
@@ -336,19 +328,13 @@ impl<T: 'static> EventLoop<T> {
         let xconn = &EventProcessor::window_target(&event_processor.target).xconn;
 
         xconn
-            .select_xinput_events(
-                root,
-                ALL_DEVICES,
-                x11rb::protocol::xinput::XIEventMask::HIERARCHY,
-            )
+            .select_xinput_events(root, ALL_DEVICES, x11rb::protocol::xinput::XIEventMask::HIERARCHY)
             .expect_then_ignore_error("Failed to register for XInput2 device hotplug events");
 
         xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                xkb::EventType::NEW_KEYBOARD_NOTIFY
-                    | xkb::EventType::MAP_NOTIFY
-                    | xkb::EventType::STATE_NOTIFY,
+                xkb::EventType::NEW_KEYBOARD_NOTIFY | xkb::EventType::MAP_NOTIFY | xkb::EventType::STATE_NOTIFY,
             )
             .unwrap();
 
@@ -368,9 +354,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            user_sender: WakeSender { sender: self.user_sender.clone(), waker: self.waker.clone() },
-        }
+        EventLoopProxy { user_sender: WakeSender { sender: self.user_sender.clone(), waker: self.waker.clone() } }
     }
 
     pub(crate) fn window_target(&self) -> &RootAEL {
@@ -385,13 +369,13 @@ impl<T: 'static> EventLoop<T> {
             match self.pump_events(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
-                },
+                }
                 PumpStatus::Exit(code) => {
                     break Err(EventLoopError::ExitFailure(code));
-                },
+                }
                 _ => {
                     continue;
-                },
+                }
             }
         };
 
@@ -400,9 +384,7 @@ impl<T: 'static> EventLoop<T> {
         // windows we need to make sure those last requests are sent to the
         // X Server.
         let wt = EventProcessor::window_target(&self.event_processor.target);
-        wt.x_connection().sync_with_server().map_err(|x_err| {
-            EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err)))))
-        })?;
+        wt.x_connection().sync_with_server().map_err(|x_err| EventLoopError::Os(os_error!(OsError::XError(Arc::new(X11Error::Xlib(x_err))))))?;
 
         exit
     }
@@ -435,9 +417,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn has_pending(&mut self) -> bool {
-        self.event_processor.poll()
-            || self.user_receiver.has_incoming()
-            || self.redraw_receiver.has_incoming()
+        self.event_processor.poll() || self.user_receiver.has_incoming() || self.redraw_receiver.has_incoming()
     }
 
     pub fn poll_events_with_timeout<F>(&mut self, mut timeout: Option<Duration>, mut callback: F)
@@ -455,18 +435,14 @@ impl<T: 'static> EventLoop<T> {
             let control_flow_timeout = match self.control_flow() {
                 ControlFlow::Wait => None,
                 ControlFlow::Poll => Some(Duration::ZERO),
-                ControlFlow::WaitUntil(wait_deadline) => {
-                    Some(wait_deadline.saturating_duration_since(start))
-                },
+                ControlFlow::WaitUntil(wait_deadline) => Some(wait_deadline.saturating_duration_since(start)),
             };
 
             min_timeout(control_flow_timeout, timeout)
         };
 
         self.state.x11_readiness = Readiness::EMPTY;
-        if let Err(error) =
-            self.event_loop.dispatch(timeout, &mut self.state).map_err(std::io::Error::from)
-        {
+        if let Err(error) = self.event_loop.dispatch(timeout, &mut self.state).map_err(std::io::Error::from) {
             tracing::error!("Failed to poll for events: {error:?}");
             let exit_code = error.raw_os_error().unwrap_or(1);
             self.set_exit_code(exit_code);
@@ -484,7 +460,7 @@ impl<T: 'static> EventLoop<T> {
                 } else {
                     StartCause::ResumeTimeReached { start, requested_resume: deadline }
                 }
-            },
+            }
         };
 
         // False positive / spurious wake ups could lead to us spamming
@@ -495,10 +471,7 @@ impl<T: 'static> EventLoop<T> {
         // have any pending `_receiver` events and if not we return without
         // running a loop iteration.
         // If we don't have any pending `_receiver`
-        if !self.has_pending()
-            && !matches!(&cause, StartCause::ResumeTimeReached { .. } | StartCause::Poll)
-            && timeout.is_none()
-        {
+        if !self.has_pending() && !matches!(&cause, StartCause::ResumeTimeReached { .. } | StartCause::Poll) && timeout.is_none() {
             return;
         }
 
@@ -522,25 +495,20 @@ impl<T: 'static> EventLoop<T> {
 
         // Empty activation tokens.
         while let Ok((window_id, serial)) = self.activation_receiver.try_recv() {
-            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| {
-                window.generate_activation_token()
-            });
+            let token = self.event_processor.with_window(window_id.0 as xproto::Window, |window| window.generate_activation_token());
 
             match token {
                 Some(Ok(token)) => {
                     let event = Event::WindowEvent {
                         window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::ActivationTokenDone {
-                            serial,
-                            token: crate::window::ActivationToken::from_raw(token),
-                        },
+                        event: WindowEvent::ActivationTokenDone { serial, token: crate::window::ActivationToken::from_raw(token) },
                     };
                     callback(event, &self.event_processor.target)
-                },
+                }
                 Some(Err(e)) => {
                     tracing::error!("Failed to get activation token: {}", e);
-                },
-                None => {},
+                }
+                None => {}
             }
         }
 
@@ -561,10 +529,7 @@ impl<T: 'static> EventLoop<T> {
 
             for window_id in windows {
                 let window_id = crate::window::WindowId(window_id);
-                callback(
-                    Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested },
-                    &self.event_processor.target,
-                );
+                callback(Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested }, &self.event_processor.target);
             }
         }
 
@@ -583,11 +548,7 @@ impl<T: 'static> EventLoop<T> {
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |window_target, event| {
-                if let Event::WindowEvent {
-                    window_id: crate::window::WindowId(wid),
-                    event: WindowEvent::RedrawRequested,
-                } = event
-                {
+                if let Event::WindowEvent { window_id: crate::window::WindowId(wid), event: WindowEvent::RedrawRequested } = event {
                     let window_target = EventProcessor::window_target(window_target);
                     window_target.redraw_sender.send(wid).unwrap();
                 } else {
@@ -655,8 +616,7 @@ impl ActiveEventLoop {
 
     /// Update the device event based on window focus.
     pub fn update_listen_device_events(&self, focus: bool) {
-        let device_events = self.device_events.get() == DeviceEvents::Always
-            || (focus && self.device_events.get() == DeviceEvents::WhenFocused);
+        let device_events = self.device_events.get() == DeviceEvents::Always || (focus && self.device_events.get() == DeviceEvents::WhenFocused);
 
         let mut mask = xinput::XIEventMask::from(0u32);
         if device_events {
@@ -667,9 +627,7 @@ impl ActiveEventLoop {
                 | xinput::XIEventMask::RAW_KEY_RELEASE;
         }
 
-        self.xconn
-            .select_xinput_events(self.root, ALL_MASTER_DEVICES, mask)
-            .expect_then_ignore_error("Failed to update device event filter");
+        self.xconn.select_xinput_events(self.root, ALL_MASTER_DEVICES, mask).expect_then_ignore_error("Failed to update device event filter");
     }
 
     #[cfg(feature = "rwh_05")]
@@ -681,15 +639,10 @@ impl ActiveEventLoop {
     }
 
     #[cfg(feature = "rwh_06")]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         let display_handle = rwh_06::XlibDisplayHandle::new(
             // SAFETY: display will never be null
-            Some(
-                std::ptr::NonNull::new(self.xconn.display as *mut _)
-                    .expect("X11 display should never be null"),
-            ),
+            Some(std::ptr::NonNull::new(self.xconn.display as *mut _).expect("X11 display should never be null")),
             self.xconn.default_screen_index() as c_int,
         );
         Ok(display_handle.into())
@@ -789,10 +742,7 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub(crate) fn new(
-        event_loop: &ActiveEventLoop,
-        attribs: WindowAttributes,
-    ) -> Result<Self, RootOsError> {
+    pub(crate) fn new(event_loop: &ActiveEventLoop, attribs: WindowAttributes) -> Result<Self, RootOsError> {
         let window = Arc::new(UnownedWindow::new(event_loop, attribs)?);
         event_loop.windows.borrow_mut().insert(window.id(), Arc::downgrade(&window));
         Ok(Window(window))
@@ -857,18 +807,14 @@ impl fmt::Display for X11Error {
             X11Error::GetProperty(e) => write!(f, "Failed to get X property {e}"),
             X11Error::X11(e) => write!(f, "X11 error: {e:?}"),
             X11Error::UnexpectedNull(s) => write!(f, "Xlib function returned null: {s}"),
-            X11Error::InvalidActivationToken(s) => write!(
-                f,
-                "Invalid activation token: {}",
-                std::str::from_utf8(s).unwrap_or("<invalid utf8>")
-            ),
+            X11Error::InvalidActivationToken(s) => write!(f, "Invalid activation token: {}", std::str::from_utf8(s).unwrap_or("<invalid utf8>")),
             X11Error::MissingExtension(s) => write!(f, "Missing X11 extension: {s}"),
             X11Error::NoSuchVisual(visualid) => {
                 write!(f, "Could not find a matching X11 visual for ID `{visualid:x}`")
-            },
+            }
             X11Error::XsettingsParse(err) => {
                 write!(f, "Failed to parse xsettings: {err:?}")
-            },
+            }
         }
     }
 }
@@ -1004,21 +950,23 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIScrollClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIScrollClassInfo) };
-                    scroll_axes.push((info.number, ScrollAxis {
-                        increment: info.increment,
-                        orientation: match info.scroll_type {
-                            ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                            ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                            _ => unreachable!(),
+                    scroll_axes.push((
+                        info.number,
+                        ScrollAxis {
+                            increment: info.increment,
+                            orientation: match info.scroll_type {
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                _ => unreachable!(),
+                            },
+                            position: 0.0,
                         },
-                        position: 0.0,
-                    }));
+                    ));
                 }
             }
         }
 
-        let mut device =
-            Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment };
+        let mut device = Device { _name: name.into_owned(), scroll_axes, attachment: info.attachment };
         device.reset_scroll_position(info);
         device
     }
@@ -1029,9 +977,7 @@ impl Device {
                 let ty = unsafe { (*class_ptr)._type };
                 if ty == ffi::XIValuatorClass {
                     let info = unsafe { &*(class_ptr as *const ffi::XIValuatorClassInfo) };
-                    if let Some(&mut (_, ref mut axis)) =
-                        self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number)
-                    {
+                    if let Some(&mut (_, ref mut axis)) = self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number) {
                         axis.position = info.value;
                     }
                 }
@@ -1041,19 +987,12 @@ impl Device {
 
     #[inline]
     fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard
-            || info._use == ffi::XISlavePointer
-            || info._use == ffi::XIFloatingSlave
+        info._use == ffi::XISlaveKeyboard || info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave
     }
 
     #[inline]
     fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe {
-            slice::from_raw_parts(
-                info.classes as *const *const ffi::XIAnyClassInfo,
-                info.num_classes as usize,
-            )
-        }
+        unsafe { slice::from_raw_parts(info.classes as *const *const ffi::XIAnyClassInfo, info.num_classes as usize) }
     }
 }
 

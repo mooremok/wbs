@@ -81,26 +81,10 @@ impl CustomCursor {
     /// Creates a new cursor from an rgba buffer.
     ///
     /// The alpha channel is assumed to be **not** premultiplied.
-    pub fn from_rgba(
-        rgba: impl Into<Vec<u8>>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<CustomCursorSource, BadImage> {
-        let _span =
-            tracing::debug_span!("winit::Cursor::from_rgba", width, height, hotspot_x, hotspot_y)
-                .entered();
+    pub fn from_rgba(rgba: impl Into<Vec<u8>>, width: u16, height: u16, hotspot_x: u16, hotspot_y: u16) -> Result<CustomCursorSource, BadImage> {
+        let _span = tracing::debug_span!("winit::Cursor::from_rgba", width, height, hotspot_x, hotspot_y).entered();
 
-        Ok(CustomCursorSource {
-            inner: PlatformCustomCursorSource::from_rgba(
-                rgba.into(),
-                width,
-                height,
-                hotspot_x,
-                hotspot_y,
-            )?,
-        })
+        Ok(CustomCursorSource { inner: PlatformCustomCursorSource::from_rgba(rgba.into(), width, height, hotspot_x, hotspot_y)? })
     }
 }
 
@@ -149,7 +133,7 @@ impl fmt::Display for BadImage {
                      pixels supplied by the `rgba` argument ({pixel_count:?}). For those \
                      dimensions, the expected pixel count is {width_x_height:?}.",
                 )
-            },
+            }
             BadImage::HotspotOutOfBounds { width, height, hotspot_x, hotspot_y } => write!(
                 f,
                 "The specified hotspot ({hotspot_x:?}, {hotspot_y:?}) is outside the image bounds \
@@ -169,13 +153,7 @@ pub(crate) struct OnlyCursorImageSource(pub(crate) CursorImage);
 
 #[allow(dead_code)]
 impl OnlyCursorImageSource {
-    pub(crate) fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
+    pub(crate) fn from_rgba(rgba: Vec<u8>, width: u16, height: u16, hotspot_x: u16, hotspot_y: u16) -> Result<Self, BadImage> {
         CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y).map(Self)
     }
 }
@@ -210,13 +188,7 @@ pub(crate) struct CursorImage {
 }
 
 impl CursorImage {
-    pub(crate) fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
+    pub(crate) fn from_rgba(rgba: Vec<u8>, width: u16, height: u16, hotspot_x: u16, hotspot_y: u16) -> Result<Self, BadImage> {
         if width > MAX_CURSOR_SIZE || height > MAX_CURSOR_SIZE {
             return Err(BadImage::TooLarge { width, height });
         }
@@ -228,12 +200,7 @@ impl CursorImage {
         let pixel_count = (rgba.len() / PIXEL_SIZE) as u64;
         let width_x_height = width as u64 * height as u64;
         if pixel_count != width_x_height {
-            return Err(BadImage::DimensionsVsPixelCount {
-                width,
-                height,
-                width_x_height,
-                pixel_count,
-            });
+            return Err(BadImage::DimensionsVsPixelCount { width, height, width_x_height, pixel_count });
         }
 
         if hotspot_x >= width || hotspot_y >= height {
@@ -250,13 +217,7 @@ pub(crate) struct NoCustomCursor;
 
 #[allow(dead_code)]
 impl NoCustomCursor {
-    pub(crate) fn from_rgba(
-        rgba: Vec<u8>,
-        width: u16,
-        height: u16,
-        hotspot_x: u16,
-        hotspot_y: u16,
-    ) -> Result<Self, BadImage> {
+    pub(crate) fn from_rgba(rgba: Vec<u8>, width: u16, height: u16, hotspot_x: u16, hotspot_y: u16) -> Result<Self, BadImage> {
         CursorImage::from_rgba(rgba, width, height, hotspot_x, hotspot_y)?;
         Ok(Self)
     }

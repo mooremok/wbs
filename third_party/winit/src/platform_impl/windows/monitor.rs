@@ -4,9 +4,8 @@ use std::{io, mem, ptr};
 
 use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
 use windows_sys::Win32::Graphics::Gdi::{
-    EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
-    MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH,
-    ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
+    EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint, MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY,
+    DM_PELSHEIGHT, DM_PELSWIDTH, ENUM_CURRENT_SETTINGS, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
     MONITOR_DEFAULTTOPRIMARY,
 };
 
@@ -86,12 +85,7 @@ pub struct MonitorHandle(HMONITOR);
 
 unsafe impl Send for MonitorHandle {}
 
-unsafe extern "system" fn monitor_enum_proc(
-    hmonitor: HMONITOR,
-    _hdc: HDC,
-    _place: *mut RECT,
-    data: LPARAM,
-) -> BOOL {
+unsafe extern "system" fn monitor_enum_proc(hmonitor: HMONITOR, _hdc: HDC, _place: *mut RECT, data: LPARAM) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorHandle>;
     unsafe { (*monitors).push_back(MonitorHandle::new(hmonitor)) };
     true.into() // continue enumeration
@@ -100,12 +94,7 @@ unsafe extern "system" fn monitor_enum_proc(
 pub fn available_monitors() -> VecDeque<MonitorHandle> {
     let mut monitors: VecDeque<MonitorHandle> = VecDeque::new();
     unsafe {
-        EnumDisplayMonitors(
-            0,
-            ptr::null(),
-            Some(monitor_enum_proc),
-            &mut monitors as *mut _ as LPARAM,
-        );
+        EnumDisplayMonitors(0, ptr::null(), Some(monitor_enum_proc), &mut monitors as *mut _ as LPARAM);
     }
     monitors
 }
@@ -135,9 +124,7 @@ impl Window {
 pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io::Error> {
     let mut monitor_info: MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
-    let status = unsafe {
-        GetMonitorInfoW(hmonitor, &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO)
-    };
+    let status = unsafe { GetMonitorInfoW(hmonitor, &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO) };
     if status == false.into() {
         Err(io::Error::last_os_error())
     } else {
@@ -169,10 +156,7 @@ impl MonitorHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
-        PhysicalSize {
-            width: (rc_monitor.right - rc_monitor.left) as u32,
-            height: (rc_monitor.bottom - rc_monitor.top) as u32,
-        }
+        PhysicalSize { width: (rc_monitor.right - rc_monitor.left) as u32, height: (rc_monitor.bottom - rc_monitor.top) as u32 }
     }
 
     #[inline]
@@ -182,9 +166,7 @@ impl MonitorHandle {
         unsafe {
             let mut mode: DEVMODEW = mem::zeroed();
             mode.dmSize = mem::size_of_val(&mode) as u16;
-            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0)
-                == false.into()
-            {
+            if EnumDisplaySettingsExW(device_name, ENUM_CURRENT_SETTINGS, &mut mode, 0) == false.into() {
                 None
             } else {
                 Some(mode.dmDisplayFrequency * 1000)
@@ -220,7 +202,7 @@ impl MonitorHandle {
             Err(error) => {
                 tracing::warn!("Error from get_monitor_info: {error}");
                 return modes.into_iter().map(mod_map);
-            },
+            }
         };
 
         let device_name = monitor_info.szDevice.as_ptr();
@@ -233,8 +215,7 @@ impl MonitorHandle {
                 break;
             }
 
-            const REQUIRED_FIELDS: u32 =
-                DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
+            const REQUIRED_FIELDS: u32 = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
             assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
             // Use Ord impl of RootVideoModeHandle

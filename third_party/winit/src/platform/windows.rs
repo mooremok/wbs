@@ -353,9 +353,7 @@ pub trait WindowExtWindows {
     /// # }
     /// ```
     #[cfg(feature = "rwh_06")]
-    unsafe fn window_handle_any_thread(
-        &self,
-    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
+    unsafe fn window_handle_any_thread(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError>;
 }
 
 impl WindowExtWindows for Window {
@@ -408,9 +406,7 @@ impl WindowExtWindows for Window {
     }
 
     #[cfg(feature = "rwh_06")]
-    unsafe fn window_handle_any_thread(
-        &self,
-    ) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
+    unsafe fn window_handle_any_thread(&self) -> Result<rwh_06::WindowHandle<'_>, rwh_06::HandleError> {
         unsafe {
             let handle = self.window.rwh_06_no_thread_check()?;
 
@@ -475,10 +471,7 @@ pub trait WindowAttributesExtWindows {
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how
     /// the menus look. If you use this, it is recommended that you combine it with
     /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
-    #[cfg_attr(
-        windows_platform,
-        doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu"
-    )]
+    #[cfg_attr(windows_platform, doc = "[`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu")]
     #[cfg_attr(not(windows_platform), doc = "[`CreateMenu`]: #only-available-on-windows")]
     fn with_menu(self, menu: HMENU) -> Self;
 
@@ -679,8 +672,7 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
-        -> Result<Self, BadIcon>;
+    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 
     /// Create an icon from a resource embedded in this executable or library by its ordinal id.
     ///
@@ -747,10 +739,7 @@ pub trait IconExtWindows: Sized {
 }
 
 impl IconExtWindows for Icon {
-    fn from_path<P: AsRef<Path>>(
-        path: P,
-        size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, BadIcon> {
+    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = crate::platform_impl::WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }

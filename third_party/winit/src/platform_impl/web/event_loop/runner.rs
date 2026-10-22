@@ -15,10 +15,7 @@ use super::super::DeviceId;
 use super::backend;
 use super::state::State;
 use crate::dpi::PhysicalSize;
-use crate::event::{
-    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause,
-    WindowEvent,
-};
+use crate::event::{DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, DeviceEvents};
 use crate::platform::web::{PollStrategy, WaitUntilStrategy};
 use crate::platform_impl::platform::backend::EventListenerHandle;
@@ -104,9 +101,7 @@ impl Runner {
             State::Init => StartCause::Init,
             State::Poll { .. } => StartCause::Poll,
             State::Wait { start } => StartCause::WaitCancelled { start, requested_resume: None },
-            State::WaitUntil { start, end, .. } => {
-                StartCause::WaitCancelled { start, requested_resume: Some(end) }
-            },
+            State::WaitUntil { start, end, .. } => StartCause::WaitCancelled { start, requested_resume: Some(end) },
             State::Exit => return None,
         })
     }
@@ -116,14 +111,9 @@ impl Runner {
             EventWrapper::Event(event) => (self.event_handler)(event),
             EventWrapper::ScaleChange { canvas, size, scale } => {
                 if let Some(canvas) = canvas.upgrade() {
-                    canvas.borrow().handle_scale_change(
-                        runner,
-                        |event| (self.event_handler)(event),
-                        size,
-                        scale,
-                    )
+                    canvas.borrow().handle_scale_change(runner, |event| (self.event_handler)(event), size, scale)
                 }
-            },
+            }
         }
     }
 }
@@ -137,13 +127,12 @@ impl Shared {
         let document = window.document().expect("Failed to obtain document");
 
         Shared(Rc::<Execution>::new_cyclic(|weak| {
-            let proxy_spawner =
-                WakerSpawner::new(main_thread, weak.clone(), |runner, count, local| {
-                    if let Some(runner) = runner.upgrade() {
-                        Shared(runner).send_user_events(count, local)
-                    }
-                })
-                .expect("`EventLoop` has to be created in the main thread");
+            let proxy_spawner = WakerSpawner::new(main_thread, weak.clone(), |runner, count, local| {
+                if let Some(runner) = runner.upgrade() {
+                    Shared(runner).send_user_events(count, local)
+                }
+            })
+            .expect("`EventLoop` has to be created in the main thread");
 
             Execution {
                 main_thread,
@@ -187,12 +176,7 @@ impl Shared {
         &self.0.document
     }
 
-    pub fn add_canvas(
-        &self,
-        id: WindowId,
-        canvas: Weak<RefCell<backend::Canvas>>,
-        runner: DispatchRunner<Inner>,
-    ) {
+    pub fn add_canvas(&self, id: WindowId, canvas: Weak<RefCell<backend::Canvas>>, runner: DispatchRunner<Inner>) {
         self.0.all_canvases.borrow_mut().push((id, canvas, runner));
     }
 
@@ -249,16 +233,10 @@ impl Shared {
                 let device_id = RootDeviceId(DeviceId(event.pointer_id()));
 
                 if let Some(button) = backend::event::mouse_button(&event) {
-                    let state = if backend::event::mouse_buttons(&event).contains(button.into()) {
-                        ElementState::Pressed
-                    } else {
-                        ElementState::Released
-                    };
+                    let state =
+                        if backend::event::mouse_buttons(&event).contains(button.into()) { ElementState::Pressed } else { ElementState::Released };
 
-                    runner.send_event(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Button { button: button.to_id(), state },
-                    });
+                    runner.send_event(Event::DeviceEvent { device_id, event: DeviceEvent::Button { button: button.to_id(), state } });
 
                     return;
                 }
@@ -268,20 +246,16 @@ impl Shared {
                 runner.send_events(backend::event::pointer_move_event(event).flat_map(|event| {
                     let delta = delta.delta(&event).to_physical(backend::scale_factor(&window));
 
-                    let x_motion = (delta.x != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 0, value: delta.x },
-                    });
+                    let x_motion =
+                        (delta.x != 0.0).then_some(Event::DeviceEvent { device_id, event: DeviceEvent::Motion { axis: 0, value: delta.x } });
 
-                    let y_motion = (delta.y != 0.0).then_some(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::Motion { axis: 1, value: delta.y },
-                    });
+                    let y_motion =
+                        (delta.y != 0.0).then_some(Event::DeviceEvent { device_id, event: DeviceEvent::Motion { axis: 1, value: delta.y } });
 
-                    x_motion.into_iter().chain(y_motion).chain(iter::once(Event::DeviceEvent {
-                        device_id,
-                        event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
-                    }))
+                    x_motion
+                        .into_iter()
+                        .chain(y_motion)
+                        .chain(iter::once(Event::DeviceEvent { device_id, event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) } }))
                 }));
             }),
         ));
@@ -296,10 +270,7 @@ impl Shared {
                 }
 
                 if let Some(delta) = backend::event::mouse_scroll_delta(&window, &event) {
-                    runner.send_event(Event::DeviceEvent {
-                        device_id: RootDeviceId(DeviceId(0)),
-                        event: DeviceEvent::MouseWheel { delta },
-                    });
+                    runner.send_event(Event::DeviceEvent { device_id: RootDeviceId(DeviceId(0)), event: DeviceEvent::MouseWheel { delta } });
                 }
             }),
         ));
@@ -315,10 +286,7 @@ impl Shared {
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
-                    event: DeviceEvent::Button {
-                        button: button.to_id(),
-                        state: ElementState::Pressed,
-                    },
+                    event: DeviceEvent::Button { button: button.to_id(), state: ElementState::Pressed },
                 });
             }),
         ));
@@ -334,10 +302,7 @@ impl Shared {
                 let button = backend::event::mouse_button(&event).expect("no mouse button pressed");
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(event.pointer_id())),
-                    event: DeviceEvent::Button {
-                        button: button.to_id(),
-                        state: ElementState::Released,
-                    },
+                    event: DeviceEvent::Button { button: button.to_id(), state: ElementState::Released },
                 });
             }),
         ));
@@ -352,10 +317,7 @@ impl Shared {
 
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId::dummy()),
-                    event: DeviceEvent::Key(RawKeyEvent {
-                        physical_key: backend::event::key_code(&event),
-                        state: ElementState::Pressed,
-                    }),
+                    event: DeviceEvent::Key(RawKeyEvent { physical_key: backend::event::key_code(&event), state: ElementState::Pressed }),
                 });
             }),
         ));
@@ -370,10 +332,7 @@ impl Shared {
 
                 runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId::dummy()),
-                    event: DeviceEvent::Key(RawKeyEvent {
-                        physical_key: backend::event::key_code(&event),
-                        state: ElementState::Released,
-                    }),
+                    event: DeviceEvent::Key(RawKeyEvent { physical_key: backend::event::key_code(&event), state: ElementState::Released }),
                 });
             }),
         ));
@@ -391,13 +350,8 @@ impl Shared {
                             // - not visible and intersects
                             // - not visible and we don't know if it intersects yet
                             // - visible and intersects
-                            if let (false, Some(true) | None) | (true, Some(true)) =
-                                (is_visible, canvas.borrow().is_intersecting)
-                            {
-                                runner.send_event(Event::WindowEvent {
-                                    window_id: *id,
-                                    event: WindowEvent::Occluded(!is_visible),
-                                });
+                            if let (false, Some(true) | None) | (true, Some(true)) = (is_visible, canvas.borrow().is_intersecting) {
+                                runner.send_event(Event::WindowEvent { window_id: *id, event: WindowEvent::Occluded(!is_visible) });
                             }
                         }
                     }
@@ -435,8 +389,7 @@ impl Shared {
     // Run the logic for waking from a WaitUntil, which involves clearing the queue
     // Generally there shouldn't be events built up when this is called
     pub fn resume_time_reached(&self, start: Instant, requested_resume: Instant) {
-        let start_cause =
-            Event::NewEvents(StartCause::ResumeTimeReached { start, requested_resume });
+        let start_cause = Event::NewEvents(StartCause::ResumeTimeReached { start, requested_resume });
         self.run_until_cleared(iter::once(start_cause));
     }
 
@@ -459,17 +412,13 @@ impl Shared {
 
         if local {
             // If the loop is not running and triggered locally, queue on next microtick.
-            if let Ok(RunnerEnum::Running(_)) =
-                self.0.runner.try_borrow().as_ref().map(Deref::deref)
-            {
+            if let Ok(RunnerEnum::Running(_)) = self.0.runner.try_borrow().as_ref().map(Deref::deref) {
                 self.window().queue_microtask(
                     &Closure::once_into_js({
                         let this = Rc::downgrade(&self.0);
                         move || {
                             if let Some(shared) = this.upgrade() {
-                                Shared(shared).send_events(
-                                    iter::repeat(Event::UserEvent(())).take(count.get()),
-                                )
+                                Shared(shared).send_events(iter::repeat(Event::UserEvent(())).take(count.get()))
                             }
                         }
                     })
@@ -500,17 +449,17 @@ impl Shared {
                 if let State::Poll { .. } = runner.state {
                     process_immediately = false;
                 }
-            },
+            }
             Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
-            },
+            }
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy. So we queue this event for
             // it to be processed later.
             Err(_) => {
                 process_immediately = false;
-            },
+            }
             // This is unreachable since `self.is_closed() == true`.
             Ok(RunnerEnum::Destroyed) => unreachable!(),
         }
@@ -522,9 +471,7 @@ impl Shared {
         // At this point, we know this is a fresh set of events
         // Now we determine why new events are incoming, and handle the events
         let start_cause = match (self.0.runner.borrow().maybe_runner())
-            .unwrap_or_else(|| {
-                unreachable!("The runner cannot process events when it is not attached")
-            })
+            .unwrap_or_else(|| unreachable!("The runner cannot process events when it is not attached"))
             .maybe_start_cause()
         {
             Some(c) => c,
@@ -534,8 +481,7 @@ impl Shared {
         // Take the start event, then the events provided to this function, and run an iteration of
         // the event loop
         let start_event = Event::NewEvents(start_cause);
-        let events =
-            iter::once(EventWrapper::from(start_event)).chain(events.into_iter().map(Into::into));
+        let events = iter::once(EventWrapper::from(start_event)).chain(events.into_iter().map(Into::into));
         self.run_until_cleared(events);
     }
 
@@ -544,10 +490,7 @@ impl Shared {
     fn process_destroy_pending_windows(&self) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
             self.0.all_canvases.borrow_mut().retain(|&(item_id, ..)| item_id != id);
-            self.handle_event(Event::WindowEvent {
-                window_id: id,
-                event: crate::event::WindowEvent::Destroyed,
-            });
+            self.handle_event(Event::WindowEvent { window_id: id, event: crate::event::WindowEvent::Destroyed });
             self.0.redraw_pending.borrow_mut().remove(&id);
         }
     }
@@ -565,10 +508,7 @@ impl Shared {
         // Collect all of the redraw events to avoid double-locking the RefCell
         let redraw_events: Vec<WindowId> = self.0.redraw_pending.borrow_mut().drain().collect();
         for window_id in redraw_events {
-            self.handle_event(Event::WindowEvent {
-                window_id,
-                event: WindowEvent::RedrawRequested,
-            });
+            self.handle_event(Event::WindowEvent { window_id, event: WindowEvent::RedrawRequested });
         }
 
         self.handle_event(Event::AboutToWait);
@@ -599,7 +539,7 @@ impl Shared {
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(self, event);
-            },
+            }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
             RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event.into()),
@@ -627,11 +567,7 @@ impl Shared {
                 let mut events = self.0.events.borrow_mut();
 
                 // Pre-fetch `UserEvent`s to avoid having to wait until the next event loop cycle.
-                events.extend(
-                    iter::repeat(Event::UserEvent(()))
-                        .take(self.0.proxy_spawner.fetch())
-                        .map(EventWrapper::from),
-                );
+                events.extend(iter::repeat(Event::UserEvent(())).take(self.0.proxy_spawner.fetch()).map(EventWrapper::from));
 
                 events.pop_front()
             };
@@ -650,14 +586,8 @@ impl Shared {
             match self.control_flow() {
                 ControlFlow::Poll => {
                     let cloned = self.clone();
-                    State::Poll {
-                        _request: backend::Schedule::new(
-                            self.poll_strategy(),
-                            self.window(),
-                            move || cloned.poll(),
-                        ),
-                    }
-                },
+                    State::Poll { _request: backend::Schedule::new(self.poll_strategy(), self.window(), move || cloned.poll()) }
+                }
                 ControlFlow::Wait => State::Wait { start: Instant::now() },
                 ControlFlow::WaitUntil(end) => {
                     let start = Instant::now();
@@ -676,7 +606,7 @@ impl Shared {
                             delay,
                         ),
                     }
-                },
+                }
             }
         };
 
@@ -743,14 +673,16 @@ impl Shared {
         match self.0.device_events.get() {
             DeviceEvents::Always => true,
             DeviceEvents::WhenFocused => {
-                self.0.all_canvases.borrow().iter().any(|(_, canvas, _)| {
-                    if let Some(canvas) = canvas.upgrade() {
-                        canvas.borrow().has_focus.get()
-                    } else {
-                        false
-                    }
-                })
-            },
+                self.0.all_canvases.borrow().iter().any(
+                    |(_, canvas, _)| {
+                        if let Some(canvas) = canvas.upgrade() {
+                            canvas.borrow().has_focus.get()
+                        } else {
+                            false
+                        }
+                    },
+                )
+            }
             DeviceEvents::Never => false,
         }
     }

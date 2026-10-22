@@ -127,17 +127,8 @@ x11 = [
 name = "winit"
 path = "src/lib.rs"
 
-[[test]]
-name = "send_objects"
-path = "tests/send_objects.rs"
-
-[[test]]
-name = "serde_objects"
-path = "tests/serde_objects.rs"
-
-[[test]]
-name = "sync_object"
-path = "tests/sync_object.rs"
+# WBS: upstream's [[test]] targets named files this trimmed copy doesn't carry; the dead
+# declarations tripped rustfmt once the app depended on winit directly.
 
 [dependencies.bitflags]
 version = "2"

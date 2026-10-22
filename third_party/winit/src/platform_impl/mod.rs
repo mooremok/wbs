@@ -9,6 +9,9 @@ mod ios;
 mod linux;
 #[cfg(macos_platform)]
 mod macos;
+// WBS: Command-Q interception (see app_state.rs).
+#[cfg(macos_platform)]
+pub(crate) use macos::approve_termination;
 #[cfg(orbital_platform)]
 mod orbital;
 #[cfg(web_platform)]
@@ -54,12 +57,8 @@ impl From<RootFullscreen> for Fullscreen {
 impl From<Fullscreen> for RootFullscreen {
     fn from(f: Fullscreen) -> Self {
         match f {
-            Fullscreen::Exclusive(video_mode) => {
-                Self::Exclusive(RootVideoModeHandle { video_mode })
-            },
-            Fullscreen::Borderless(Some(inner)) => {
-                Self::Borderless(Some(RootMonitorHandle { inner }))
-            },
+            Fullscreen::Exclusive(video_mode) => Self::Exclusive(RootVideoModeHandle { video_mode }),
+            Fullscreen::Borderless(Some(inner)) => Self::Borderless(Some(RootMonitorHandle { inner })),
             Fullscreen::Borderless(None) => Self::Borderless(None),
         }
     }

@@ -16,17 +16,7 @@ use crate::platform_impl::wayland::state::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 
 impl TouchHandler for WinitState {
-    fn down(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        touch: &WlTouch,
-        _: u32,
-        _: u32,
-        surface: WlSurface,
-        id: i32,
-        position: (f64, f64),
-    ) {
+    fn down(&mut self, _: &Connection, _: &QueueHandle<Self>, touch: &WlTouch, _: u32, _: u32, surface: WlSurface, id: i32, position: (f64, f64)) {
         let window_id = wayland::make_wid(&surface);
         let scale_factor = match self.windows.get_mut().get(&window_id) {
             Some(window) => window.lock().unwrap().scale_factor(),
@@ -38,7 +28,7 @@ impl TouchHandler for WinitState {
             None => {
                 warn!("Received wl_touch::down without seat");
                 return;
-            },
+            }
         };
 
         // Update the state of the point.
@@ -47,9 +37,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                 phase: TouchPhase::Started,
                 location: location.to_physical(scale_factor),
                 force: None,
@@ -59,21 +47,13 @@ impl TouchHandler for WinitState {
         );
     }
 
-    fn up(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        touch: &WlTouch,
-        _: u32,
-        _: u32,
-        id: i32,
-    ) {
+    fn up(&mut self, _: &Connection, _: &QueueHandle<Self>, touch: &WlTouch, _: u32, _: u32, id: i32) {
         let seat_state = match self.seats.get_mut(&touch.seat().id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received wl_touch::up without seat");
                 return;
-            },
+            }
         };
 
         // Remove the touch point.
@@ -90,9 +70,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                 phase: TouchPhase::Ended,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -102,21 +80,13 @@ impl TouchHandler for WinitState {
         );
     }
 
-    fn motion(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        touch: &WlTouch,
-        _: u32,
-        id: i32,
-        position: (f64, f64),
-    ) {
+    fn motion(&mut self, _: &Connection, _: &QueueHandle<Self>, touch: &WlTouch, _: u32, id: i32, position: (f64, f64)) {
         let seat_state = match self.seats.get_mut(&touch.seat().id()) {
             Some(seat_state) => seat_state,
             None => {
                 warn!("Received wl_touch::motion without seat");
                 return;
-            },
+            }
         };
 
         // Remove the touch point.
@@ -135,9 +105,7 @@ impl TouchHandler for WinitState {
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
-                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                    DeviceId,
-                )),
+                device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                 phase: TouchPhase::Moved,
                 location: touch_point.location.to_physical(scale_factor),
                 force: None,
@@ -153,7 +121,7 @@ impl TouchHandler for WinitState {
             None => {
                 warn!("Received wl_touch::cancel without seat");
                 return;
-            },
+            }
         };
 
         for (id, touch_point) in seat_state.touch_map.drain() {
@@ -167,9 +135,7 @@ impl TouchHandler for WinitState {
 
             self.events_sink.push_window_event(
                 WindowEvent::Touch(Touch {
-                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
-                        DeviceId,
-                    )),
+                    device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(DeviceId)),
                     phase: TouchPhase::Cancelled,
                     location,
                     force: None,
@@ -180,15 +146,7 @@ impl TouchHandler for WinitState {
         }
     }
 
-    fn shape(
-        &mut self,
-        _: &Connection,
-        _: &QueueHandle<Self>,
-        _: &WlTouch,
-        _: i32,
-        _: f64,
-        _: f64,
-    ) {
+    fn shape(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &WlTouch, _: i32, _: f64, _: f64) {
         // Blank.
     }
 

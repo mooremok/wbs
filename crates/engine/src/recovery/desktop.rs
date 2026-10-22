@@ -557,6 +557,33 @@ mod tests {
     use serde_json::json;
     use wordcraft_doc::StoryRef;
 
+    /// A quitting app settles every document and purges its recovery copy, so the next launch
+    /// doesn't offer to restore work the user already saved or discarded
+    /// ([`Session::purge_recovery`]). A session without a copy purges to nothing, harmlessly.
+    #[test]
+    fn purge_recovery_removes_the_sessions_own_copy() {
+        let t = Temp::new();
+        let mut s = crate::Session::new(wordcraft_doc::Document::new());
+        s.enable_recovery(t.0.clone(), std::sync::Arc::new(|| {})).unwrap();
+        s.run("text.insert", &json!({"text": "draft"})).unwrap();
+        assert!(s.dirty, "an edit leaves the document dirty, so a copy is kept");
+        // The worker scans, then ticks past its interval (a real one waits 10 s; drive `now`).
+        let later = Instant::now() + INTERVAL + Duration::from_secs(1);
+        for _ in 0..500 {
+            s.recovery_tick_at(later);
+            if s.recovery_documents().len() == 1 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(s.recovery_documents().len(), 1, "the dirty document's copy is on disk");
+        assert_eq!(fs::read_dir(&t.0).unwrap().count(), 1, "the record's folder");
+        s.purge_recovery().unwrap();
+        assert!(s.recovery_documents().is_empty(), "the copy is gone");
+        assert_eq!(fs::read_dir(&t.0).unwrap().count(), 0, "nothing is left on disk");
+        s.purge_recovery().unwrap();
+    }
+
     struct Temp(PathBuf);
     impl Temp {
         fn new() -> Self {

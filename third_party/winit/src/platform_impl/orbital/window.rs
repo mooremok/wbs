@@ -7,9 +7,7 @@ use crate::platform_impl::Fullscreen;
 use crate::window::ImePurpose;
 use crate::{error, window};
 
-use super::{
-    ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties,
-};
+use super::{ActiveEventLoop, MonitorHandle, OsError, RedoxSocket, TimeSocket, WindowId, WindowProperties};
 
 // These values match the values uses in the `window_new` function in orbital:
 // https://gitlab.redox-os.org/redox-os/orbital/-/blob/master/src/scheme.rs
@@ -30,10 +28,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new(
-        el: &ActiveEventLoop,
-        attrs: window::WindowAttributes,
-    ) -> Result<Self, error::OsError> {
+    pub(crate) fn new(el: &ActiveEventLoop, attrs: window::WindowAttributes) -> Result<Self, error::OsError> {
         let scale = MonitorHandle.scale_factor();
 
         let (x, y) = if let Some(pos) = attrs.position {
@@ -43,11 +38,7 @@ impl Window {
             (-1, -1)
         };
 
-        let (w, h): (u32, u32) = if let Some(size) = attrs.inner_size {
-            size.to_physical::<u32>(scale).into()
-        } else {
-            (1024, 768)
-        };
+        let (w, h): (u32, u32) = if let Some(size) = attrs.inner_size { size.to_physical::<u32>(scale).into() } else { (1024, 768) };
 
         // TODO: min/max inner_size
 
@@ -79,34 +70,20 @@ impl Window {
         match attrs.window_level {
             window::WindowLevel::AlwaysOnBottom => {
                 flag_str.push(ORBITAL_FLAG_BACK);
-            },
-            window::WindowLevel::Normal => {},
+            }
+            window::WindowLevel::Normal => {}
             window::WindowLevel::AlwaysOnTop => {
                 flag_str.push(ORBITAL_FLAG_FRONT);
-            },
+            }
         }
 
         // TODO: window_icon
 
         // Open window.
-        let window = RedoxSocket::orbital(&WindowProperties {
-            flags: &flag_str,
-            x,
-            y,
-            w,
-            h,
-            title: &attrs.title,
-        })
-        .expect("failed to open window");
+        let window = RedoxSocket::orbital(&WindowProperties { flags: &flag_str, x, y, w, h, title: &attrs.title }).expect("failed to open window");
 
         // Add to event socket.
-        el.event_socket
-            .write(&syscall::Event {
-                id: window.fd,
-                flags: syscall::EventFlags::EVENT_READ,
-                data: window.fd,
-            })
-            .unwrap();
+        el.event_socket.write(&syscall::Event { id: window.fd, flags: syscall::EventFlags::EVENT_READ, data: window.fd }).unwrap();
 
         let window_socket = Arc::new(window);
 
@@ -118,12 +95,7 @@ impl Window {
 
         el.wake_socket.wake().unwrap();
 
-        Ok(Self {
-            window_socket,
-            redraws: el.redraws.clone(),
-            destroys: el.destroys.clone(),
-            wake_socket: el.wake_socket.clone(),
-        })
+        Ok(Self { window_socket, redraws: el.redraws.clone(), destroys: el.destroys.clone(), wake_socket: el.wake_socket.clone() })
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
@@ -136,10 +108,7 @@ impl Window {
 
     fn get_flag(&self, flag: char) -> Result<bool, error::ExternalError> {
         let mut buf: [u8; 4096] = [0; 4096];
-        let path = self
-            .window_socket
-            .fpath(&mut buf)
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        let path = self.window_socket.fpath(&mut buf).map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
         let properties = WindowProperties::new(path);
         Ok(properties.flags.contains(flag))
     }
@@ -335,14 +304,14 @@ impl Window {
         match level {
             window::WindowLevel::AlwaysOnBottom => {
                 let _ = self.set_flag(ORBITAL_FLAG_BACK, true);
-            },
+            }
             window::WindowLevel::Normal => {
                 let _ = self.set_flag(ORBITAL_FLAG_BACK, false);
                 let _ = self.set_flag(ORBITAL_FLAG_FRONT, false);
-            },
+            }
             window::WindowLevel::AlwaysOnTop => {
                 let _ = self.set_flag(ORBITAL_FLAG_FRONT, true);
-            },
+            }
         }
     }
 
@@ -373,10 +342,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(
-        &self,
-        mode: window::CursorGrabMode,
-    ) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_grab(&self, mode: window::CursorGrabMode) -> Result<(), error::ExternalError> {
         let (grab, relative) = match mode {
             window::CursorGrabMode::None => (false, false),
             window::CursorGrabMode::Confined => (true, false),
@@ -398,17 +364,12 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        self.window_socket
-            .write(b"D")
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        self.window_socket.write(b"D").map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
         Ok(())
     }
 
     #[inline]
-    pub fn drag_resize_window(
-        &self,
-        direction: window::ResizeDirection,
-    ) -> Result<(), error::ExternalError> {
+    pub fn drag_resize_window(&self, direction: window::ResizeDirection) -> Result<(), error::ExternalError> {
         let arg = match direction {
             window::ResizeDirection::East => "R",
             window::ResizeDirection::North => "T",
@@ -419,9 +380,7 @@ impl Window {
             window::ResizeDirection::SouthWest => "B,L",
             window::ResizeDirection::West => "L",
         };
-        self.window_socket
-            .write(format!("D,{arg}").as_bytes())
-            .map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
+        self.window_socket.write(format!("D,{arg}").as_bytes()).map_err(|err| error::ExternalError::Os(os_error!(OsError::new(err))))?;
         Ok(())
     }
 
@@ -467,9 +426,7 @@ impl Window {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         Ok(rwh_06::RawDisplayHandle::Orbital(rwh_06::OrbitalDisplayHandle::new()))
     }
 

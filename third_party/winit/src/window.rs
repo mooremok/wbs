@@ -472,10 +472,7 @@ impl WindowAttributes {
     /// - **Android / iOS / Wayland / Web:** Unsupported.
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub unsafe fn with_parent_window(
-        mut self,
-        parent_window: Option<rwh_06::RawWindowHandle>,
-    ) -> Self {
+    pub unsafe fn with_parent_window(mut self, parent_window: Option<rwh_06::RawWindowHandle>) -> Self {
         self.parent_window = parent_window.map(SendSyncRawWindowHandle);
         self
     }
@@ -1395,8 +1392,7 @@ impl Window {
     ///
     /// [`NSWindowSharingNone`]: https://developer.apple.com/documentation/appkit/nswindowsharingtype/nswindowsharingnone
     pub fn set_content_protected(&self, protected: bool) {
-        let _span =
-            tracing::debug_span!("winit::Window::set_content_protected", protected).entered();
+        let _span = tracing::debug_span!("winit::Window::set_content_protected", protected).entered();
         self.window.maybe_queue_on_main(move |w| w.set_content_protected(protected))
     }
 
@@ -1598,9 +1594,7 @@ impl Window {
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         let _span = tracing::debug_span!("winit::Window::available_monitors",).entered();
-        self.window.maybe_wait_on_main(|w| {
-            w.available_monitors().into_iter().map(|inner| MonitorHandle { inner })
-        })
+        self.window.maybe_wait_on_main(|w| w.available_monitors().into_iter().map(|inner| MonitorHandle { inner }))
     }
 
     /// Returns the primary monitor of the system.
@@ -1861,10 +1855,7 @@ impl ActivationToken {
         any(x11_platform, wayland_platform, docsrs),
         doc = " [`request_activation_token`](crate::platform::startup_notify::WindowExtStartupNotify::request_activation_token)."
     )]
-    #[cfg_attr(
-        not(any(x11_platform, wayland_platform, docsrs)),
-        doc = " `request_activation_token`."
-    )]
+    #[cfg_attr(not(any(x11_platform, wayland_platform, docsrs)), doc = " `request_activation_token`.")]
     pub fn from_raw(token: String) -> Self {
         Self { token }
     }

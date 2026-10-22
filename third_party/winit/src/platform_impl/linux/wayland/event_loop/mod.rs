@@ -27,9 +27,7 @@ use crate::event::{Event, InnerSizeWriter, StartCause, WindowEvent};
 use crate::event_loop::{ActiveEventLoop as RootActiveEventLoop, ControlFlow, DeviceEvents};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::platform::min_timeout;
-use crate::platform_impl::{
-    ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor,
-};
+use crate::platform_impl::{ActiveEventLoop as PlatformActiveEventLoop, OsError, PlatformCustomCursor};
 use crate::window::{CustomCursor as RootCustomCursor, CustomCursorSource};
 
 mod proxy;
@@ -88,15 +86,12 @@ impl<T: 'static> EventLoop<T> {
 
         let connection = map_err!(Connection::connect_to_env(), WaylandError::Connection)?;
 
-        let (globals, mut event_queue) =
-            map_err!(globals::registry_queue_init(&connection), WaylandError::Global)?;
+        let (globals, mut event_queue) = map_err!(globals::registry_queue_init(&connection), WaylandError::Global)?;
         let queue_handle = event_queue.handle();
 
-        let event_loop =
-            map_err!(calloop::EventLoop::<WinitState>::try_new(), WaylandError::Calloop)?;
+        let event_loop = map_err!(calloop::EventLoop::<WinitState>::try_new(), WaylandError::Calloop)?;
 
-        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle())
-            .map_err(|error| os_error!(error))?;
+        let mut winit_state = WinitState::new(&globals, &queue_handle, event_loop.handle()).map_err(|error| os_error!(error))?;
 
         // NOTE: do a roundtrip after binding the globals to prevent potential
         // races with the server.
@@ -104,22 +99,15 @@ impl<T: 'static> EventLoop<T> {
 
         // Register Wayland source.
         let wayland_source = WaylandSource::new(connection.clone(), event_queue);
-        let wayland_dispatcher =
-            calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
-                let result = queue.dispatch_pending(winit_state);
-                if result.is_ok()
-                    && (!winit_state.events_sink.is_empty()
-                        || !winit_state.window_compositor_updates.is_empty())
-                {
-                    winit_state.dispatched_events = true;
-                }
-                result
-            });
+        let wayland_dispatcher = calloop::Dispatcher::new(wayland_source, |_, queue, winit_state: &mut WinitState| {
+            let result = queue.dispatch_pending(winit_state);
+            if result.is_ok() && (!winit_state.events_sink.is_empty() || !winit_state.window_compositor_updates.is_empty()) {
+                winit_state.dispatched_events = true;
+            }
+            result
+        });
 
-        map_err!(
-            event_loop.handle().register_dispatcher(wayland_dispatcher.clone()),
-            WaylandError::Calloop
-        )?;
+        map_err!(event_loop.handle().register_dispatcher(wayland_dispatcher.clone()), WaylandError::Calloop)?;
 
         // Setup the user proxy.
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
@@ -137,11 +125,8 @@ impl<T: 'static> EventLoop<T> {
         map_err!(result, WaylandError::Calloop)?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
-        let (event_loop_awakener, event_loop_awakener_source) = map_err!(
-            calloop::ping::make_ping()
-                .map_err(|error| CalloopError::OtherError(Box::new(error).into())),
-            WaylandError::Calloop
-        )?;
+        let (event_loop_awakener, event_loop_awakener_source) =
+            map_err!(calloop::ping::make_ping().map_err(|error| CalloopError::OtherError(Box::new(error).into())), WaylandError::Calloop)?;
 
         let result = event_loop
             .handle()
@@ -172,10 +157,7 @@ impl<T: 'static> EventLoop<T> {
             user_events_sender,
             pending_user_events,
             event_loop,
-            window_target: RootActiveEventLoop {
-                p: PlatformActiveEventLoop::Wayland(window_target),
-                _marker: PhantomData,
-            },
+            window_target: RootActiveEventLoop { p: PlatformActiveEventLoop::Wayland(window_target), _marker: PhantomData },
             pump_event_notifier: None,
         };
 
@@ -190,13 +172,13 @@ impl<T: 'static> EventLoop<T> {
             match self.pump_events(None, &mut event_handler) {
                 PumpStatus::Exit(0) => {
                     break Ok(());
-                },
+                }
                 PumpStatus::Exit(code) => {
                     break Err(EventLoopError::ExitFailure(code));
-                },
+                }
                 _ => {
                     continue;
-                },
+                }
             }
         };
 
@@ -236,15 +218,12 @@ impl<T: 'static> EventLoop<T> {
             // in parallel to winit, we ensure that the loop itself is marked as having events.
             if timeout.is_some() && self.pump_event_notifier.is_none() {
                 let awakener = match &self.window_target.p {
-                    PlatformActiveEventLoop::Wayland(window_target) => {
-                        window_target.event_loop_awakener.clone()
-                    },
+                    PlatformActiveEventLoop::Wayland(window_target) => window_target.event_loop_awakener.clone(),
                     #[cfg(x11_platform)]
                     PlatformActiveEventLoop::X(_) => unreachable!(),
                 };
 
-                self.pump_event_notifier =
-                    Some(PumpEventNotifier::spawn(self.connection.clone(), awakener));
+                self.pump_event_notifier = Some(PumpEventNotifier::spawn(self.connection.clone(), awakener));
             }
 
             if let Some(pump_event_notifier) = self.pump_event_notifier.as_ref() {
@@ -268,9 +247,7 @@ impl<T: 'static> EventLoop<T> {
                 let control_flow_timeout = match self.control_flow() {
                     ControlFlow::Wait => None,
                     ControlFlow::Poll => Some(Duration::ZERO),
-                    ControlFlow::WaitUntil(wait_deadline) => {
-                        Some(wait_deadline.saturating_duration_since(start))
-                    },
+                    ControlFlow::WaitUntil(wait_deadline) => Some(wait_deadline.saturating_duration_since(start)),
                 };
                 min_timeout(control_flow_timeout, timeout)
             };
@@ -310,15 +287,12 @@ impl<T: 'static> EventLoop<T> {
                     } else {
                         StartCause::ResumeTimeReached { start, requested_resume: deadline }
                     }
-                },
+                }
             };
 
             // Reduce spurious wake-ups.
             let dispatched_events = self.with_state(|state| state.dispatched_events);
-            if matches!(cause, StartCause::WaitCancelled { .. })
-                && !dispatched_events
-                && timeout.is_none()
-            {
+            if matches!(cause, StartCause::WaitCancelled { .. }) && !dispatched_events && timeout.is_none() {
                 continue;
             }
 
@@ -379,9 +353,7 @@ impl<T: 'static> EventLoop<T> {
                         window_id: crate::window::WindowId(window_id),
                         event: WindowEvent::ScaleFactorChanged {
                             scale_factor,
-                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(
-                                &new_inner_size,
-                            )),
+                            inner_size_writer: InnerSizeWriter::new(Arc::downgrade(&new_inner_size)),
                         },
                     },
                     &self.window_target,
@@ -396,8 +368,7 @@ impl<T: 'static> EventLoop<T> {
                         let windows = state.windows.get_mut();
                         let mut window = windows.get(&window_id).unwrap().lock().unwrap();
 
-                        let new_logical_size: LogicalSize<f64> =
-                            physical_size.to_logical(scale_factor);
+                        let new_logical_size: LogicalSize<f64> = physical_size.to_logical(scale_factor);
                         window.request_inner_size(new_logical_size.into());
                     });
 
@@ -417,32 +388,20 @@ impl<T: 'static> EventLoop<T> {
                     let size = logical_to_physical_rounded(window.inner_size(), scale_factor);
 
                     // Mark the window as needed a redraw.
-                    state
-                        .window_requests
-                        .get_mut()
-                        .get_mut(&window_id)
-                        .unwrap()
-                        .redraw_requested
-                        .store(true, Ordering::Relaxed);
+                    state.window_requests.get_mut().get_mut(&window_id).unwrap().redraw_requested.store(true, Ordering::Relaxed);
 
                     size
                 });
 
                 callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::Resized(physical_size),
-                    },
+                    Event::WindowEvent { window_id: crate::window::WindowId(window_id), event: WindowEvent::Resized(physical_size) },
                     &self.window_target,
                 );
             }
 
             if compositor_update.close_window {
                 callback(
-                    Event::WindowEvent {
-                        window_id: crate::window::WindowId(window_id),
-                        event: WindowEvent::CloseRequested,
-                    },
+                    Event::WindowEvent { window_id: crate::window::WindowId(window_id), event: WindowEvent::CloseRequested },
                     &self.window_target,
                 );
             }
@@ -480,8 +439,7 @@ impl<T: 'static> EventLoop<T> {
                     return Some(WindowEvent::Destroyed);
                 }
 
-                let mut window =
-                    state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
+                let mut window = state.windows.get_mut().get_mut(window_id).unwrap().lock().unwrap();
 
                 if window.frame_callback_state() == FrameCallbackState::Requested {
                     return None;
@@ -489,8 +447,7 @@ impl<T: 'static> EventLoop<T> {
 
                 // Reset the frame callbacks state.
                 window.frame_callback_reset();
-                let mut redraw_requested =
-                    window_requests.get(window_id).unwrap().take_redraw_requested();
+                let mut redraw_requested = window_requests.get(window_id).unwrap().take_redraw_requested();
 
                 // Redraw the frame while at it.
                 redraw_requested |= window.refresh_frame();
@@ -499,10 +456,7 @@ impl<T: 'static> EventLoop<T> {
             });
 
             if let Some(event) = event {
-                callback(
-                    Event::WindowEvent { window_id: crate::window::WindowId(*window_id), event },
-                    &self.window_target,
-                );
+                callback(Event::WindowEvent { window_id: crate::window::WindowId(*window_id), event }, &self.window_target);
             }
         }
 
@@ -521,17 +475,11 @@ impl<T: 'static> EventLoop<T> {
                 Some(window) => {
                     let refresh = window.lock().unwrap().refresh_frame();
                     if refresh {
-                        state
-                            .window_requests
-                            .get_mut()
-                            .get_mut(&window_id)
-                            .unwrap()
-                            .redraw_requested
-                            .store(true, Ordering::Relaxed);
+                        state.window_requests.get_mut().get_mut(&window_id).unwrap().redraw_requested.store(true, Ordering::Relaxed);
                     }
 
                     refresh
-                },
+                }
                 None => false,
             });
         }
@@ -544,7 +492,7 @@ impl<T: 'static> EventLoop<T> {
             match &self.window_target.p {
                 PlatformActiveEventLoop::Wayland(window_target) => {
                     window_target.event_loop_awakener.ping();
-                },
+                }
                 #[cfg(x11_platform)]
                 PlatformActiveEventLoop::X(_) => unreachable!(),
             }
@@ -597,9 +545,7 @@ impl<T: 'static> EventLoop<T> {
 
         let mut wayland_source = self.wayland_dispatcher.as_source_mut();
         let event_queue = wayland_source.queue();
-        event_queue.roundtrip(state).map_err(|error| {
-            os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error))))
-        })
+        event_queue.roundtrip(state).map_err(|error| os_error!(OsError::WaylandError(Arc::new(WaylandError::Dispatch(error)))))
     }
 
     fn control_flow(&self) -> ControlFlow {
@@ -688,9 +634,7 @@ impl ActiveEventLoop {
     pub fn listen_device_events(&self, _allowed: DeviceEvents) {}
 
     pub(crate) fn create_custom_cursor(&self, cursor: CustomCursorSource) -> RootCustomCursor {
-        RootCustomCursor {
-            inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))),
-        }
+        RootCustomCursor { inner: PlatformCustomCursor::Wayland(OnlyCursorImage(Arc::from(cursor.inner.0))) }
     }
 
     #[cfg(feature = "rwh_05")]
@@ -705,9 +649,7 @@ impl ActiveEventLoop {
 
     #[cfg(feature = "rwh_06")]
     #[inline]
-    pub fn raw_display_handle_rwh_06(
-        &self,
-    ) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
+    pub fn raw_display_handle_rwh_06(&self) -> Result<rwh_06::RawDisplayHandle, rwh_06::HandleError> {
         use sctk::reexports::client::Proxy;
 
         Ok(rwh_06::WaylandDisplayHandle::new({
@@ -754,42 +696,41 @@ impl PumpEventNotifier {
             Err(_) => return Self { control, handle: None, worker_waker: None },
         };
 
-        let handle =
-            std::thread::Builder::new().name(String::from("pump_events mon")).spawn(move || {
-                let (lock, cvar) = &*control_thread;
-                'outer: loop {
-                    let mut wait = lock.lock().unwrap();
-                    while *wait == PumpEventNotifierAction::Pause {
-                        wait = cvar.wait(wait).unwrap();
-                    }
+        let handle = std::thread::Builder::new().name(String::from("pump_events mon")).spawn(move || {
+            let (lock, cvar) = &*control_thread;
+            'outer: loop {
+                let mut wait = lock.lock().unwrap();
+                while *wait == PumpEventNotifierAction::Pause {
+                    wait = cvar.wait(wait).unwrap();
+                }
 
-                    // Exit the loop when we're asked to. Given that we poll
-                    // only once we can take the `prepare_read`, but in some cases
-                    // it could be not possible, we may block on `join`.
-                    if *wait == PumpEventNotifierAction::Shutdown {
+                // Exit the loop when we're asked to. Given that we poll
+                // only once we can take the `prepare_read`, but in some cases
+                // it could be not possible, we may block on `join`.
+                if *wait == PumpEventNotifierAction::Shutdown {
+                    break 'outer;
+                }
+
+                // Wake-up the main loop and put this one back to sleep.
+                *wait = PumpEventNotifierAction::Pause;
+                drop(wait);
+
+                while let Some(read_guard) = connection.prepare_read() {
+                    let _ = connection.flush();
+                    let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
+                    let pipe_poll_fd = PollFd::from_borrowed_fd(read.as_fd(), PollFlags::IN);
+                    // Read from the `fd` before going back to poll.
+                    if Ok(1) == rustix::io::read(read.as_fd(), &mut [0u8; 1]) {
                         break 'outer;
                     }
-
-                    // Wake-up the main loop and put this one back to sleep.
-                    *wait = PumpEventNotifierAction::Pause;
-                    drop(wait);
-
-                    while let Some(read_guard) = connection.prepare_read() {
-                        let _ = connection.flush();
-                        let poll_fd = PollFd::from_borrowed_fd(connection.as_fd(), PollFlags::IN);
-                        let pipe_poll_fd = PollFd::from_borrowed_fd(read.as_fd(), PollFlags::IN);
-                        // Read from the `fd` before going back to poll.
-                        if Ok(1) == rustix::io::read(read.as_fd(), &mut [0u8; 1]) {
-                            break 'outer;
-                        }
-                        let _ = rustix::event::poll(&mut [poll_fd, pipe_poll_fd], -1);
-                        // Non-blocking read the connection.
-                        let _ = read_guard.read_without_dispatch();
-                    }
-
-                    awakener.ping();
+                    let _ = rustix::event::poll(&mut [poll_fd, pipe_poll_fd], -1);
+                    // Non-blocking read the connection.
+                    let _ = read_guard.read_without_dispatch();
                 }
-            });
+
+                awakener.ping();
+            }
+        });
 
         if let Some(err) = handle.as_ref().err() {
             warn!("failed to spawn pump_events wake-up thread: {err}");

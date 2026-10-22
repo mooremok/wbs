@@ -13,11 +13,10 @@ use block2::Block;
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease, CFTypeRef};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
-    CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
-    CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CFRunLoopWakeUp,
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode, kCFRunLoopExit, CFRunLoopActivity,
+    CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
+    CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+    CFRunLoopWakeUp,
 };
 use objc2_foundation::MainThreadMarker;
 use tracing::error;
@@ -48,11 +47,7 @@ where
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers
-extern "C" fn control_flow_begin_handler(
-    _: CFRunLoopObserverRef,
-    activity: CFRunLoopActivity,
-    panic_info: *mut c_void,
-) {
+extern "C" fn control_flow_begin_handler(_: CFRunLoopObserverRef, activity: CFRunLoopActivity, panic_info: *mut c_void) {
     unsafe {
         control_flow_handler(panic_info, |panic_info| {
             #[allow(non_upper_case_globals)]
@@ -61,7 +56,7 @@ extern "C" fn control_flow_begin_handler(
                     // trace!("Triggered `CFRunLoopAfterWaiting`");
                     ApplicationDelegate::get(MainThreadMarker::new().unwrap()).wakeup(panic_info);
                     // trace!("Completed `CFRunLoopAfterWaiting`");
-                },
+                }
                 _ => unreachable!(),
             }
         });
@@ -70,11 +65,7 @@ extern "C" fn control_flow_begin_handler(
 
 // end is queued with the lowest priority to ensure it is processed after other observers
 // without that, LoopExiting would  get sent after AboutToWait
-extern "C" fn control_flow_end_handler(
-    _: CFRunLoopObserverRef,
-    activity: CFRunLoopActivity,
-    panic_info: *mut c_void,
-) {
+extern "C" fn control_flow_end_handler(_: CFRunLoopObserverRef, activity: CFRunLoopActivity, panic_info: *mut c_void) {
     unsafe {
         control_flow_handler(panic_info, |panic_info| {
             #[allow(non_upper_case_globals)]
@@ -83,7 +74,7 @@ extern "C" fn control_flow_end_handler(
                     // trace!("Triggered `CFRunLoopBeforeWaiting`");
                     ApplicationDelegate::get(MainThreadMarker::new().unwrap()).cleared(panic_info);
                     // trace!("Completed `CFRunLoopBeforeWaiting`");
-                },
+                }
                 kCFRunLoopExit => (), // unimplemented!(), // not expected to ever happen
                 _ => unreachable!(),
             }
@@ -205,25 +196,10 @@ impl RunLoop {
 pub fn setup_control_flow_observers(mtm: MainThreadMarker, panic_info: Weak<PanicInfo>) {
     let run_loop = RunLoop::main(mtm);
     unsafe {
-        let mut context = CFRunLoopObserverContext {
-            info: Weak::into_raw(panic_info) as *mut _,
-            version: 0,
-            retain: None,
-            release: None,
-            copyDescription: None,
-        };
-        run_loop.add_observer(
-            kCFRunLoopAfterWaiting,
-            CFIndex::MIN,
-            control_flow_begin_handler,
-            &mut context as *mut _,
-        );
-        run_loop.add_observer(
-            kCFRunLoopExit | kCFRunLoopBeforeWaiting,
-            CFIndex::MAX,
-            control_flow_end_handler,
-            &mut context as *mut _,
-        );
+        let mut context =
+            CFRunLoopObserverContext { info: Weak::into_raw(panic_info) as *mut _, version: 0, retain: None, release: None, copyDescription: None };
+        run_loop.add_observer(kCFRunLoopAfterWaiting, CFIndex::MIN, control_flow_begin_handler, &mut context as *mut _);
+        run_loop.add_observer(kCFRunLoopExit | kCFRunLoopBeforeWaiting, CFIndex::MAX, control_flow_end_handler, &mut context as *mut _);
     }
 }
 
@@ -258,15 +234,7 @@ impl EventLoopWaker {
             // Create a timer with a 0.1µs interval (1ns does not work) to mimic polling.
             // It is initially setup with a first fire time really far into the
             // future, but that gets changed to fire immediately in did_finish_launching
-            let timer = CFRunLoopTimerCreate(
-                ptr::null_mut(),
-                f64::MAX,
-                0.000_000_1,
-                0,
-                0,
-                wakeup_main_loop,
-                ptr::null_mut(),
-            );
+            let timer = CFRunLoopTimerCreate(ptr::null_mut(), f64::MAX, 0.000_000_1, 0, 0, wakeup_main_loop, ptr::null_mut());
             CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopCommonModes);
             Self { timer, start_instant: Instant::now(), next_fire_date: None }
         }
@@ -291,22 +259,21 @@ impl EventLoopWaker {
         match instant {
             Some(instant) if now >= instant => {
                 self.start();
-            },
+            }
             Some(instant) => {
                 if self.next_fire_date != Some(instant) {
                     self.next_fire_date = Some(instant);
                     unsafe {
                         let current = CFAbsoluteTimeGetCurrent();
                         let duration = instant - now;
-                        let fsecs = duration.subsec_nanos() as f64 / 1_000_000_000.0
-                            + duration.as_secs() as f64;
+                        let fsecs = duration.subsec_nanos() as f64 / 1_000_000_000.0 + duration.as_secs() as f64;
                         CFRunLoopTimerSetNextFireDate(self.timer, current + fsecs)
                     }
                 }
-            },
+            }
             None => {
                 self.stop();
-            },
+            }
         }
     }
 }

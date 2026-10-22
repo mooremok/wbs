@@ -85,10 +85,7 @@ extern "C" {
         fadeGreen: f32,
         fadeBlue: f32,
     ) -> CGError;
-    pub fn CGAcquireDisplayFadeReservation(
-        seconds: CGDisplayReservationInterval,
-        token: *mut CGDisplayFadeReservationToken,
-    ) -> CGError;
+    pub fn CGAcquireDisplayFadeReservation(seconds: CGDisplayReservationInterval, token: *mut CGDisplayFadeReservationToken) -> CGError;
     pub fn CGDisplayFade(
         token: CGDisplayFadeReservationToken,
         duration: CGDisplayFadeInterval,
@@ -101,15 +98,8 @@ extern "C" {
     ) -> CGError;
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
     pub fn CGShieldingWindowLevel() -> CGWindowLevel;
-    pub fn CGDisplaySetDisplayMode(
-        display: CGDirectDisplayID,
-        mode: CGDisplayModeRef,
-        options: CFDictionaryRef,
-    ) -> CGError;
-    pub fn CGDisplayCopyAllDisplayModes(
-        display: CGDirectDisplayID,
-        options: CFDictionaryRef,
-    ) -> CFArrayRef;
+    pub fn CGDisplaySetDisplayMode(display: CGDirectDisplayID, mode: CGDisplayModeRef, options: CFDictionaryRef) -> CGError;
+    pub fn CGDisplayCopyAllDisplayModes(display: CGDirectDisplayID, options: CFDictionaryRef) -> CFArrayRef;
     pub fn CGDisplayModeGetPixelWidth(mode: CGDisplayModeRef) -> usize;
     pub fn CGDisplayModeGetPixelHeight(mode: CGDisplayModeRef) -> usize;
     pub fn CGDisplayModeGetRefreshRate(mode: CGDisplayModeRef) -> f64;
@@ -119,11 +109,7 @@ extern "C" {
 
     // Wildly used private APIs; Apple uses them for their Terminal.app.
     pub fn CGSMainConnectionID() -> *mut AnyObject;
-    pub fn CGSSetWindowBackgroundBlurRadius(
-        connection_id: *mut AnyObject,
-        window_id: NSInteger,
-        radius: i64,
-    ) -> i32;
+    pub fn CGSSetWindowBackgroundBlurRadius(connection_id: *mut AnyObject, window_id: NSInteger, radius: i64) -> i32;
 }
 
 mod core_video {
@@ -155,13 +141,8 @@ mod core_video {
     pub type CVDisplayLinkRef = *mut c_void;
 
     extern "C" {
-        pub fn CVDisplayLinkCreateWithCGDisplay(
-            displayID: CGDirectDisplayID,
-            displayLinkOut: *mut CVDisplayLinkRef,
-        ) -> CVReturn;
-        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
-            displayLink: CVDisplayLinkRef,
-        ) -> CVTime;
+        pub fn CVDisplayLinkCreateWithCGDisplay(displayID: CGDirectDisplayID, displayLinkOut: *mut CVDisplayLinkRef) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(displayLink: CVDisplayLinkRef) -> CVTime;
         pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
     }
 }
@@ -189,10 +170,7 @@ extern "C" {
     pub static kTISPropertyUnicodeKeyLayoutData: CFStringRef;
 
     #[allow(non_snake_case)]
-    pub fn TISGetInputSourceProperty(
-        inputSource: TISInputSourceRef,
-        propertyKey: CFStringRef,
-    ) -> *mut c_void;
+    pub fn TISGetInputSourceProperty(inputSource: TISInputSourceRef, propertyKey: CFStringRef) -> *mut c_void;
 
     pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;
 

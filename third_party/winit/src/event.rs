@@ -550,10 +550,7 @@ pub struct KeyEvent {
 
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
-    #[cfg_attr(
-        not(any(windows_platform, macos_platform, x11_platform, wayland_platform)),
-        allow(rustdoc::broken_intra_doc_links)
-    )]
+    #[cfg_attr(not(any(windows_platform, macos_platform, x11_platform, wayland_platform)), allow(rustdoc::broken_intra_doc_links))]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
     /// This has two use cases:
@@ -903,7 +900,7 @@ impl Force {
                     None => *force,
                 };
                 force / max_possible_force
-            },
+            }
             Force::Normalized(force) => *force,
         }
     }
@@ -988,10 +985,7 @@ impl InnerSizeWriter {
     }
 
     /// Try to request inner size which will be set synchronously on the window.
-    pub fn request_inner_size(
-        &mut self,
-        new_inner_size: PhysicalSize<u32>,
-    ) -> Result<(), ExternalError> {
+    pub fn request_inner_size(&mut self, new_inner_size: PhysicalSize<u32>) -> Result<(), ExternalError> {
         if let Some(inner) = self.new_inner_size.upgrade() {
             *inner.lock().unwrap() = new_inner_size;
             Ok(())
@@ -1056,27 +1050,11 @@ mod tests {
                     delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
                     phase: event::TouchPhase::Started,
                 });
-                with_window_event(MouseInput {
-                    device_id: did,
-                    state: event::ElementState::Pressed,
-                    button: event::MouseButton::Other(0),
-                });
-                with_window_event(PinchGesture {
-                    device_id: did,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
+                with_window_event(MouseInput { device_id: did, state: event::ElementState::Pressed, button: event::MouseButton::Other(0) });
+                with_window_event(PinchGesture { device_id: did, delta: 0.0, phase: event::TouchPhase::Started });
                 with_window_event(DoubleTapGesture { device_id: did });
-                with_window_event(RotationGesture {
-                    device_id: did,
-                    delta: 0.0,
-                    phase: event::TouchPhase::Started,
-                });
-                with_window_event(PanGesture {
-                    device_id: did,
-                    delta: PhysicalPosition::<f32>::new(0.0, 0.0),
-                    phase: event::TouchPhase::Started,
-                });
+                with_window_event(RotationGesture { device_id: did, delta: 0.0, phase: event::TouchPhase::Started });
+                with_window_event(PanGesture { device_id: did, delta: PhysicalPosition::<f32>::new(0.0, 0.0), phase: event::TouchPhase::Started });
                 with_window_event(TouchpadPressure { device_id: did, pressure: 0.0, stage: 0 });
                 with_window_event(AxisMotion { device_id: did, axis: 0, value: 0.0 });
                 with_window_event(Touch(event::Touch {
@@ -1094,15 +1072,12 @@ mod tests {
             {
                 use event::DeviceEvent::*;
 
-                let with_device_event =
-                    |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
+                let with_device_event = |dev_ev| x(event::Event::DeviceEvent { device_id: did, event: dev_ev });
 
                 with_device_event(Added);
                 with_device_event(Removed);
                 with_device_event(MouseMotion { delta: (0.0, 0.0).into() });
-                with_device_event(MouseWheel {
-                    delta: event::MouseScrollDelta::LineDelta(0.0, 0.0),
-                });
+                with_device_event(MouseWheel { delta: event::MouseScrollDelta::LineDelta(0.0, 0.0) });
                 with_device_event(Motion { axis: 0, value: 0.0 });
                 with_device_event(Button { button: 0, state: event::ElementState::Pressed });
             }
@@ -1136,15 +1111,10 @@ mod tests {
         let force = event::Force::Normalized(0.0);
         assert_eq!(force.normalized(), 0.0);
 
-        let force2 =
-            event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: None };
+        let force2 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: None };
         assert_eq!(force2.normalized(), 2.0);
 
-        let force3 = event::Force::Calibrated {
-            force: 5.0,
-            max_possible_force: 2.5,
-            altitude_angle: Some(std::f64::consts::PI / 2.0),
-        };
+        let force3 = event::Force::Calibrated { force: 5.0, max_possible_force: 2.5, altitude_angle: Some(std::f64::consts::PI / 2.0) };
         assert_eq!(force3.normalized(), 2.0);
     }
 
@@ -1176,8 +1146,6 @@ mod tests {
             force: Some(event::Force::Normalized(0.0)),
         }
         .clone();
-        let _ =
-            event::Force::Calibrated { force: 0.0, max_possible_force: 0.0, altitude_angle: None }
-                .clone();
+        let _ = event::Force::Calibrated { force: 0.0, max_possible_force: 0.0, altitude_angle: None }.clone();
     }
 }

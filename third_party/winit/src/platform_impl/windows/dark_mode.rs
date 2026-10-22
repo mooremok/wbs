@@ -84,8 +84,7 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     // Uses Windows undocumented API SetWindowCompositionAttribute,
     // as seen in win32-darkmode example linked at top of file.
 
-    type SetWindowCompositionAttribute =
-        unsafe extern "system" fn(HWND, *mut WINDOWCOMPOSITIONATTRIBDATA) -> BOOL;
+    type SetWindowCompositionAttribute = unsafe extern "system" fn(HWND, *mut WINDOWCOMPOSITIONATTRIBDATA) -> BOOL;
 
     #[allow(clippy::upper_case_acronyms)]
     type WINDOWCOMPOSITIONATTRIB = u32;
@@ -149,22 +148,13 @@ fn should_apps_use_dark_mode() -> bool {
         handle.map(|handle| std::mem::transmute(handle))
     });
 
-    SHOULD_APPS_USE_DARK_MODE
-        .map(|should_apps_use_dark_mode| unsafe { (should_apps_use_dark_mode)() })
-        .unwrap_or(false)
+    SHOULD_APPS_USE_DARK_MODE.map(|should_apps_use_dark_mode| unsafe { (should_apps_use_dark_mode)() }).unwrap_or(false)
 }
 
 fn is_high_contrast() -> bool {
     let mut hc = HIGHCONTRASTA { cbSize: 0, dwFlags: 0, lpszDefaultScheme: ptr::null_mut() };
 
-    let ok = unsafe {
-        SystemParametersInfoA(
-            SPI_GETHIGHCONTRAST,
-            std::mem::size_of_val(&hc) as _,
-            &mut hc as *mut _ as _,
-            0,
-        )
-    };
+    let ok = unsafe { SystemParametersInfoA(SPI_GETHIGHCONTRAST, std::mem::size_of_val(&hc) as _, &mut hc as *mut _ as _, 0) };
 
     ok != false.into() && util::has_flag(hc.dwFlags, HCF_HIGHCONTRASTON)
 }

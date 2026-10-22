@@ -77,7 +77,7 @@ impl eframe::App for App {
             {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.0.quit_requested = false;
-                schedule_macos_terminate(&self.0, self.2.as_ref());
+                schedule_macos_terminate(&mut self.0, self.2.as_ref());
             }
             #[cfg(not(target_os = "macos"))]
             if self.0.quit_requested {
@@ -95,6 +95,9 @@ impl eframe::App for App {
     fn on_exit(&mut self) {
         print::finish_pending_jobs();
         save_prefs(&self.0);
+        // The quit has asked about every document (or found them clean): their recovery copies
+        // go too. Reaching here without that (a crash) is exactly what the copies are for.
+        self.0.purge_recovery_all();
         if let Some(key_file) = &self.2 {
             key_file.remove();
         }
@@ -109,7 +112,7 @@ impl eframe::App for App {
 /// removed first, as `on_exit` does, because a fallback [`std::process::exit`]
 /// skips `on_exit`. A second close while a quit is already scheduled is ignored.
 #[cfg(target_os = "macos")]
-fn schedule_macos_terminate(app: &WordApp, key_file: Option<&control_server::KeyFile>) {
+fn schedule_macos_terminate(app: &mut WordApp, key_file: Option<&control_server::KeyFile>) {
     use std::sync::atomic::{AtomicBool, Ordering};
     if app.printing.busy() {
         return;
@@ -122,9 +125,14 @@ fn schedule_macos_terminate(app: &WordApp, key_file: Option<&control_server::Key
     // This path can bypass on_exit. Join the owned workers before termination and cleanup.
     print::finish_pending_jobs();
     save_prefs(app);
+    // Every document has been asked about (or is clean): its recovery copy goes too, so the
+    // next launch doesn't offer to restore work the user settled.
+    app.purge_recovery_all();
     if let Some(key_file) = key_file {
         key_file.remove();
     }
+    // The vendored winit routes terminate: through the window's close request; approve ours.
+    winit::platform::macos::approve_termination();
     dispatch2::DispatchQueue::main().exec_async(|| {
         if let Some(mtm) = objc2::MainThreadMarker::new() {
             objc2_app_kit::NSApplication::sharedApplication(mtm).terminate(None);

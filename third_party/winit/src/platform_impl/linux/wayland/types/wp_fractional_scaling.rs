@@ -4,9 +4,7 @@ use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1;
-use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::{
-    Event as FractionalScalingEvent, WpFractionalScaleV1,
-};
+use sctk::reexports::protocols::wp::fractional_scale::v1::client::wp_fractional_scale_v1::{Event as FractionalScalingEvent, WpFractionalScaleV1};
 
 use sctk::globals::GlobalData;
 
@@ -28,19 +26,12 @@ pub struct FractionalScaling {
 
 impl FractionalScalingManager {
     /// Create new viewporter.
-    pub fn new(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> Result<Self, BindError> {
+    pub fn new(globals: &GlobalList, queue_handle: &QueueHandle<WinitState>) -> Result<Self, BindError> {
         let manager = globals.bind(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { manager })
     }
 
-    pub fn fractional_scaling(
-        &self,
-        surface: &WlSurface,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> WpFractionalScaleV1 {
+    pub fn fractional_scaling(&self, surface: &WlSurface, queue_handle: &QueueHandle<WinitState>) -> WpFractionalScaleV1 {
         let data = FractionalScaling { surface: surface.clone() };
         self.manager.get_fractional_scale(surface, queue_handle, data)
     }

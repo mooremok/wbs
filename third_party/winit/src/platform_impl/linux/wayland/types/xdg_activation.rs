@@ -6,9 +6,7 @@ use std::sync::Weak;
 use sctk::reexports::client::globals::{BindError, GlobalList};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{delegate_dispatch, Connection, Dispatch, Proxy, QueueHandle};
-use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_token_v1::{
-    Event as ActivationTokenEvent, XdgActivationTokenV1,
-};
+use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_token_v1::{Event as ActivationTokenEvent, XdgActivationTokenV1};
 use sctk::reexports::protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use sctk::globals::GlobalData;
@@ -23,10 +21,7 @@ pub struct XdgActivationState {
 }
 
 impl XdgActivationState {
-    pub fn bind(
-        globals: &GlobalList,
-        queue_handle: &QueueHandle<WinitState>,
-    ) -> Result<Self, BindError> {
+    pub fn bind(globals: &GlobalList, queue_handle: &QueueHandle<WinitState>) -> Result<Self, BindError> {
         let xdg_activation = globals.bind(queue_handle, 1..=1, GlobalData)?;
         Ok(Self { xdg_activation })
     }
@@ -62,11 +57,7 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
             _ => return,
         };
 
-        let global = state
-            .xdg_activation
-            .as_ref()
-            .expect("got xdg_activation event without global.")
-            .global();
+        let global = state.xdg_activation.as_ref().expect("got xdg_activation event without global.").global();
 
         match data {
             XdgActivationTokenData::Attention((surface, fence)) => {
@@ -75,16 +66,13 @@ impl Dispatch<XdgActivationTokenV1, XdgActivationTokenData, WinitState> for XdgA
                 if let Some(attention_requested) = fence.upgrade() {
                     attention_requested.store(false, std::sync::atomic::Ordering::Relaxed);
                 }
-            },
+            }
             XdgActivationTokenData::Obtain((window_id, serial)) => {
                 state.events_sink.push_window_event(
-                    crate::event::WindowEvent::ActivationTokenDone {
-                        serial: *serial,
-                        token: ActivationToken::from_raw(token),
-                    },
+                    crate::event::WindowEvent::ActivationTokenDone { serial: *serial, token: ActivationToken::from_raw(token) },
                     *window_id,
                 );
-            },
+            }
         }
 
         proxy.destroy();

@@ -41,7 +41,7 @@ impl fmt::Display for BadIcon {
                      pixels supplied by the `rgba` argument ({pixel_count:?}). For those \
                      dimensions, the expected pixel count is {width_x_height:?}.",
                 )
-            },
+            }
             BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {e:?}"),
         }
     }
@@ -71,12 +71,7 @@ mod constructors {
             }
             let pixel_count = rgba.len() / PIXEL_SIZE;
             if pixel_count != (width * height) as usize {
-                Err(BadIcon::DimensionsVsPixelCount {
-                    width,
-                    height,
-                    width_x_height: (width * height) as usize,
-                    pixel_count,
-                })
+                Err(BadIcon::DimensionsVsPixelCount { width, height, width_x_height: (width * height) as usize, pixel_count })
             } else {
                 Ok(RgbaIcon { rgba, width, height })
             }
