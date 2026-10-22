@@ -1431,6 +1431,7 @@
 	Page width	ページ幅
 	Page {page}	{page} ページ
 	Page {page} of {pages}	{page} / {pages} ページ
+	Page: {page}/{pages}	ページ: {page}/{pages}
 	Page\nBorders	ページ罫線
 	Page\nColor	ページの色
 	Page\nNumber	ページ番号
@@ -2295,4 +2296,6 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} ピクセル
 	{words} words	{words} 語
+	Words: {words}	単語数: {words}
+	Words: {selected}/{words}	単語数: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	「{text}」（{row}、{series}）は数値ではありません。

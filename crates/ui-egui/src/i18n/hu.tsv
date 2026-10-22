@@ -1702,6 +1702,7 @@
 	Page width	Oldalszélesség
 	Page {page}	{page}. oldal
 	Page {page} of {pages}	Oldal: {page}/{pages}
+	Page: {page}/{pages}	Oldal: {page}/{pages}
 	Page\nBorders	Oldal-\nszegély
 	Page\nColor	Oldalszín
 	Page\nNumber	Oldalszám
@@ -2696,6 +2697,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} képpont
 	{words} words	{words} szó
+	Words: {words}	Szavak: {words}
+	Words: {selected}/{words}	Szavak: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}” ({row}, {series}) nem szám.
 	✓ None	✓ Nincs
 	➕ New comment	➕ Új megjegyzés

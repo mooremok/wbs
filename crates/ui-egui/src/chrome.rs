@@ -685,7 +685,7 @@ pub fn status_bar(app: &mut WordApp, ui: &mut Ui) {
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, s));
                     resp
                 };
-                if st(ui, &crate::i18n::fmt(tl!("Page {page} of {pages}"), &[("page", &page.to_string()), ("pages", &l.pages.len().to_string())]))
+                if st(ui, &crate::i18n::fmt(tl!("Page: {page}/{pages}"), &[("page", &page.to_string()), ("pages", &l.pages.len().to_string())]))
                     .on_hover_text(tl!("Go To (⌘⌥G)"))
                     .clicked()
                 {
@@ -694,10 +694,10 @@ pub fn status_bar(app: &mut WordApp, ui: &mut Ui) {
                 let words = app.cached_word_count();
                 // A selected picture/shape/text box isn't a text selection: show the total.
                 let wtxt = if app.session.sel.is_collapsed() || crate::objects::selected(app).is_some() {
-                    crate::i18n::fmt(tl!("{words} words"), &[("words", &words.to_string())])
+                    crate::i18n::fmt(tl!("Words: {words}"), &[("words", &words.to_string())])
                 } else {
                     let sw = wordcraft_doc::count_words(&app.session.selected_text());
-                    crate::i18n::fmt(tl!("{selected} of {words} words"), &[("selected", &sw.to_string()), ("words", &words.to_string())])
+                    crate::i18n::fmt(tl!("Words: {selected}/{words}"), &[("selected", &sw.to_string()), ("words", &words.to_string())])
                 };
                 if st(ui, &wtxt).clicked() {
                     let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
@@ -748,6 +748,23 @@ pub fn status_bar(app: &mut WordApp, ui: &mut Ui) {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing = vec2(4.0, 0.0);
+                    // Full Screen, the bar's last entry (as WPS's is): toggles view.fullScreen.
+                    {
+                        let on = app.session.view.full_screen;
+                        let name = tl!("Full Screen");
+                        let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
+                        if on {
+                            ui.painter().rect_filled(r, 3.0, t.checked);
+                        } else if resp.hovered() {
+                            ui.painter().rect_filled(r, 3.0, t.hover);
+                        }
+                        icons::paint(ui.painter(), r.shrink(3.0), "fullScreen", t.icon, t.accent);
+                        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, on, name));
+                        if resp.on_hover_text(name).clicked() {
+                            let _ = app.run("view.fullScreen", json!({}));
+                        }
+                        ui.add_space(6.0);
+                    }
                     let reading = app.session.view.read_mode;
                     let z = (if reading { app.session.view.read_zoom } else { app.canvas.scale / crate::canvas::PX_PER_PT } * 100.0).round();
                     let ztxt = format!("{z}%");
@@ -955,6 +972,35 @@ mod tests {
         for (zoom, xs) in &seen {
             assert_eq!(xs, first, "status bar controls moved at {zoom}% zoom");
         }
+    }
+
+    /// The status bar's WPS wording and its last entry: `Page: 1/1`, `Words: N` (a selection
+    /// `Words: S/N`), and a Full Screen toggle that runs `view.fullScreen`.
+    #[test]
+    fn status_bar_shows_wps_wording_and_full_screen() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = {
+            let mut a = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::from_text("Hello world")), crate::Services::default());
+            let _ = a.run("select.all", json!({}));
+            egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                a,
+            )
+        };
+        h.run_steps(6);
+        assert!(h.query_by_label("Page: 1/1").is_some(), "the page reads Page: 1/1");
+        assert!(h.query_by_label("Words: 2/2").is_some(), "a selection reads Words: S/N");
+        h.state_mut().run("select.collapse", json!({"end": true})).unwrap();
+        h.run_steps(3);
+        assert!(h.query_by_label("Words: 2").is_some(), "no selection reads Words: N");
+        assert!(!h.state().session.view.full_screen, "full screen starts off");
+        h.get_by_label("Full Screen").click();
+        h.run_steps(3);
+        assert!(h.state().session.view.full_screen, "the status bar's last button toggles full screen");
     }
 
     /// #1903: the footer's Cancel row closes the Undo list without undoing anything.

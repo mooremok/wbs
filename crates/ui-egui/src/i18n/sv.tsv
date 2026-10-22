@@ -1719,6 +1719,7 @@
 	Page width	Sidbredd
 	Page {page}	Sida {page}
 	Page {page} of {pages}	Sida {page} av {pages}
+	Page: {page}/{pages}	Sida: {page}/{pages}
 	Page\nBorders	Sid-\nkantlinjer
 	Page\nColor	Sid-\nfärg
 	Page\nNumber	Sid-\nnummer
@@ -2716,6 +2717,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pixlar
 	{words} words	{words} ord
+	Words: {words}	Ord: {words}
+	Words: {selected}/{words}	Ord: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	”{text}” ({row}, {series}) är inget tal.
 	✓ None	✓ Ingen
 preview	Title	Titel

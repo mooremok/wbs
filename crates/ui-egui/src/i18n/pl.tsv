@@ -1710,6 +1710,7 @@
 	Page width	Szerokość strony
 	Page {page}	Strona {page}
 	Page {page} of {pages}	Strona {page} z {pages}
+	Page: {page}/{pages}	Strona: {page}/{pages}
 	Page\nBorders	Obramowanie\nstrony
 	Page\nColor	Kolor\nstrony
 	Page\nNumber	Numer\nstrony
@@ -2704,6 +2705,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pikseli
 	{words} words	Słowa: {words}
+	Words: {words}	Słowa: {words}
+	Words: {selected}/{words}	Słowa: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}” ({row}, {series}) nie jest liczbą.
 	✓ None	✓ Brak
 	➕ New comment	➕ Nowy komentarz

@@ -1445,6 +1445,7 @@
 	Page width	Ширина стране
 	Page {page}	Страна {page}
 	Page {page} of {pages}	Страна {page} од {pages}
+	Page: {page}/{pages}	Страна: {page}/{pages}
 	Page\nBorders	Ивице\nстране
 	Page\nColor	Боја\nстране
 	Page\nNumber	Број\nстране
@@ -2309,4 +2310,6 @@
 	{width} × {height} mm	{width} × {height} мм
 	{width} × {height} pixels	{width} × {height} пиксела
 	{words} words	{words} речи
+	Words: {words}	Речи: {words}
+	Words: {selected}/{words}	Речи: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}” ({row}, {series}) није број.

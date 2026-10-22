@@ -1607,6 +1607,7 @@
 	Page width	페이지 너비
 	Page {page}	{page}페이지
 	Page {page} of {pages}	전체 {pages}페이지 중 {page}페이지
+	Page: {page}/{pages}	페이지: {page}/{pages}
 	Page\nBorders	페이지\n테두리
 	Page\nColor	페이지\n색
 	Page\nNumber	페이지\n번호
@@ -2542,6 +2543,8 @@
 	{size} pt	{size} pt
 	{width} × {height} pixels	{width} × {height} 픽셀
 	{words} words	단어 {words}개
+	Words: {words}	단어 수: {words}
+	Words: {selected}/{words}	단어 수: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}”({row}, {series})은(는) 숫자가 아닙니다.
 	✓ None	✓ 없음
 	➕ New comment	➕ 새 메모

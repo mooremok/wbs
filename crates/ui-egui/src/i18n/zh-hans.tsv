@@ -1444,6 +1444,7 @@ homeTab	Home	首页
 	Page width	页宽
 	Page {page}	第 {page} 页
 	Page {page} of {pages}	第 {page} 页，共 {pages} 页
+	Page: {page}/{pages}	页面: {page}/{pages}
 	Page\nBorders	页面边框
 	Page\nColor	页面颜色
 	Page\nNumber	页码
@@ -2308,4 +2309,6 @@ homeTab	Home	首页
 	{width} × {height} mm	{width} × {height} 毫米
 	{width} × {height} pixels	{width} × {height} 像素
 	{words} words	{words} 个字
+	Words: {words}	字数: {words}
+	Words: {selected}/{words}	字数: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}”（{row}，{series}）不是数字。

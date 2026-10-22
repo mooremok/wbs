@@ -1698,6 +1698,7 @@
 	Page width	Širina stranice
 	Page {page}	Stranica {page}
 	Page {page} of {pages}	Stranica {page} od {pages}
+	Page: {page}/{pages}	Stranica: {page}/{pages}
 	Page\nBorders	Obrubi\nstranice
 	Page\nColor	Boja\nstranice
 	Page\nNumber	Broj\nstranice
@@ -2698,6 +2699,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} piksela
 	{words} words	Riječi: {words}
+	Words: {words}	Riječi: {words}
+	Words: {selected}/{words}	Riječi: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}” ({row}, {series}) nije broj.
 	✓ None	✓ Nema
 	➕ New comment	➕ Novi komentar

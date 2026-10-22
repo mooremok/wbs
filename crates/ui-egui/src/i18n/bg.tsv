@@ -1702,6 +1702,7 @@
 	Page width	Ширина на страницата
 	Page {page}	Страница {page}
 	Page {page} of {pages}	Страница {page} от {pages}
+	Page: {page}/{pages}	Страница: {page}/{pages}
 	Page\nBorders	Рамки на\nстраницата
 	Page\nColor	Цвят на\nстраницата
 	Page\nNumber	Номер на\nстраница
@@ -2691,5 +2692,7 @@
 	{width} × {height} mm	{width} × {height} мм
 	{width} × {height} pixels	{width} × {height} пиксела
 	{words} words	Думи: {words}
+	Words: {words}	Думи: {words}
+	Words: {selected}/{words}	Думи: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}“ ({row}, {series}) не е число.
 	✓ None	✓ Няма

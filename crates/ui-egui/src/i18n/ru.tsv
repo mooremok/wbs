@@ -1713,6 +1713,7 @@
 	Page width	По ширине страницы
 	Page {page}	Страница {page}
 	Page {page} of {pages}	Страница {page} из {pages}
+	Page: {page}/{pages}	Страница: {page}/{pages}
 	Page\nBorders	Границы\nстраниц
 	Page\nColor	Цвет\nстраницы
 	Page\nNumber	Номер\nстраницы
@@ -2699,6 +2700,8 @@
 	{width} × {height} mm	{width} × {height} мм
 	{width} × {height} pixels	{width} × {height} пикс.
 	{words} words	Слов: {words}
+	Words: {words}	Слов: {words}
+	Words: {selected}/{words}	Слов: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	«{text}» ({row}, {series}) — не число.
 	✓ None	✓ Нет
 preview	Title	Пример

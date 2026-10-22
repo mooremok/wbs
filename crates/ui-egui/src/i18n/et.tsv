@@ -1455,6 +1455,7 @@
 	Page width	Lehe laius
 	Page {page}	Leht {page}
 	Page {page} of {pages}	Leht {page} / {pages}
+	Page: {page}/{pages}	Lehekülg: {page}/{pages}
 	Page\nBorders	Lehe\näärised
 	Page\nColor	Lehe\nvärv
 	Page\nNumber	Lehekülje-\nnumber
@@ -2329,4 +2330,6 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pikslit
 	{words} words	Sõnu: {words}
+	Words: {words}	Sõnad: {words}
+	Words: {selected}/{words}	Sõnad: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}” ({row}, {series}) ei ole arv.

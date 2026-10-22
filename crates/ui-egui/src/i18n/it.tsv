@@ -1713,6 +1713,7 @@
 	Page width	Larghezza pagina
 	Page {page}	Pagina {page}
 	Page {page} of {pages}	Pagina {page} di {pages}
+	Page: {page}/{pages}	Pagina: {page}/{pages}
 	Page\nBorders	Bordi\npagina
 	Page\nColor	Colore\npagina
 	Page\nNumber	Numero di\npagina
@@ -2708,6 +2709,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pixel
 	{words} words	Parole: {words}
+	Words: {words}	Parole: {words}
+	Words: {selected}/{words}	Parole: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}” ({row}, {series}) non è un numero.
 	✓ None	✓ Nessuno
 	➕ New comment	➕ Nuovo commento

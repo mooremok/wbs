@@ -1443,6 +1443,7 @@
 	Page width	Largura da página
 	Page {page}	Página {page}
 	Page {page} of {pages}	Página {page} de {pages}
+	Page: {page}/{pages}	Página: {page}/{pages}
 	Page\nBorders	Bordas da\npágina
 	Page\nColor	Cor da\npágina
 	Page\nNumber	Número da\npágina
@@ -2307,4 +2308,6 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pixels
 	{words} words	Palavras: {words}
+	Words: {words}	Palavras: {words}
+	Words: {selected}/{words}	Palavras: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}” ({row}, {series}) não é um número.

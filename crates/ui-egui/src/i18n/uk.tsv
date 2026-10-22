@@ -1443,6 +1443,7 @@
 	Page width	Ширина сторінки
 	Page {page}	Сторінка {page}
 	Page {page} of {pages}	Сторінка {page} із {pages}
+	Page: {page}/{pages}	Сторінка: {page}/{pages}
 	Page\nBorders	Межі\nсторінки
 	Page\nColor	Колір\nсторінки
 	Page\nNumber	Номер\nсторінки
@@ -2307,4 +2308,6 @@
 	{width} × {height} mm	{width} × {height} мм
 	{width} × {height} pixels	{width} × {height} пікс.
 	{words} words	Слів: {words}
+	Words: {words}	Слів: {words}
+	Words: {selected}/{words}	Слів: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	«{text}» ({row}, {series}) — не число.

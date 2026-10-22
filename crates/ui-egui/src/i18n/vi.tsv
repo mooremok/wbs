@@ -1740,6 +1740,7 @@ homeTab	Home	Trang chủ
 	Page width	Độ rộng trang
 	Page {page}	Trang {page}
 	Page {page} of {pages}	Trang {page} trên {pages}
+	Page: {page}/{pages}	Trang: {page}/{pages}
 	Page\nBorders	Viền\ntrang
 	Page\nColor	Màu nền\ntrang
 	Page\nNumber	Số\ntrang
@@ -2740,6 +2741,8 @@ homeTab	Home	Trang chủ
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} điểm ảnh
 	{words} words	Từ: {words}
+	Words: {words}	Số từ: {words}
+	Words: {selected}/{words}	Số từ: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}” ({row}, {series}) không phải là số.
 	✓ None	✓ Không có
 	➕ New comment	➕ Nhận xét mới

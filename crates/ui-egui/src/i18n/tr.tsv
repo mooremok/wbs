@@ -1712,6 +1712,7 @@
 	Page width	Sayfa genişliği
 	Page {page}	Sayfa {page}
 	Page {page} of {pages}	Sayfa {page} / {pages}
+	Page: {page}/{pages}	Sayfa: {page}/{pages}
 	Page\nBorders	Sayfa\nKenarlıkları
 	Page\nColor	Sayfa\nRengi
 	Page\nNumber	Sayfa\nNumarası
@@ -2698,6 +2699,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} piksel
 	{words} words	{words} sözcük
+	Words: {words}	Sözcük: {words}
+	Words: {selected}/{words}	Sözcük: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	“{text}” ({row}, {series}) bir sayı değil.
 	✓ None	✓ Yok
 preview	Title	Örnek

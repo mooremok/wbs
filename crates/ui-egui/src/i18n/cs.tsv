@@ -1699,6 +1699,7 @@
 	Page width	Šířka stránky
 	Page {page}	Stránka {page}
 	Page {page} of {pages}	Stránka {page} z {pages}
+	Page: {page}/{pages}	Strana: {page}/{pages}
 	Page\nBorders	Ohraničení\nstránky
 	Page\nColor	Barva\nstránky
 	Page\nNumber	Číslo\nstránky
@@ -2691,6 +2692,8 @@
 	{width} × {height} mm	{width} × {height} mm
 	{width} × {height} pixels	{width} × {height} pixelů
 	{words} words	Počet slov: {words}
+	Words: {words}	Slova: {words}
+	Words: {selected}/{words}	Slova: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	„{text}“ ({row}, {series}) není číslo.
 	✓ None	✓ Žádné
 	➕ New comment	➕ Nový komentář

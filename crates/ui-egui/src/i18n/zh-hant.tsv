@@ -1433,6 +1433,7 @@ homeTab	Home	首頁
 	Page width	頁寬
 	Page {page}	第 {page} 頁
 	Page {page} of {pages}	第 {page} 頁，共 {pages} 頁
+	Page: {page}/{pages}	頁面: {page}/{pages}
 	Page\nBorders	頁面框線
 	Page\nColor	頁面色彩
 	Page\nNumber	頁碼
@@ -2297,4 +2298,6 @@ homeTab	Home	首頁
 	{width} × {height} mm	{width} × {height} 公釐
 	{width} × {height} pixels	{width} × {height} 像素
 	{words} words	{words} 個字
+	Words: {words}	字數: {words}
+	Words: {selected}/{words}	字數: {selected}/{words}
 	“{text}” ({row}, {series}) isn't a number.	「{text}」（{row}，{series}）不是數字。
