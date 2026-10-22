@@ -362,7 +362,10 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                     spaced(search) + spaced(share_button) + spaced(editing) + spaced(comment) + 26.0 + 12.0
                 };
                 let button_levels = [button_widths(0), button_widths(1), button_widths(2), button_widths(3), button_widths(4)];
-                let labels: Vec<&str> = tabs.iter().map(|(tab, custom)| if *custom { tab.as_str() } else { tl!(tab) }).collect();
+                // A custom tab's name is the user's own text; the Layout tab may be worded for its place
+                // (页面 in Chinese, shorter than the plain 页面布局) as WPS words it.
+                let labels: Vec<&str> =
+                    tabs.iter().map(|(tab, custom)| if *custom { tab.as_str() } else { crate::i18n::tc("layoutTab", tab) }).collect();
                 let specs: Vec<TabSpec> = tabs
                     .iter()
                     .zip(&labels)
@@ -453,7 +456,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                             let (tab, custom) = (tab.as_str(), *custom);
                             let contextual = !custom && wordcraft_engine::ribbon::CONTEXTUAL_TABS.contains(&tab);
                             // A custom tab's name is the user's own text: shown as typed.
-                            let shown = if custom { tab } else { tl!(tab) };
+                            let shown = if custom { tab } else { crate::i18n::tc("layoutTab", tab) };
                             let w = plan.widths.get(i).copied().unwrap_or(0.0) - 2.0;
                             let cut = specs.get(i).is_some_and(|sp| sp.text_w + plan.pad > w + 0.5);
                             let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
@@ -3499,6 +3502,32 @@ mod tests {
         h.run_steps(3);
         let after = h.state().session.doc.para_at(&h.state().session.sel.focus).and_then(|p| p.props.style.clone());
         assert_ne!(after, before, "the arrow applied the next style");
+    }
+
+    /// The ribbon's Layout tab words through the `layoutTab` context: 页面 in Simplified Chinese
+    /// (WPS's shorter wording beside the plain 页面布局), "Layout" unchanged in English.
+    #[test]
+    fn layout_tab_reads_the_layouttab_context() {
+        use egui_kittest::kittest::Queryable;
+        let hans = crate::i18n::Lang::from_code("zh-hans").expect("zh-hans");
+        assert_eq!(crate::i18n::trc(hans, "layoutTab", "Layout"), "页面");
+        assert_eq!(crate::i18n::trc(crate::i18n::Lang::EN, "layoutTab", "Layout"), "Layout");
+        assert_eq!(crate::i18n::tr(hans, "Layout"), "页面布局", "other Layout wordings stay");
+        let mut h = {
+            let mut app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Text")), crate::Services::default());
+            let _ = app.run("ui.language", json!({"value": "zh-hans"}));
+            egui_kittest::Harness::builder().with_size(vec2(1440.0, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            )
+        };
+        h.run_steps(6);
+        let on_strip = h.query_all_by_label("页面").map(|n| n.rect()).find(|r| r.min.y > 36.0);
+        assert!(on_strip.is_some(), "the strip's Layout tab reads 页面");
     }
 
     #[test]

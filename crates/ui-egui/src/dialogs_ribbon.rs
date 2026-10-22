@@ -175,7 +175,8 @@ fn tree_rows(app: &WordApp) -> Vec<Row> {
     let custom = tl!("(Custom)");
     let mut rows = Vec::new();
     for t in app.session.ribbon.tabs().iter() {
-        let text = if t.custom { format!("{} {custom}", t.name) } else { tl!(&t.name).to_string() };
+        // Built-in tab names go through the layoutTab context, as the strip renders them (页面).
+        let text = if t.custom { format!("{} {custom}", t.name) } else { crate::i18n::tc("layoutTab", &t.name).to_string() };
         rows.push(Row { item: TreeItem { tab: t.name.clone(), group: None, command: None }, depth: 0, text, shown: Some(!t.hidden) });
         for g in &t.groups {
             let item = TreeItem { tab: t.name.clone(), group: Some(g.name.clone()), command: None };

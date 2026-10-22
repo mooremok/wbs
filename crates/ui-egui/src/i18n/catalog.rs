@@ -25,7 +25,9 @@ pub struct Entry {
 ///   size); it falls back to the plain entry.
 /// - `homeTab`: the tab bar's Home tab (首页), beside the ribbon's Home tab (开始) — Chinese
 ///   words them differently, as WPS does; it falls back to the plain entry.
-pub const CONTEXTS: &[&str] = &["preview", "template", "homeTab"];
+/// - `layoutTab`: the ribbon's Layout tab (页面), shorter than 页面布局 as WPS words it; it falls
+///   back to the plain entry.
+pub const CONTEXTS: &[&str] = &["preview", "template", "homeTab", "layoutTab"];
 
 /// A parsed catalog. Values are owned for the life of the process (catalogs are built once).
 #[derive(Debug, Default)]
