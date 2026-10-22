@@ -44,10 +44,21 @@ pub(crate) fn qat_enabled(app: &WordApp, id: &str) -> bool {
     }
 }
 
-/// The Quick Access Toolbar (#379): the user's commands (Save, Undo, Redo until customized), each
-/// with a right-click menu, then the menu button that customizes it (#376).
+/// The toolbar's commands: the user's own once customized, or WPS's default set — Save, Export
+/// PDF, Print, Undo, Redo (the engine's stored default is Save/Undo/Redo; the extras are this
+/// bar's arrangement, so a saved customization keeps working unchanged).
+pub(crate) fn qat_ids(app: &WordApp) -> Vec<&str> {
+    const DEFAULT: [&str; 5] = ["file.save", "file.exportPdf", "file.print", "edit.undo", "edit.redo"];
+    match &app.session.ribbon.qat {
+        Some(q) => q.iter().map(String::as_str).collect(),
+        None => DEFAULT.to_vec(),
+    }
+}
+
+/// The Quick Access Toolbar (#379): the user's commands, each with a right-click menu, then the
+/// menu button that customizes it (#376).
 fn quick_access(ui: &mut Ui, app: &mut WordApp) {
-    let ids: Vec<String> = app.session.ribbon.qat().into_iter().map(str::to_string).collect();
+    let ids: Vec<String> = qat_ids(app).into_iter().map(str::to_string).collect();
     for (index, id) in ids.iter().enumerate() {
         let id = id.as_str();
         let tip = match id {
@@ -75,7 +86,7 @@ fn quick_access(ui: &mut Ui, app: &mut WordApp) {
     if resp.hovered() {
         ui.painter().rect_filled(r, 4.0, t.hover);
     }
-    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(16.0, 16.0)), "more", t.icon, t.accent);
+    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(16.0, 16.0)), "dropdown", t.icon, t.accent);
     let resp = resp.on_hover_text(tl!("Customize Quick Access Toolbar"));
     egui::Popup::menu(&resp).show(|ui| {
         ui.set_min_width(220.0);
@@ -191,7 +202,7 @@ pub(crate) fn qat_menu(ui: &mut Ui, app: &mut WordApp) {
     ui.separator();
     for id in QAT_MENU {
         let Some(label) = app.session.registry.get(id).map(|s| tl!(s.label).to_string()) else { continue };
-        let on = app.session.ribbon.qat().contains(&id);
+        let on = qat_ids(app).contains(&id);
         let mark = egui::RichText::new("✓");
         let mark = if on { mark } else { mark.color(egui::Color32::TRANSPARENT) };
         if ui.add(egui::Button::new((mark, label)).selected(on)).clicked() {
@@ -254,10 +265,10 @@ impl MacTitleBar {
     }
 }
 
-/// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, the Home
-/// tab (首页), one tab per open document and a + for a new one; AutoSave, the Quick Access
-/// Toolbar, search and the account on the right. The bar is also the window's title bar: empty
-/// stretches of it drag the window, and a double-click maximizes it.
+/// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, then the
+/// Quick Access Toolbar (WPS's own spot for it), the Home tab (首页), one tab per open document
+/// and a + for a new one; AutoSave, search and the account on the right. The bar is also the
+/// window's title bar: empty stretches of it drag the window, and a double-click maximizes it.
 pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     // macOS: shorter, so the system's traffic lights are centred in it; the tallest controls
@@ -297,11 +308,16 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     .collect();
                 // Room for the label, the padding around it, the unsaved dot and the close ✕.
                 let wants: Vec<f32> = title_ws.iter().map(|w| (w + 58.0).clamp(66.0, 184.0)).collect();
-                // What is left of the bar once the fixed ends are paid for.
+                // What is left of the bar once the fixed ends are paid for. The Quick Access
+                // Toolbar sits at the left end, after the file menu, as in WPS — and gives way
+                // entirely when the bar is too narrow to hold the tabs beside it (its commands
+                // stay reachable through the file menu and their shortcuts).
                 let autosave_w = text_width(ui.painter(), tl!("AutoSave"), &regular(11.5), 0.0, t.text_dim) + 42.0;
-                let qat_w = if app.ui.quick_access_toolbar { qat_width(app) } else { 0.0 };
-                let right_w = 26.0 + 268.0 + autosave_w + qat_w + 20.0;
-                let budget = (full.width() - f32::from(left) - 10.0 - file_w - home_w - 30.0 - right_w).max(0.0);
+                let right_w = 26.0 + 268.0 + autosave_w + 20.0;
+                let fixed = f32::from(left) + 10.0 + file_w + home_w + 30.0 + right_w;
+                let wants_qat = app.ui.quick_access_toolbar;
+                let qat_w = if wants_qat && full.width() - fixed - qat_width(app) > 0.0 { qat_width(app) } else { 0.0 };
+                let budget = (full.width() - fixed - qat_w).max(0.0);
                 // Tabs that don't fit share the room equally and are cut with …; when even a
                 // narrow tab doesn't fit, the last ones wait in the » menu.
                 let (shown, widths): (usize, Vec<f32>) = {
@@ -453,6 +469,12 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         }
                     }
                 });
+                // The Quick Access Toolbar right after the file menu, as WPS places it (absent
+                // only when the bar is too narrow for it, or hidden by choice).
+                if qat_w > 0.0 {
+                    quick_access(ui, app);
+                    ui.add_space(8.0);
+                }
                 // The Home tab (首页).
                 let (r, resp) = ui.allocate_exact_size(vec2(home_w, control_h), Sense::click());
                 let active = app.home;
@@ -601,16 +623,6 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         let _ = app.run("tools.search", json!({}));
                     }
                     ui.add_space(10.0);
-                    // The Quick Access Toolbar, laid out left to right inside the right-aligned
-                    // end of the bar.
-                    if app.ui.quick_access_toolbar {
-                        let qat_w = qat_width(app);
-                        ui.allocate_ui_with_layout(vec2(qat_w, control_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                            quick_access(ui, app);
-                        });
-                        ui.add_space(8.0);
-                    }
                     // AutoSave switch: greyed out, with the reason as its tooltip, when AutoSave
                     // can't cover the document (#196, #176); clicking it then offers Save As
                     // where that helps.
@@ -665,9 +677,9 @@ fn tab_look(ui: &mut Ui, r: Rect, hovered: bool, active: bool, t: &Tokens) {
     }
 }
 
-/// The Quick Access Toolbar's width, measured as the right end of the bar reserves room for it.
+/// The Quick Access Toolbar's width, measured as the tab bar reserves room for it.
 fn qat_width(app: &WordApp) -> f32 {
-    let ids = app.session.ribbon.qat();
+    let ids = qat_ids(app);
     let n = ids.len() as f32;
     let undo = f32::from(ids.contains(&"edit.undo"));
     26.0 * n + 26.0 + 2.0 * (n + 1.0) + 14.0 * undo
@@ -1070,6 +1082,51 @@ mod tests {
             assert!(drawn(&h, id), "{id} is back");
         }
         assert!(h.ctx.read_response(qat_menu_button_id()).is_some());
+    }
+
+    /// The Quick Access Toolbar sits right after the file menu, before the Home tab, with WPS's
+    /// default set (Save, Export PDF, Print, Undo, Redo) until the user customizes it; a stored
+    /// customization keeps showing exactly what the user saved, and the buttons still work there.
+    #[test]
+    fn quick_access_sits_left_with_wps_default_set() {
+        use egui_kittest::kittest::Queryable;
+        let mut a = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());
+        a.run("text.insert", json!({"text": "Hello"})).unwrap();
+        let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
+            |ui, app: &mut WordApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                if app.fonts_frames < 2 {
+                    app.fonts_frames += 1;
+                    return;
+                }
+                tab_bar(app, ui);
+            },
+            a,
+        );
+        h.run_steps(4);
+        let home = h.get_by_label("Home").rect();
+        let ids = ["file.save", "file.exportPdf", "file.print", "edit.undo", "edit.redo"];
+        for id in ids {
+            let r = h.ctx.read_response(qat_button_id(id)).unwrap_or_else(|| panic!("{id} is on the toolbar")).rect;
+            assert!(r.max.x < home.min.x, "{id} sits left of the Home tab");
+        }
+        let customize = h.ctx.read_response(qat_menu_button_id()).expect("the customize button").rect;
+        let undo = h.ctx.read_response(qat_button_id("edit.undo")).unwrap().rect;
+        assert!(customize.min.x > undo.max.x, "the customize button follows the commands");
+        // The buttons work from their new place: the Undo button undoes the typing.
+        let at = undo.center();
+        h.event(egui::Event::PointerMoved(at));
+        for pressed in [true, false] {
+            h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
+        h.run_steps(3);
+        assert_eq!(h.state().session.doc.plain_text(wordcraft_doc::StoryRef::Body), "", "the toolbar's Undo ran");
+        // A user's saved customization replaces the default set as is.
+        h.state_mut().session.ribbon.qat = Some(vec!["edit.cut".to_string()]);
+        h.run_steps(3);
+        assert!(h.ctx.read_response(qat_button_id("file.save")).is_none(), "the default set is gone");
+        assert!(h.ctx.read_response(qat_button_id("edit.cut")).is_some(), "the saved command shows");
     }
 
     /// With the Home tab showing, clicking the active document's own tab goes back to the

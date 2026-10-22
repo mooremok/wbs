@@ -595,6 +595,7 @@ pub fn command_icon(id: &str) -> &str {
         ("view.marks", "pilcrow"),
         ("edit.repeat", "redo"),
         ("file.new", "blankPage"),
+        ("file.exportPdf", "export"),
         ("tools.customizeRibbon", "more"),
     ];
     ICONS.iter().find(|(c, _)| *c == id).map_or_else(|| id.rsplit('.').next().unwrap_or(id), |(_, icon)| *icon)
@@ -605,7 +606,8 @@ pub fn command_icon(id: &str) -> &str {
 pub fn command_menu(resp: &Response, app: &mut WordApp, id: &str) {
     resp.context_menu(|ui| {
         let known = app.session.registry.get(id).is_some();
-        let on_qat = app.session.ribbon.qat().contains(&id);
+        // What the toolbar shows (its default set differs from the engine's stored one).
+        let on_qat = crate::chrome::qat_ids(app).contains(&id);
         if known && !on_qat && ui.button(tl!("Add to Quick Access Toolbar")).clicked() {
             let _ = app.run("tools.customizeRibbon", serde_json::json!({"qatAdd": id}));
             ui.close();
