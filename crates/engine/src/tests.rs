@@ -8176,7 +8176,8 @@ fn exported_page_images_draw_headers_at_full_strength() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("p.png");
     s.run("file.exportPng", &json!({"path": path.to_string_lossy(), "scale": 1.0})).unwrap();
-    let img = image::open(&path).unwrap().to_luma8();
+    // The path names the export folder: the image is inside it, named after it.
+    let img = image::open(dir.join("p").join("p.png")).unwrap().to_luma8();
     // The darkest pixel in the top tenth of the page (the header) is black, not grey.
     let top = img.height() / 10;
     let darkest = (0..top).flat_map(|y| (0..img.width()).map(move |x| (x, y))).map(|(x, y)| img.get_pixel(x, y)[0]).min().unwrap();
@@ -8187,7 +8188,8 @@ fn exported_page_images_draw_headers_at_full_strength() {
 #[test]
 fn export_png_writes_every_page_as_png_or_jpeg() {
     // `pages` exports any number of pages (numbered files when more than one); `format`/`quality`
-    // write JPEG, with the path's image extension replaced to match.
+    // write JPEG. The path names a folder that is created when missing; the images land inside it
+    // named after it.
     let mut s = s();
     run(&mut s, "document.setText", json!({"text": &"line.\n".repeat(300)}));
     let total = s.export_layout().pages.len();
@@ -8200,16 +8202,16 @@ fn export_png_writes_every_page_as_png_or_jpeg() {
     let paths: Vec<&str> = r["paths"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
     assert_eq!(paths.len(), total, "{paths:?}");
     for (i, p) in paths.iter().enumerate() {
-        assert!(p.ends_with(&format!("all-{}.png", i + 1)), "{p}");
+        assert!(p.ends_with(&format!("all/all-{}.png", i + 1)), "{p}");
         assert!(std::fs::read(p).unwrap().starts_with(b"\x89PNG"), "{p}");
     }
 
-    // A single page keeps the path as given.
+    // A single page is one image inside the folder.
     let one = dir.join("one.png");
     let r = s.run("file.exportPng", &json!({"path": one.to_string_lossy(), "page": 2, "scale": 1.0})).unwrap();
-    assert_eq!(r["paths"].as_array().unwrap().len(), 1);
-    assert_eq!(r["path"], one.to_string_lossy().to_string());
-    assert!(std::fs::read(&one).unwrap().starts_with(b"\x89PNG"));
+    let written = dir.join("one").join("one.png");
+    assert_eq!(r["path"].as_str().unwrap(), written.to_string_lossy(), "{r}");
+    assert!(std::fs::read(&written).unwrap().starts_with(b"\x89PNG"));
 
     // A range picks those pages only.
     let sub = dir.join("sub.png");
@@ -8217,12 +8219,17 @@ fn export_png_writes_every_page_as_png_or_jpeg() {
     assert_eq!(r["pages"], 2);
     assert_eq!(r["paths"].as_array().unwrap().len(), 2);
 
+    // Missing parents are created too; the image is named after the folder.
+    let deep = dir.join("nested").join("deep").join("here.png");
+    s.run("file.exportPng", &json!({"path": deep.to_string_lossy(), "page": 1, "scale": 1.0})).unwrap();
+    assert!(dir.join("nested/deep/here/here.png").is_file());
+
     // JPEG: SOI magic, and a `.png` path is written as `.jpg` to match the format.
     let jpg = dir.join("pic.png");
     let r = s.run("file.exportPng", &json!({"path": jpg.to_string_lossy(), "page": 1, "format": "jpeg", "quality": 80, "scale": 1.0})).unwrap();
     assert_eq!(r["format"], "jpeg");
     let written = r["path"].as_str().unwrap();
-    assert!(written.ends_with("pic.jpg"), "{written}");
+    assert!(written.ends_with("pic/pic.jpg"), "{written}");
     assert!(std::fs::read(written).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]));
 
     // Hostile params stay errors, never panics.
@@ -8230,6 +8237,37 @@ fn export_png_writes_every_page_as_png_or_jpeg() {
     assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "format": "bmp"})).is_err());
     assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "pages": "9999"})).is_err());
     assert!(s.run("file.exportPng", &json!({"path": x.to_string_lossy(), "quality": -3, "page": 1})).is_ok(), "quality is clamped, not an error");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn export_png_merges_pages_into_one_long_image() {
+    // `longImage` stacks the chosen pages into a single tall image inside the created folder.
+    let mut s = s();
+    run(&mut s, "document.setText", json!({"text": &"line.\n".repeat(300)}));
+    let total = s.export_layout().pages.len();
+    assert!(total >= 3, "the text spans {total} pages");
+    let dir = std::env::temp_dir().join(format!("wordcraft-export-long-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let single = dir.join("one.png");
+    let r = s.run("file.exportPng", &json!({"path": single.to_string_lossy(), "page": 1, "scale": 1.0})).unwrap();
+    let (w, h) = (r["width"].as_u64().unwrap(), r["height"].as_u64().unwrap());
+
+    let long = dir.join("long.png");
+    let r = s.run("file.exportPng", &json!({"path": long.to_string_lossy(), "pages": "1-3", "longImage": true, "scale": 1.0})).unwrap();
+    let written = dir.join("long").join("long.png");
+    assert_eq!(r["path"].as_str().unwrap(), written.to_string_lossy(), "{r}");
+    assert_eq!(r["paths"].as_array().unwrap().len(), 1);
+    assert_eq!(r["pages"], 3);
+    assert_eq!(r["width"].as_u64().unwrap(), w, "same page width");
+    assert_eq!(r["height"].as_u64().unwrap(), 3 * h, "three pages stacked");
+    let img = image::open(&written).unwrap();
+    assert_eq!((img.width(), img.height()), (w as u32, 3 * h as u32));
+
+    // Too many pixels refuse rather than allocate.
+    let r = s.run("file.exportPng", &json!({"path": long.to_string_lossy(), "pages": "all", "longImage": true, "scale": 8.0}));
+    assert!(r.is_err(), "an oversized merge is a params error");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

@@ -1095,17 +1095,17 @@ mod tests {
         // 1. render with defaults
         let out_default = dir.join("out_default.png");
         assert!(run(&args(&["render", &docx_str, &out_default.to_string_lossy()])).is_ok());
-        assert!(out_default.exists());
+        assert!(dir.join("out_default").join("out_default.png").exists());
 
         // 2. render with valid --page and --scale
         let out_valid = dir.join("out_valid.png");
         assert!(run(&args(&["render", &docx_str, &out_valid.to_string_lossy(), "--page", "1", "--scale", "2"])).is_ok());
-        assert!(out_valid.exists());
+        assert!(dir.join("out_valid").join("out_valid.png").exists());
 
         // 3. render with different flag order
         let out_reordered = dir.join("out_reordered.png");
         assert!(run(&args(&["render", &docx_str, &out_reordered.to_string_lossy(), "--scale", "1", "--page", "1"])).is_ok());
-        assert!(out_reordered.exists());
+        assert!(dir.join("out_reordered").join("out_reordered.png").exists());
 
         // 4. render failure leaves no output file
         let out_invalid = dir.join("out_invalid.png");
@@ -1115,17 +1115,17 @@ mod tests {
         // 5. run --save out.png with defaults
         let run_default = dir.join("run_default.png");
         assert!(run(&args(&["run", "--file", &docx_str, "--save", &run_default.to_string_lossy()])).is_ok());
-        assert!(run_default.exists());
+        assert!(dir.join("run_default").join("run_default.png").exists());
 
         // 6. run --save out.png with --page and --scale
         let run_valid = dir.join("run_valid.png");
         assert!(run(&args(&["run", "--file", &docx_str, "--save", &run_valid.to_string_lossy(), "--page", "1", "--scale", "1"])).is_ok());
-        assert!(run_valid.exists());
+        assert!(dir.join("run_valid").join("run_valid.png").exists());
 
         // 7. run --save out.png with different flag order
         let run_reordered = dir.join("run_reordered.png");
         assert!(run(&args(&["run", "--file", &docx_str, "--scale", "1", "--page", "1", "--save", &run_reordered.to_string_lossy()])).is_ok());
-        assert!(run_reordered.exists());
+        assert!(dir.join("run_reordered").join("run_reordered.png").exists());
 
         // 8. run --save out.png failure leaves no output file
         let run_invalid = dir.join("run_invalid.png");
@@ -1156,26 +1156,28 @@ mod tests {
         let pages = std::fs::read(&docx).unwrap().len();
         assert!(pages > 0);
 
-        // convert to png writes every page, numbered; a single chosen page keeps its name.
+        // convert to png writes every page, numbered inside the folder the path names.
         let all = dir.join("all.png").to_string_lossy().into_owned();
         assert!(run(&args(&["convert", &docx, &all, "--scale", "1"])).is_ok());
-        let first = dir.join("all-1.png");
+        let first = dir.join("all").join("all-1.png");
         assert!(first.exists() && std::fs::read(&first).unwrap().starts_with(b"\x89PNG"), "numbered pages beside {all}");
         assert!(!dir.join("all.png").exists(), "several pages never use the bare path");
 
+        // A single chosen page lands inside the folder too.
         let one = dir.join("one.png").to_string_lossy().into_owned();
         assert!(run(&args(&["convert", &docx, &one, "--pages", "2", "--scale", "1"])).is_ok());
-        assert!(dir.join("one.png").exists(), "one page keeps the path as given");
+        assert!(dir.join("one").join("one.png").exists(), "one page is written inside the folder");
 
         // convert to jpg via --format writes JPEG.
         let jpg = dir.join("j.png").to_string_lossy().into_owned();
         assert!(run(&args(&["convert", &docx, &jpg, "--pages", "1", "--format", "jpeg", "--quality", "80", "--scale", "1"])).is_ok());
-        assert!(dir.join("j.jpg").exists() && std::fs::read(dir.join("j.jpg")).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]));
+        let jpg_out = dir.join("j").join("j.jpg");
+        assert!(jpg_out.exists() && std::fs::read(&jpg_out).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]));
 
         // render --format jpeg --pages all; a bad page spec is an error.
         let rjpg = dir.join("r.png").to_string_lossy().into_owned();
         assert!(run(&args(&["render", &docx, &rjpg, "--pages", "all", "--format", "jpeg", "--scale", "1"])).is_ok());
-        assert!(dir.join("r-1.jpg").exists(), "numbered jpeg pages beside {rjpg}");
+        assert!(dir.join("r").join("r-1.jpg").exists(), "numbered jpeg pages beside {rjpg}");
         assert!(run(&args(&["render", &docx, &dir.join("bad.png").to_string_lossy(), "--pages", "banana"])).is_err());
         assert!(run(&args(&["render", &docx, &dir.join("bad.png").to_string_lossy(), "--quality", "101"])).is_err());
 

@@ -290,9 +290,9 @@ impl WordApp {
             AfterPick::Export { ext } => {
                 let Some(path) = picked else { return Ok(json!({"cancelled": true})) };
                 let r = if ext == "png" || ext == "jpg" {
-                    // The Export Image dialog's choices: pages, resolution, JPEG quality.
+                    // The Export Image dialog's choices: pages, long image, resolution, JPEG quality.
                     let set = self.ui.export_image.clone();
-                    let mut params = json!({"path": path, "pages": set.pages, "scale": set.scale});
+                    let mut params = json!({"path": path, "pages": set.pages, "scale": set.scale, "longImage": set.long_image});
                     if ext == "jpg" {
                         params["format"] = json!("jpeg");
                         params["quality"] = json!(set.quality);
@@ -802,7 +802,7 @@ mod tests {
     }
 
     /// Export image with the dialog's choices: every page, JPEG with quality, at the chosen
-    /// resolution, written where the file picker said.
+    /// resolution, written where the file picker said (the picked path names the folder).
     #[test]
     fn export_image_writes_the_chosen_pages_and_format() {
         let (mut a, shown) = async_app();
@@ -815,7 +815,8 @@ mod tests {
         answer(&shown, Some(&picked.to_string_lossy()));
         let r = a.poll_file_dialog().unwrap().unwrap();
         assert_eq!(r["format"], "jpeg", "{r}");
-        assert!(std::fs::read(&picked).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]), "JPEG magic at {}", picked.display());
+        let written = dir.join("out").join("out.jpg");
+        assert!(std::fs::read(&written).unwrap().starts_with(&[0xFF, 0xD8, 0xFF]), "JPEG magic at {}", written.display());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -357,6 +357,7 @@ pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
                     pages: if set.pages == "all" { String::new() } else { set.pages },
                     scale: set.scale,
                     quality: set.quality,
+                    long_image: set.long_image,
                 });
             } else {
                 app.export_dialog(ext);

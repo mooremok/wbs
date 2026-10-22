@@ -94,7 +94,7 @@ pub fn specs() -> Vec<CommandSpec> {
         .params(r#"{"path": string, "markup"?: bool (Print Markup: tracked changes marked up and each page scaled down beside the comments in balloons; default file.printMarkup)}"#)
         .pure(),
         CommandSpec::new("file.exportPng", "Export Image", "File › Export", export_png)
-            .params(r#"{"path": string, "pages"?: "all" | "1-3,5" (any number of pages; several become stem-1.png, stem-2.png…), "page"?: n (1-based, when `pages` is absent), "format"?: "png" (default) | "jpeg", "quality"?: 1-100 (jpeg, default 90), "scale"?: px per pt (default 2), "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
+            .params(r#"{"path": string (the export folder, created when missing; a trailing .png/.jpg is dropped), "pages"?: "all" | "1-3,5" (any number of pages; several become stem-1.png, stem-2.png… inside it), "page"?: n (1-based, when `pages` is absent; written as stem.png), "longImage"?: bool (merge the pages into one tall stem.png instead), "format"?: "png" (default) | "jpeg", "quality"?: 1-100 (jpeg, default 90), "scale"?: px per pt (default 2), "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
             .pure(),
         // A print setting, like Word's: not part of the document, so no undo step.
         CommandSpec::new("file.printMarkup", "Print Markup", "File › Print", |s, v| {
@@ -354,6 +354,7 @@ fn export_png(s: &mut Session, v: &Value) -> CmdResult {
     };
     let quality = p::u64(v, "quality").unwrap_or(90).clamp(1, 100) as u8;
     let scale = p::f32(v, "scale").unwrap_or(2.0).clamp(0.1, 8.0);
+    let long = p::bool(v, "longImage").unwrap_or(false);
     let l = s.export_layout_with(export_options(s, v).markup);
     // `pages` ("all" or "1-3,5", the print range syntax) selects any number of pages; without it
     // the 1-based `page` picks one.
@@ -369,50 +370,85 @@ fn export_png(s: &mut Session, v: &Value) -> CmdResult {
     // the on-screen cue while editing the body, not part of the page.
     let mut render_opts = wordcraft_render::RenderOptions::default();
     render_opts.display.dim_header = false;
-    // One page keeps the path as given (an image extension, if any, matches the format); several
-    // number the files `stem-1.ext`, `stem-2.ext`… beside it.
+    // The chosen path names a directory (a trailing image extension is dropped): it is created
+    // when missing, and the images land inside it named after it — one file per page, or one
+    // merged long image.
+    let dir = drop_image_ext(path);
+    crate::io::create_dir_all(&dir).map_err(CmdError::Failed)?;
+    let folder = std::path::Path::new(&dir);
+    let stem = folder.file_name().and_then(|s| s.to_str()).filter(|s| !s.is_empty()).unwrap_or("images");
     let ext = match format {
         ImgFormat::Png => "png",
         ImgFormat::Jpeg => "jpg",
     };
-    let out_path = |n: usize| -> String {
-        let fixed = with_image_ext(path, ext);
-        if pages.len() == 1 {
-            return fixed;
-        }
-        let p = std::path::Path::new(&fixed);
-        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("page");
-        let file = format!("{stem}-{n}.{ext}");
-        match p.parent() {
-            Some(dir) if !dir.as_os_str().is_empty() => dir.join(file).to_string_lossy().into_owned(),
-            _ => file,
-        }
-    };
     let mut paths = Vec::new();
     let (mut width, mut height, mut bytes) = (0u32, 0u32, 0usize);
-    for (n, &pg) in pages.iter().enumerate() {
-        let page = l.pages.get(pg).ok_or_else(|| CmdError::Params(format!("no page {}", pg + 1)))?;
-        let img = wordcraft_render::render_page(&s.doc, page, scale, &render_opts);
-        let data = match format {
-            ImgFormat::Png => img.to_png(),
-            ImgFormat::Jpeg => img.to_jpeg(quality),
-        };
-        let file = out_path(n + 1);
-        crate::io::write_file(&file, &data).map_err(CmdError::Failed)?;
-        if n == 0 {
-            width = img.width;
-            height = img.height;
-            bytes = data.len();
+    if long {
+        // One tall image: the pages stacked in order, each centred on the widest.
+        let mut imgs = Vec::new();
+        for &pg in &pages {
+            let page = l.pages.get(pg).ok_or_else(|| CmdError::Params(format!("no page {}", pg + 1)))?;
+            imgs.push(wordcraft_render::render_page(&s.doc, page, scale, &render_opts));
         }
-        paths.push(file);
+        width = imgs.iter().map(|i| i.width).max().unwrap_or(1);
+        let total: u64 = imgs.iter().map(|i| i.height as u64).sum();
+        let Some(h) = u32::try_from(total).ok().filter(|&h| wordcraft_geom::rgba_fits(width, h, MERGED_IMAGE_BUDGET)) else {
+            return Err(CmdError::Params(format!("the merged image would be {width}×{total} px; export fewer pages or a lower resolution")));
+        };
+        height = h;
+        // Opaque white: page edges render white, and JPEG has no alpha channel anyway.
+        let len = wordcraft_geom::rgba_bytes(width, height).unwrap_or(0) as usize;
+        let mut merged = wordcraft_render::Rendered { width, height, pixels: vec![255; len] };
+        let mut top = 0u32;
+        for img in &imgs {
+            let left = (width - img.width) / 2;
+            for row in 0..img.height {
+                let src = row as usize * img.width as usize * 4..(row as usize + 1) * img.width as usize * 4;
+                let dst = ((top + row) as usize * width as usize + left as usize) * 4
+                    ..((top + row) as usize * width as usize + left as usize + img.width as usize) * 4;
+                if let (Some(src), Some(dst)) = (img.pixels.get(src), merged.pixels.get_mut(dst)) {
+                    dst.copy_from_slice(src);
+                }
+            }
+            top += img.height;
+        }
+        let data = match format {
+            ImgFormat::Png => merged.to_png(),
+            ImgFormat::Jpeg => merged.to_jpeg(quality),
+        };
+        bytes = data.len();
+        let out = folder.join(format!("{stem}.{ext}")).to_string_lossy().into_owned();
+        crate::io::write_file(&out, &data).map_err(CmdError::Failed)?;
+        paths.push(out);
+    } else {
+        for (n, &pg) in pages.iter().enumerate() {
+            let page = l.pages.get(pg).ok_or_else(|| CmdError::Params(format!("no page {}", pg + 1)))?;
+            let img = wordcraft_render::render_page(&s.doc, page, scale, &render_opts);
+            let data = match format {
+                ImgFormat::Png => img.to_png(),
+                ImgFormat::Jpeg => img.to_jpeg(quality),
+            };
+            let name = if pages.len() == 1 { format!("{stem}.{ext}") } else { format!("{stem}-{}.{ext}", n + 1) };
+            let out = folder.join(name).to_string_lossy().into_owned();
+            crate::io::write_file(&out, &data).map_err(CmdError::Failed)?;
+            if n == 0 {
+                width = img.width;
+                height = img.height;
+                bytes = data.len();
+            }
+            paths.push(out);
+        }
     }
     let format_name = match format {
         ImgFormat::Png => "png",
         ImgFormat::Jpeg => "jpeg",
     };
     let first = paths.first().cloned().unwrap_or_default();
-    Ok(json!({"path": first, "paths": paths, "pages": paths.len(), "format": format_name, "width": width, "height": height, "bytes": bytes}))
+    Ok(json!({"path": first, "paths": paths, "pages": pages.len(), "format": format_name, "width": width, "height": height, "bytes": bytes}))
 }
+
+/// Merged long images are capped at a gibibyte of pixels; bigger asks export fewer pages.
+const MERGED_IMAGE_BUDGET: u64 = 1 << 30;
 
 /// The image formats a page export writes (`Rendered::to_png` / `to_jpeg`).
 enum ImgFormat {
@@ -420,18 +456,18 @@ enum ImgFormat {
     Jpeg,
 }
 
-/// `path` with its extension, when it names an image type, replaced by `ext` (`out.png` →
-/// `out.jpg` for jpeg export); unchanged otherwise.
-fn with_image_ext(path: &str, ext: &str) -> String {
+/// `path` as a directory name: a trailing image extension is dropped (`out.png` → `out`),
+/// because the export target names the folder the images are written into.
+fn drop_image_ext(path: &str) -> String {
     let p = std::path::Path::new(path);
-    let Some(old) = p.extension().and_then(|e| e.to_str()) else { return path.to_string() };
-    if !matches!(old.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg") {
+    let is_image = p.extension().and_then(|e| e.to_str()).is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"));
+    if !is_image {
         return path.to_string();
     }
-    let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+    let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string());
     match p.parent() {
-        Some(dir) if !dir.as_os_str().is_empty() => dir.join(format!("{stem}.{ext}")).to_string_lossy().into_owned(),
-        _ => format!("{stem}.{ext}"),
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(&stem).to_string_lossy().into_owned(),
+        _ => stem,
     }
 }
 

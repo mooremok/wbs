@@ -71,7 +71,7 @@ and set `WORDCRAFT_CONTROL_KEY` to that app's key.
 | `ui.tabNew` | — | a new document in its own tab |
 | `ui.tabClose` | `index` | close that tab; the active one asks about unsaved changes first |
 | `ui.screenshot` | `path?` | PNG of the window: written to `path`, or without one returned as base64 `png` in the reply |
-| `ui.render` | `path?`, `page?` (1-based), `scale?` | PNG of a page, rendered by the engine: written to `path`, or without one returned as base64 `png` in the reply (never a fixed name in the shared temporary folder) |
+| `ui.render` | `path?`, `page?` (1-based), `scale?` | PNG of a page, rendered by the engine: with a `path` it names the export folder (created when missing; a trailing image extension is dropped) and the image lands inside it named after it; without one returned as base64 `png` in the reply (never a fixed name in the shared temporary folder) |
 | `ui.parity` | — | feature-catalog parity |
 | `ui.resize` / `ui.focus` / `app.quit` | | window control |
 

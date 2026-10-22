@@ -134,7 +134,8 @@ fn saves_and_exports_go_only_into_the_write_root() {
     assert!(base.join("out/doc.docx").is_file());
     ok(&mut server, "save_document", json!({"path": s(&base.join("out/doc.pdf"))}));
     ok(&mut server, "save_document", json!({"path": s(&base.join("out/page.png"))}));
-    assert!(base.join("out/page.png").is_file());
+    // The image path names the folder the export creates; the image lands inside, named after it.
+    assert!(base.join("out/page").join("page.png").is_file());
     let (error, text) = run(&mut server, "file.exportPdf", json!({"path": s(&base.join("out/two"))}));
     assert!(!error, "{text}");
     // Printing to a PDF (#641) writes a file too.

@@ -604,6 +604,19 @@ pub fn write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
     safe_save::write(std::path::Path::new(path), bytes).map_err(|e| format!("{path}: {e}"))
 }
 
+/// Create `path` and its missing parents, inside the automation write root when there is one.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn create_dir_all(path: &str) -> Result<(), String> {
+    crate::file_access::check_write(path)?;
+    std::fs::create_dir_all(path).map_err(|e| format!("{path}: {e}"))
+}
+
+/// The web has no filesystem to make folders in; browser downloads stand in for the writes.
+#[cfg(target_arch = "wasm32")]
+pub fn create_dir_all(_path: &str) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(target_arch = "wasm32")]
 pub fn write_file(path: &str, _bytes: &[u8]) -> Result<(), String> {
     Err(format!("{path}: files are saved through the browser on the web"))

@@ -316,6 +316,8 @@ pub enum Dialog {
         scale: f32,
         /// JPEG quality 1-100.
         quality: u8,
+        /// Stack the pages into one tall image instead of one file per page.
+        long_image: bool,
     },
     /// Home › Font › Phonetic Guide: ruby text over the selected text (`format.phonetic`).
     Phonetic {
@@ -1242,6 +1244,7 @@ impl Dialog {
                     pages: if set.pages == "all" { String::new() } else { set.pages },
                     scale: set.scale,
                     quality: set.quality,
+                    long_image: set.long_image,
                 }
             }
             "icons" => Dialog::Icons { query: String::new(), category: String::new(), selected: String::new() },
@@ -2520,7 +2523,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
             }
             ok || cancel
         }
-        Dialog::ExportImage { format, all, pages, scale, quality } => {
+        Dialog::ExportImage { format, all, pages, scale, quality, long_image } => {
             ui.label(egui::RichText::new(tl!("Pages")).font(crate::theme::medium(13.0)));
             ui.horizontal(|ui| {
                 ui.radio_value(all, true, tl!("All"));
@@ -2534,6 +2537,8 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                         .char_limit(wordcraft_engine::print::MAX_SPEC_CHARS),
                 );
             }
+            ui.add_space(4.0);
+            ui.checkbox(long_image, tl!("Merge into a long image"));
             ui.label(egui::RichText::new(tl!("Resolution")).font(crate::theme::medium(13.0)));
             ui.horizontal(|ui| {
                 for s in [1.0, 2.0, 4.0] {
@@ -2556,6 +2561,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 app.ui.export_image.pages = spec;
                 app.ui.export_image.scale = *scale;
                 app.ui.export_image.quality = *quality;
+                app.ui.export_image.long_image = *long_image;
                 app.export_dialog(if format == "jpeg" { "jpg" } else { "png" });
             }
             ok && valid || cancel

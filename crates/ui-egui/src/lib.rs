@@ -227,18 +227,19 @@ fn paste_target(canvas_focused: bool, dialog: bool) -> bool {
 
 /// File › Export image choices, kept between exports and read by `file.exportPng` calls the
 /// Export dialog makes: `pages` is `all` or a print range like `1-3,5`; `scale` is px per pt;
-/// `quality` is the JPEG quality (1-100).
+/// `quality` is the JPEG quality (1-100); `long_image` stacks the pages into one tall image.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ExportImageSettings {
     pub pages: String,
     pub scale: f32,
     pub quality: u8,
+    pub long_image: bool,
 }
 
 impl Default for ExportImageSettings {
     fn default() -> Self {
-        ExportImageSettings { pages: "all".into(), scale: 2.0, quality: 90 }
+        ExportImageSettings { pages: "all".into(), scale: 2.0, quality: 90, long_image: false }
     }
 }
 
@@ -1760,6 +1761,7 @@ impl WordApp {
                         pages: if set.pages == "all" { String::new() } else { set.pages },
                         scale: set.scale,
                         quality: set.quality,
+                        long_image: set.long_image,
                     });
                 }
                 "insertPicture" => self.pick_picture(),
