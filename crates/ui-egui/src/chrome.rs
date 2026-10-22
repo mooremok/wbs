@@ -265,10 +265,10 @@ impl MacTitleBar {
     }
 }
 
-/// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, then the
-/// Quick Access Toolbar (WPS's own spot for it), the Home tab (首页), one tab per open document
-/// and a + for a new one; AutoSave and the account on the right. The bar is also the window's
-/// title bar: empty stretches of it drag the window, and a double-click maximizes it.
+/// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, the Home
+/// tab (首页), one tab per open document and a + for a new one; the Quick Access Toolbar, AutoSave
+/// and the account (Options) button at the right. The bar is also the window's title bar: empty
+/// stretches of it drag the window, and a double-click maximizes it.
 pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     // macOS: shorter, so the system's traffic lights are centred in it; the tallest controls
@@ -309,12 +309,11 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 // Room for the label, the padding around it, the unsaved dot and the close ✕.
                 let wants: Vec<f32> = title_ws.iter().map(|w| (w + 58.0).clamp(66.0, 184.0)).collect();
                 // What is left of the bar once the fixed ends are paid for. The Quick Access
-                // Toolbar sits at the left end, after the file menu, as in WPS — and gives way
-                // entirely when the bar is too narrow to hold the tabs beside it (its commands
-                // stay reachable through the file menu and their shortcuts).
+                // Toolbar sits at the right end, with AutoSave — and gives way entirely when the
+                // bar is too narrow to hold the tabs beside it (its commands stay reachable
+                // through the file menu and their shortcuts).
                 let autosave_w = text_width(ui.painter(), tl!("AutoSave"), &regular(11.5), 0.0, t.text_dim) + 42.0;
-                let right_w = 26.0 + autosave_w + 20.0;
-                let fixed = f32::from(left) + 10.0 + file_w + home_w + 30.0 + right_w;
+                let fixed = f32::from(left) + 10.0 + file_w + home_w + 30.0 + 26.0 + autosave_w + 20.0;
                 let wants_qat = app.ui.quick_access_toolbar;
                 let qat_w = if wants_qat && full.width() - fixed - qat_width(app) > 0.0 { qat_width(app) } else { 0.0 };
                 let budget = (full.width() - fixed - qat_w).max(0.0);
@@ -469,12 +468,6 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         }
                     }
                 });
-                // The Quick Access Toolbar right after the file menu, as WPS places it (absent
-                // only when the bar is too narrow for it, or hidden by choice).
-                if qat_w > 0.0 {
-                    quick_access(ui, app);
-                    ui.add_space(8.0);
-                }
                 // The Home tab (首页).
                 let (r, resp) = ui.allocate_exact_size(vec2(home_w, control_h), Sense::click());
                 let active = app.home;
@@ -577,20 +570,21 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 if resp.on_hover_text(new).clicked() {
                     let _ = app.run("ui.tabNew", json!({}));
                 }
-                // Right: account, search, AutoSave and the Quick Access Toolbar.
+                // Right: the Quick Access Toolbar, AutoSave and the account (Options) button.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                    // Account / community.
+                    // Account: opens Options › General (user name and initials); the options
+                    // gear, not the initials avatar.
                     let (r, resp) = ui.allocate_exact_size(vec2(control_h, control_h), Sense::click());
-                    ui.painter().circle_filled(r.center(), control_h / 2.0 - 1.0, t.accent);
+                    if resp.hovered() {
+                        ui.painter().rect_filled(r, 4.0, t.hover);
+                    }
+                    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), "options", t.icon, t.accent);
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Account")));
-                    let initials: String = app.session.user_initials().chars().take(2).collect();
-                    ui.painter().text(r.center(), Align2::CENTER_CENTER, initials, semibold(10.5), t.on_accent);
                     if resp.on_hover_text(format!("{} — set your name in the Options window", app.session.author)).clicked() {
                         let _ = app.run("ui.dialog", json!({"name": "options", "pane": "general"}));
                     }
                     ui.add_space(8.0);
-                    // The command-search box lives on the ribbon's tab strip (see ribbon.rs).
                     // AutoSave switch: greyed out, with the reason as its tooltip, when AutoSave
                     // can't cover the document (#196, #176); clicking it then offers Save As
                     // where that helps.
@@ -628,6 +622,17 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                             }
                         }
                     });
+                    ui.add_space(8.0);
+                    // The Quick Access Toolbar, laid out left to right inside the right-aligned
+                    // end of the bar (absent only when the bar is too narrow for it, or hidden
+                    // by choice).
+                    if qat_w > 0.0 {
+                        let qw = qat_width(app);
+                        ui.allocate_ui_with_layout(vec2(qw, control_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
+                            quick_access(ui, app);
+                        });
+                    }
                 });
             });
         });
@@ -1098,11 +1103,12 @@ mod tests {
         assert!(h.ctx.read_response(qat_menu_button_id()).is_some());
     }
 
-    /// The Quick Access Toolbar sits right after the file menu, before the Home tab, with WPS's
-    /// default set (Save, Export PDF, Print, Undo, Redo) until the user customizes it; a stored
-    /// customization keeps showing exactly what the user saved, and the buttons still work there.
+    /// The Quick Access Toolbar sits at the bar's right end, beside AutoSave (the account/Options
+    /// button at the very corner), with WPS's default set (Save, Export PDF, Print, Undo, Redo)
+    /// until the user customizes it; a stored customization keeps showing exactly what the user
+    /// saved, and the buttons still work there.
     #[test]
-    fn quick_access_sits_left_with_wps_default_set() {
+    fn quick_access_sits_right_with_wps_default_set() {
         use egui_kittest::kittest::Queryable;
         let mut a = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());
         a.run("text.insert", json!({"text": "Hello"})).unwrap();
@@ -1119,11 +1125,12 @@ mod tests {
             a,
         );
         h.run_steps(4);
+        let account = h.get_by_label("Account").rect();
         let home = h.get_by_label("Home").rect();
         let ids = ["file.save", "file.exportPdf", "file.print", "edit.undo", "edit.redo"];
         for id in ids {
             let r = h.ctx.read_response(qat_button_id(id)).unwrap_or_else(|| panic!("{id} is on the toolbar")).rect;
-            assert!(r.max.x < home.min.x, "{id} sits left of the Home tab");
+            assert!(r.min.x > home.max.x && r.max.x < account.min.x, "{id} sits at the right end, beside AutoSave");
         }
         let customize = h.ctx.read_response(qat_menu_button_id()).expect("the customize button").rect;
         let undo = h.ctx.read_response(qat_button_id("edit.undo")).unwrap().rect;
