@@ -267,8 +267,8 @@ impl MacTitleBar {
 
 /// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, then the
 /// Quick Access Toolbar (WPS's own spot for it), the Home tab (首页), one tab per open document
-/// and a + for a new one; AutoSave, search and the account on the right. The bar is also the
-/// window's title bar: empty stretches of it drag the window, and a double-click maximizes it.
+/// and a + for a new one; AutoSave and the account on the right. The bar is also the window's
+/// title bar: empty stretches of it drag the window, and a double-click maximizes it.
 pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     // macOS: shorter, so the system's traffic lights are centred in it; the tallest controls
@@ -313,7 +313,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 // entirely when the bar is too narrow to hold the tabs beside it (its commands
                 // stay reachable through the file menu and their shortcuts).
                 let autosave_w = text_width(ui.painter(), tl!("AutoSave"), &regular(11.5), 0.0, t.text_dim) + 42.0;
-                let right_w = 26.0 + 268.0 + autosave_w + 20.0;
+                let right_w = 26.0 + autosave_w + 20.0;
                 let fixed = f32::from(left) + 10.0 + file_w + home_w + 30.0 + right_w;
                 let wants_qat = app.ui.quick_access_toolbar;
                 let qat_w = if wants_qat && full.width() - fixed - qat_width(app) > 0.0 { qat_width(app) } else { 0.0 };
@@ -590,39 +590,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                         let _ = app.run("ui.dialog", json!({"name": "options", "pane": "general"}));
                     }
                     ui.add_space(8.0);
-                    // Search ("Tell me").
-                    let (r, resp) = ui.allocate_exact_size(vec2(260.0, control_h), Sense::click());
-                    ui.painter().rect(r, 6.0, if resp.hovered() { t.input } else { t.ribbon }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-                    icons::paint(
-                        ui.painter(),
-                        Rect::from_center_size(pos2(r.min.x + 16.0, r.center().y), vec2(16.0, 16.0)),
-                        "search",
-                        t.text_dim,
-                        t.accent,
-                    );
-                    let ph = tl!("Search commands and help");
-                    let pfont = TypeRung::Control.regular();
-                    let ptrack = TypeRung::Control.tracking();
-                    paint_text(
-                        ui.painter(),
-                        pos2(r.min.x + 30.0, r.center().y - TypeRung::Control.line_height() / 2.0),
-                        Align2::LEFT_TOP,
-                        ph,
-                        &pfont,
-                        ptrack,
-                        t.text_dim,
-                    );
-                    if app.ui.keytips == crate::keytips::Phase::Tabs {
-                        app.keytip_rects.push((r, crate::keytips::SEARCH_LETTER.to_string()));
-                    }
-                    let tip = match crate::widgets::shortcut_text(app, "tools.search") {
-                        k if k.is_empty() => tl!("Search").to_string(),
-                        k => format!("{} ({k})", tl!("Search")),
-                    };
-                    if resp.on_hover_text(tip).clicked() {
-                        let _ = app.run("tools.search", json!({}));
-                    }
-                    ui.add_space(10.0);
+                    // The command-search box lives on the ribbon's tab strip (see ribbon.rs).
                     // AutoSave switch: greyed out, with the reason as its tooltip, when AutoSave
                     // can't cover the document (#196, #176); clicking it then offers Save As
                     // where that helps.
@@ -900,8 +868,8 @@ mod tests {
 
     fn frame(ctx: &egui::Context, n: &mut u32, events: Vec<egui::Event>, a: &mut WordApp) {
         *n += 1;
-        // A window-sized screen: the bar's right end (search, Quick Access Toolbar) is laid out
-        // from the right edge, which an unbounded default screen would push off any real window.
+        // A window-sized screen: the bar's right end (AutoSave, the account) is laid out from the
+        // right edge, which an unbounded default screen would push off any real window.
         let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1440.0, 900.0));
         let input =
             egui::RawInput { time: Some(f64::from(*n) / 60.0), predicted_dt: 1.0 / 60.0, events, screen_rect: Some(screen), ..Default::default() };

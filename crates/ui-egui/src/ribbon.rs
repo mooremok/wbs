@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use crate::colors::{Remember, Target};
 use crate::options::MeasureExt;
-use crate::theme::{Tokens, medium, regular, semibold};
+use crate::theme::{Tokens, TypeRung, medium, paint_text, regular, semibold};
 use crate::widgets::{CONTENT_H, LABEL_H, big, big_toggle, group, menu_button, small, split};
 use crate::{WordApp, icons};
 
@@ -177,7 +177,9 @@ pub struct TabSpec {
 pub struct StripPlan {
     /// Padding each side of a tab label.
     pub pad: f32,
-    /// How much of Comments / Editing / Share is spelled out: 0 all, 1 Share only, 2 none.
+    /// How much the strip's right end is spelled out: 0 the search box and every button label,
+    /// 1 the search as an icon (it gives way first), 2 the same with tighter tab padding,
+    /// 3 Comments / Editing as icons too, 4 Share as an icon as well.
     pub buttons: usize,
     /// Whether each tab is on the strip (the others are in the » menu).
     pub fits: Vec<bool>,
@@ -188,13 +190,14 @@ pub struct StripPlan {
 /// Smallest a tab label is cut down to before the tab goes into the » menu.
 const MIN_TAB_W: f32 = 44.0;
 
-/// Lays the tabs and the buttons on their right out on `avail` points, giving way in this order:
-/// the padding between tabs, the Comments / Editing labels, the Share label, the plain tabs (from
-/// the end, into »), the labels of the active and contextual tabs (cut with …), and last those tabs
-/// themselves. The buttons' room is always kept and File never leaves the strip. `buttons` is the
-/// width of the three buttons at each level (pure, tested).
-pub fn plan_strip(tabs: &[TabSpec], buttons: [f32; 3], avail: f32, more: f32) -> StripPlan {
-    const STEPS: [(f32, usize); 4] = [(18.0, 0), (10.0, 0), (10.0, 1), (10.0, 2)];
+/// Lays the tabs and the strip's right end (search, Comments, Editing, Share) on `avail` points,
+/// giving way in this order: the search box shrinks to its icon, the padding between tabs, the
+/// Comments / Editing labels, the Share label, the plain tabs (from the end, into »), the labels
+/// of the active and contextual tabs (cut with …), and last those tabs themselves. The right
+/// end's room is always kept and File never leaves the strip. `buttons` is the right end's width
+/// at each level (pure, tested).
+pub fn plan_strip(tabs: &[TabSpec], buttons: [f32; 5], avail: f32, more: f32) -> StripPlan {
+    const STEPS: [(f32, usize); 5] = [(18.0, 0), (18.0, 1), (10.0, 2), (10.0, 3), (10.0, 4)];
     let widths_at = |pad: f32| -> Vec<f32> { tabs.iter().map(|t| t.text_w.max(0.0) + pad + 2.0).collect() };
     for (pad, level) in STEPS {
         let widths = widths_at(pad);
@@ -202,7 +205,7 @@ pub fn plan_strip(tabs: &[TabSpec], buttons: [f32; 3], avail: f32, more: f32) ->
             return StripPlan { pad, buttons: level, fits: vec![true; tabs.len()], widths };
         }
     }
-    let (pad, level) = (10.0, 2);
+    let (pad, level) = (10.0, 4);
     let mut widths = widths_at(pad);
     let room = avail - buttons[level];
     let specs: Vec<(f32, bool)> = widths.iter().zip(tabs).map(|(w, t)| (*w, t.file || t.active || t.contextual)).collect();
@@ -244,6 +247,44 @@ pub fn plan_strip(tabs: &[TabSpec], buttons: [f32; 3], avail: f32, more: f32) ->
 /// Whether the caret is inside a table (so the contextual tabs and their badges are shown).
 pub fn in_table_public(app: &WordApp) -> bool {
     app.session.sel.focus.path.cell().is_some()
+}
+
+/// Width of the command-search box on the strip's right end, and of its icon-only form.
+const SEARCH_BOX_W: f32 = 200.0;
+const SEARCH_ICON_W: f32 = 30.0;
+
+/// The command-search box ("Tell me"), on the tab strip's right end: `wide` draws the box with
+/// its placeholder, a narrow strip draws the icon alone. A click opens `tools.search`.
+fn search_box(ui: &mut Ui, app: &mut WordApp, wide: bool) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(if wide { SEARCH_BOX_W } else { SEARCH_ICON_W }, 24.0), Sense::hover());
+    let resp = ui.interact(r, egui::Id::new("strip_search_box"), Sense::click());
+    ui.painter().rect(r, 6.0, if resp.hovered() { t.input } else { t.ribbon }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 15.0, r.center().y), vec2(16.0, 16.0)), "search", t.text_dim, t.accent);
+    if wide {
+        let ph = tl!("Search commands and help");
+        let pfont = TypeRung::Control.regular();
+        let ptrack = TypeRung::Control.tracking();
+        paint_text(
+            ui.painter(),
+            pos2(r.min.x + 28.0, r.center().y - TypeRung::Control.line_height() / 2.0),
+            Align2::LEFT_TOP,
+            ph,
+            &pfont,
+            ptrack,
+            t.text_dim,
+        );
+    }
+    if app.ui.keytips == crate::keytips::Phase::Tabs {
+        app.keytip_rects.push((r, crate::keytips::SEARCH_LETTER.to_string()));
+    }
+    let tip = match crate::widgets::shortcut_text(app, "tools.search") {
+        k if k.is_empty() => tl!("Search").to_string(),
+        k => format!("{} ({k})", tl!("Search")),
+    };
+    if resp.on_hover_text(tip).clicked() {
+        let _ = app.run("tools.search", json!({}));
+    }
 }
 
 pub fn show(app: &mut WordApp, ui: &mut Ui) {
@@ -311,15 +352,16 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                 let share_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(share.to_string(), medium(12.0), t.text).size().x);
                 let spaced = |w: f32| w + 2.0;
                 let button_widths = |level: usize| -> f32 {
-                    let labels = level == 0;
+                    let labels = level < 3;
                     let share_full = (share_w + 36.0).max(74.0);
-                    let share_button = if level < 2 { share_full } else { 30.0 };
+                    let share_button = if level < 4 { share_full } else { 30.0 };
+                    let search = if level == 0 { SEARCH_BOX_W } else { SEARCH_ICON_W };
                     let editing = crate::widgets::icon_text_button_width(ui, editing_label, regular(12.0), true, labels);
                     let comment = crate::widgets::icon_text_button_width(ui, comments, regular(12.0), false, labels);
-                    // The gaps (6 + 4 + 8) and the strip's margin.
-                    spaced(share_button) + spaced(editing) + spaced(comment) + 18.0 + 12.0
+                    // The gaps (8 + 6 + 4 + 8) and the strip's margin.
+                    spaced(search) + spaced(share_button) + spaced(editing) + spaced(comment) + 26.0 + 12.0
                 };
-                let button_levels = [button_widths(0), button_widths(1), button_widths(2)];
+                let button_levels = [button_widths(0), button_widths(1), button_widths(2), button_widths(3), button_widths(4)];
                 let labels: Vec<&str> = tabs.iter().map(|(tab, custom)| if *custom { tab.as_str() } else { tl!(tab) }).collect();
                 let specs: Vec<TabSpec> = tabs
                     .iter()
@@ -339,7 +381,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                     // the Start screen (#3045).
                     ui.add_enabled_ui(app.has_document(), |ui| {
                         let (share_size, share_text) =
-                            if plan.buttons < 2 { (((share_w + 36.0).max(74.0), 24.0), true) } else { ((30.0, 24.0), false) };
+                            if plan.buttons < 4 { (((share_w + 36.0).max(74.0), 24.0), true) } else { ((30.0, 24.0), false) };
                         let (r, resp) = ui.allocate_exact_size(vec2(share_size.0, share_size.1), Sense::click());
                         ui.painter().rect_filled(r, 4.0, if resp.hovered() { t.accent_text } else { t.accent });
                         let icon_x = if share_text { r.min.x + 14.0 } else { r.center().x };
@@ -359,7 +401,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                         }
                         ui.add_space(6.0);
                         let track = app.session.doc.settings.track_changes;
-                        let mode = if plan.buttons == 0 {
+                        let mode = if plan.buttons < 3 {
                             crate::widgets::icon_text_menu_button(ui, "pencil", editing_label, regular(12.0))
                         } else {
                             crate::widgets::icon_only_button(ui, "pencil", editing_label, regular(12.0), true)
@@ -375,7 +417,7 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                             }
                         });
                         ui.add_space(4.0);
-                        let comments_button = if plan.buttons == 0 {
+                        let comments_button = if plan.buttons < 3 {
                             crate::widgets::icon_text_button(ui, "comment", comments, regular(12.0))
                         } else {
                             crate::widgets::icon_only_button(ui, "comment", comments, regular(12.0), false)
@@ -385,7 +427,27 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                         }
                     });
                     ui.add_space(8.0);
+                    // The command search ("Tell me"), moved here from the title bar; it works with
+                    // no document open, so it sits outside the disabled block above.
+                    search_box(ui, app, plan.buttons == 0);
+                    ui.add_space(8.0);
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        // The tabs sit centred in the room the right end leaves, as WPS lays its
+                        // strip out; the ones that don't fit wait in the » menu, so what is drawn
+                        // fits between the strip's left edge and the search box.
+                        let mut drawn_w = -2.0;
+                        let mut any_out = false;
+                        for (i, _) in tabs.iter().enumerate() {
+                            if plan.fits.get(i) == Some(&true) {
+                                drawn_w += plan.widths.get(i).copied().unwrap_or(0.0);
+                            } else {
+                                any_out = true;
+                            }
+                        }
+                        if any_out {
+                            drawn_w += MORE_TABS_W + 2.0;
+                        }
+                        ui.add_space(((ui.available_width() - drawn_w) / 2.0).max(0.0));
                         // The tabs that don't fit go into a » menu at the end of the strip (#897, #2026).
                         for (i, ((tab, custom), _)) in tabs.iter().zip(&plan.fits).enumerate().filter(|(_, (_, fits))| **fits) {
                             let (tab, custom) = (tab.as_str(), *custom);
@@ -3242,35 +3304,98 @@ mod tests {
     fn plan_strip_gives_way_in_order() {
         let spec = |text_w, file, active, contextual| TabSpec { text_w, file, active, contextual };
         let tabs = [spec(20.0, true, false, false), spec(30.0, false, true, false), spec(30.0, false, false, false), spec(40.0, false, false, true)];
-        let buttons = [200.0, 150.0, 60.0];
+        let buttons = [410.0, 240.0, 240.0, 190.0, 100.0];
         // Plenty of room: nothing gives way.
-        let p = plan_strip(&tabs, buttons, 600.0, 26.0);
+        let p = plan_strip(&tabs, buttons, 610.0, 26.0);
         assert_eq!((p.pad, p.buttons, p.fits.iter().all(|f| *f)), (18.0, 0, true));
-        // Tighter: the padding goes first, then the Comments / Editing labels, then Share's.
-        let p = plan_strip(&tabs, buttons, 380.0, 26.0);
-        assert_eq!((p.pad, p.buttons), (10.0, 0));
-        let p = plan_strip(&tabs, buttons, 330.0, 26.0);
-        assert_eq!((p.pad, p.buttons), (10.0, 1));
-        let p = plan_strip(&tabs, buttons, 240.0, 26.0);
+        // Tighter: the search box shrinks to its icon first, then the padding, the Comments /
+        // Editing labels, and Share's.
+        let p = plan_strip(&tabs, buttons, 600.0, 26.0);
+        assert_eq!((p.pad, p.buttons), (18.0, 1));
+        let p = plan_strip(&tabs, buttons, 420.0, 26.0);
         assert_eq!((p.pad, p.buttons), (10.0, 2));
+        let p = plan_strip(&tabs, buttons, 360.0, 26.0);
+        assert_eq!((p.pad, p.buttons), (10.0, 3));
+        let p = plan_strip(&tabs, buttons, 270.0, 26.0);
+        assert_eq!((p.pad, p.buttons), (10.0, 4));
         // Then the plain tab goes into »; File, the active and the contextual tab stay.
-        let p = plan_strip(&tabs, buttons, 215.0, 26.0);
+        let p = plan_strip(&tabs, buttons, 255.0, 26.0);
         assert_eq!(p.fits, [true, true, false, true]);
         // Then the labels of the active and contextual tabs are cut down.
-        let p = plan_strip(&tabs, buttons, 208.0, 26.0);
+        let p = plan_strip(&tabs, buttons, 248.0, 26.0);
         assert_eq!(p.fits, [true, true, false, true]);
         assert!(p.widths[3] < 52.0 && p.widths[3] >= MIN_TAB_W - 0.01, "{:?}", p.widths);
         // No room for that either: the contextual one goes into », the active one last.
-        let p = plan_strip(&tabs, buttons, 190.0, 26.0);
+        let p = plan_strip(&tabs, buttons, 230.0, 26.0);
         assert_eq!(p.fits, [true, true, false, false]);
-        let p = plan_strip(&tabs, buttons, 140.0, 26.0);
+        let p = plan_strip(&tabs, buttons, 180.0, 26.0);
         assert_eq!(p.fits, [true, false, false, false]);
-        // The buttons' room is never taken, and hostile numbers don't panic.
+        // The right end's room is never taken, and hostile numbers don't panic.
         for avail in [0.0, -5.0, f32::NAN, f32::INFINITY] {
             let _ = plan_strip(&tabs, buttons, avail, 26.0);
         }
         let _ = plan_strip(&[], buttons, 100.0, 26.0);
-        let _ = plan_strip(&[spec(f32::NAN, false, true, false)], [f32::NAN; 3], 100.0, f32::NAN);
+        let _ = plan_strip(&[spec(f32::NAN, false, true, false)], [f32::NAN; 5], 100.0, f32::NAN);
+    }
+
+    /// The strip's tabs sit centred in the room its right end leaves, the command-search box among
+    /// that right end (left of Comments); it opens Search, and on a narrow strip it shrinks to its
+    /// icon and still works.
+    #[test]
+    fn tabs_are_centred_with_the_search_box_on_the_right_end() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = {
+            let app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Text")), crate::Services::default());
+            egui_kittest::Harness::builder().with_size(vec2(1440.0, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            )
+        };
+        h.run_steps(6);
+        let strip_tab =
+            |h: &egui_kittest::Harness<'static, WordApp>, name: &str| h.query_all_by_label(name).map(|n| n.rect()).find(|r| r.min.y > 36.0);
+        let home = strip_tab(&h, "Home").expect("the strip's Home tab");
+        let help = strip_tab(&h, "Help").expect("the strip's Help tab");
+        let search = h.ctx.read_response(egui::Id::new("strip_search_box")).expect("the search box").rect;
+        assert!(search.width() > 100.0, "the search box is wide with room to spare");
+        // Centred: the empty stretches to the left of the first tab and before the right end match.
+        let (left_gap, right_gap) = (home.min.x - 8.0, search.min.x - help.max.x);
+        assert!((left_gap - right_gap).abs() < 6.0, "the tabs sit centred: {left_gap} vs {right_gap}");
+        let comments = h.get_by_label(tl!("Comments")).rect();
+        assert!(search.max.x < comments.min.x, "the search box is left of Comments");
+        let at = search.center();
+        h.event(egui::Event::PointerMoved(at));
+        for pressed in [true, false] {
+            h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
+        h.run_steps(3);
+        assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::Commands { .. })), "the search box opens Search");
+        // Narrow: the box gives way to its icon first and still opens Search.
+        let mut narrow = {
+            let app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Text")), crate::Services::default());
+            egui_kittest::Harness::builder().with_size(vec2(520.0, 600.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            )
+        };
+        narrow.run_steps(6);
+        let icon = narrow.ctx.read_response(egui::Id::new("strip_search_box")).expect("the search icon").rect;
+        assert!(icon.width() < 40.0, "the search shrank to an icon: {icon:?}");
+        let at = icon.center();
+        narrow.event(egui::Event::PointerMoved(at));
+        for pressed in [true, false] {
+            narrow.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
+        narrow.run_steps(3);
+        assert!(matches!(narrow.state().dialog, Some(crate::dialogs::Dialog::Commands { .. })), "the icon opens Search");
     }
 
     #[test]
