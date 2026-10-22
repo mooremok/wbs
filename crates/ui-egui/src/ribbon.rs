@@ -994,9 +994,9 @@ fn format_painter_button(ui: &mut Ui, app: &mut WordApp, large: bool) {
     let sticky = matches!(app.session.painter, Some((_, _, true)));
     let armed = app.session.painter.is_some();
     let resp = if large {
-        big_toggle(ui, app, "painter", "Format", "edit.formatPainter", sticky)
+        big_toggle(ui, app, "painter", &two_lines(&tl!("Format Painter")), "edit.formatPainter", sticky)
     } else {
-        small(ui, app, "painter", Some("Format"), "Format Painter", "edit.formatPainter", json!({}), sticky)
+        small(ui, app, "painter", Some("Format Painter"), "Format Painter", "edit.formatPainter", json!({}), sticky)
     };
     if resp.double_clicked() {
         painter_double_click(app);
