@@ -1973,6 +1973,7 @@ homeTab	Home	首页
 	Style	样式
 	Style Inspector	样式检查器
 	Style Set	样式集
+	Style set: {name}	样式集：{name}
 	Style based on:	样式基于：
 	Style name:	样式名称：
 	Style:	样式：

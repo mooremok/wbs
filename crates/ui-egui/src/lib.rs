@@ -5993,11 +5993,20 @@ mod tests {
         }
         assert!(h.state().canvas.focused, "the page starts with keyboard focus");
 
-        // A Styles gallery tile.
-        h.get_by_role_and_label(Role::Button, "Heading 1").click();
-        type_after_click(&mut h, "Heading 1 tile", " gallery");
+        // A style-box arrow (in place of the Styles gallery tiles it replaced): it applies the
+        // next gallery style, named on the button.
+        let next_style = {
+            let a = h.state();
+            let cur = a.session.doc.para_at(&a.session.sel.focus).and_then(|p| p.props.style.clone());
+            let gallery = a.session.doc.styles.gallery();
+            let at = gallery.iter().position(|s| Some(s.id.clone()) == cur || s.id == "Normal");
+            at.and_then(|i| gallery.get(i + 1)).map(|s| crate::i18n::style_name(s))
+        };
+        let before_style = h.state().session.doc.para_at(&h.state().session.sel.focus).and_then(|p| p.props.style.clone());
+        h.get_by_role_and_label(Role::Button, next_style.as_deref().unwrap_or("Heading 1")).click();
+        type_after_click(&mut h, "style-box arrow", " gallery");
         let para = h.state().session.doc.para_at(&h.state().session.sel.focus).expect("caret paragraph");
-        assert_eq!(para.props.style.as_deref(), Some("Heading1"), "the tile applied its style");
+        assert_ne!(para.props.style, before_style, "the arrow applied the next style");
 
         // A ribbon tab name, then a View tab check box.
         h.get_by_role_and_label(Role::Button, "View").click();

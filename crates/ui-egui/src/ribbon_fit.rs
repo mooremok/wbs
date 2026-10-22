@@ -369,8 +369,8 @@ mod ui_tests {
     /// their commands: a button, then an item of a menu inside it.
     #[test]
     fn collapsed_group_stays_open_and_runs_its_commands() {
-        let mut h = harness(760.0);
-        assert_eq!(planned(&h.ctx, "Font"), Some(COLLAPSED), "Font folds at 760 pt");
+        let mut h = harness(560.0);
+        assert_eq!(planned(&h.ctx, "Font"), Some(COLLAPSED), "Font folds at 560 pt");
         h.state_mut().run("text.insert", json!({"text": "quiet words"})).unwrap();
         h.state_mut().run("select.all", json!({})).unwrap();
         h.get_by_role_and_label(Role::Button, "Font").click();
@@ -382,14 +382,20 @@ mod ui_tests {
         click_shown(&h, "Increase Font Size");
         h.run_steps(3);
         assert_ne!(size(&mut h), before, "Increase Font Size ran");
-        assert!(shown(&h, "Change Case"), "the drop-down stays open after a click inside");
-        click_shown(&h, "Change Case");
+        assert!(shown(&h, "Underline"), "the drop-down stays open after a click inside");
+        // The Underline split's arrow (the main part runs the command instead of opening).
+        let node = h.get_all_by_label("Underline").find(|n| n.rect().min.y >= 0.0).expect("Underline is shown");
+        let at = egui::pos2(node.rect().right() + 5.5, node.rect().center().y);
+        h.event(egui::Event::PointerMoved(at));
+        for pressed in [true, false] {
+            h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() });
+        }
         h.run_steps(3);
         // The item's accessible name carries its shortcut.
-        h.get_by_label_contains("UPPERCASE").click();
+        h.get_by_label_contains("Double").click();
         h.run_steps(3);
-        let text = h.state().session.doc.plain_text(wordcraft_doc::StoryRef::Body);
-        assert!(!text.chars().any(|c| c.is_lowercase()), "UPPERCASE ran");
+        let under = h.state_mut().session.run("format.state", &json!({})).ok().and_then(|v| v.get("underline").cloned());
+        assert_eq!(under, Some(json!(true)), "the Underline menu's item ran");
         assert!(shown(&h, "Increase Font Size"), "a menu inside counts as inside");
         h.get_by_role_and_label(Role::Button, "Font").click();
         h.run_steps(3);

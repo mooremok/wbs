@@ -2168,6 +2168,7 @@
 	Style	스타일
 	Style Inspector	스타일 검사기
 	Style Set	스타일 모음
+	Style set: {name}	스타일 집합: {name}
 	Style based on:	기준 스타일:
 	Style:	스타일:
 	Style: {style}	스타일: {style}

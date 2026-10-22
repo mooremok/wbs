@@ -1962,6 +1962,7 @@ homeTab	Home	首頁
 	Style	樣式
 	Style Inspector	樣式檢查器
 	Style Set	樣式集
+	Style set: {name}	樣式集：{name}
 	Style based on:	樣式依據：
 	Style name:	樣式名稱：
 	Style:	樣式：

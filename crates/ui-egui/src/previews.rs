@@ -597,7 +597,7 @@ pub fn style_gallery(app: &mut WordApp, ui: &mut Ui, state: &Value) {
 }
 
 /// Style sets shown in the Design tab's gallery, in order.
-const STYLE_SETS: [&str; 7] = ["default", "basic", "lines", "shaded", "casual", "centered", "minimalist"];
+pub(crate) const STYLE_SETS: [&str; 7] = ["default", "basic", "lines", "shaded", "casual", "centered", "minimalist"];
 /// Width of one gallery thumbnail, points.
 const STYLE_SET_W: f32 = 56.0;
 /// Width the whole gallery takes with the ribbon's 1 pt item spacing.

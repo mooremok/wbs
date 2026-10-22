@@ -78,6 +78,9 @@ pub struct CanvasState {
     pub last_highlight: String,
     pub last_font_color: String,
     pub last_shading: String,
+    /// Whether the Home tab's Character Shading button last applied shading (its next click
+    /// clears it, as Word's toggle does; Clear Formatting clears it too).
+    pub char_shading_on: bool,
     pub open_url: Option<String>,
     /// Screen rects of pages last frame (for the control channel: page ↔ screen coordinates).
     pub page_rects: Vec<Rect>,
@@ -242,6 +245,7 @@ impl Default for CanvasState {
             last_highlight: "yellow".into(),
             last_font_color: "C00000".into(),
             last_shading: "FFF2CC".into(),
+            char_shading_on: false,
             open_url: None,
             page_rects: Vec::new(),
             scrollbar_page: None,

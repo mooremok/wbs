@@ -2282,6 +2282,7 @@
 	Style	Стил
 	Style Inspector	Инспектор на стилове
 	Style Set	Набор от стилове
+	Style set: {name}	Набор от стилове: {name}
 	Style based on:	Стил, базиран на:
 	Style name:	Име на стил:
 	Style:	Стил:

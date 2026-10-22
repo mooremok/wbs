@@ -2292,6 +2292,7 @@
 	Style	Стиль
 	Style Inspector	Инспектор стилей
 	Style Set	Набор стилей
+	Style set: {name}	Набор стилей: {name}
 	Style based on:	Основан на стиле:
 	Style name:	Имя стиля:
 	Style:	Тип линии:

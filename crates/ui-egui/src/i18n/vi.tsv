@@ -2323,6 +2323,7 @@ homeTab	Home	Trang chủ
 	Style	Kiểu
 	Style Inspector	Trình kiểm tra kiểu
 	Style Set	Bộ kiểu
+	Style set: {name}	Bộ kiểu: {name}
 	Style based on:	Kiểu dựa trên:
 	Style name:	Tên kiểu:
 	Style:	Kiểu:

@@ -2280,6 +2280,7 @@
 	Style	Styl
 	Style Inspector	Inspektor stylů
 	Style Set	Sada stylů
+	Style set: {name}	Sada stylů: {name}
 	Style based on:	Styl založený na:
 	Style name:	Název stylu:
 	Style:	Styl:

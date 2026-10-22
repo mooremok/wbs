@@ -984,12 +984,17 @@ pub(crate) fn wrap_text_items(ui: &mut Ui, app: &mut WordApp) {
     mi_check(ui, app, "Fix Position on Page", with_text == Some(false), "arrange.moveWithText", json!({"value": false}));
 }
 
-/// The Format Painter button. A click arms it for one use (blue border only); a double-click keeps
-/// it on across several uses (full checked look), like Word. Esc or another click turns it off.
-fn format_painter_button(ui: &mut Ui, app: &mut WordApp) {
+/// The Format Painter button, large on the Home tab's Clipboard group or small elsewhere. A click
+/// arms it for one use (blue border only); a double-click keeps it on across several uses (full
+/// checked look), like Word. Esc or another click turns it off.
+fn format_painter_button(ui: &mut Ui, app: &mut WordApp, large: bool) {
     let sticky = matches!(app.session.painter, Some((_, _, true)));
     let armed = app.session.painter.is_some();
-    let resp = small(ui, app, "painter", Some("Format"), "Format Painter", "edit.formatPainter", json!({}), sticky);
+    let resp = if large {
+        big_toggle(ui, app, "painter", "Format", "edit.formatPainter", sticky)
+    } else {
+        small(ui, app, "painter", Some("Format"), "Format Painter", "edit.formatPainter", json!({}), sticky)
+    };
     if resp.double_clicked() {
         painter_double_click(app);
     } else if armed && !sticky {
@@ -1007,10 +1012,84 @@ fn painter_double_click(app: &mut WordApp) {
     let _ = app.run("edit.formatPainter", json!({"sticky": true}));
 }
 
+/// WPS's current-style box on the Home tab: the style at the caret by name with a font summary,
+/// arrows that apply the previous / next gallery style, and a click that opens the full Styles
+/// pane (the library the group used to show as tiles).
+fn style_box(ui: &mut Ui, app: &mut WordApp, state: &Value) {
+    let t = Tokens::get(ui.ctx());
+    let current = state.get("style").and_then(Value::as_str).unwrap_or("Normal").to_string();
+    let gallery: Vec<(String, String)> = app.session.doc.styles.gallery().iter().map(|s| (s.id.clone(), crate::i18n::style_name(s))).collect();
+    let at = gallery.iter().position(|(id, _)| *id == current);
+    let name = at.map(|i| gallery[i].1.clone()).unwrap_or_else(|| current.clone());
+    let font = state.get("fontShown").and_then(Value::as_str).unwrap_or("").to_string();
+    let font = app.previews.font_shown(&font);
+    let size = state.get("size").and_then(Value::as_f64).map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { format!("{s}") });
+    let (r, _) = ui.allocate_exact_size(vec2(158.0, 44.0), Sense::hover());
+    let resp = ui.interact(r, ui.id().with("style_box"), Sense::click());
+    ui.painter().rect(r, 4.0, t.input, Stroke::new(1.0, if resp.hovered() { t.accent } else { t.border }), egui::StrokeKind::Inside);
+    let trunc = |text: &str, font_id: egui::FontId, color: egui::Color32, w: f32| {
+        let mut job = egui::text::LayoutJob::single_section(text.to_string(), egui::text::TextFormat::simple(font_id, color));
+        job.wrap = egui::text::TextWrapping::truncate_at_width(w);
+        job
+    };
+    let p = ui.painter_at(r);
+    let name_g = p.layout_job(trunc(&name, semibold(11.5), t.text, r.width() - 30.0));
+    p.galley(pos2(r.min.x + 8.0, r.min.y + 7.0), name_g, t.text);
+    // The summary's font name and size are painted apart (each is data: a family name the font
+    // boxes also show, and a bare number).
+    let font_g = p.layout_job(trunc(&font, regular(10.5), t.text_dim, (r.width() - 40.0).max(40.0)));
+    let font_w = font_g.size().x;
+    p.galley(pos2(r.min.x + 8.0, r.min.y + 25.0), font_g, t.text_dim);
+    if let Some(s) = &size {
+        p.text(pos2(r.min.x + 12.0 + font_w, r.min.y + 25.0), Align2::LEFT_TOP, s, regular(10.5), t.text_dim);
+    }
+    let label = tl!("Style").to_string();
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+    if resp.on_hover_text(label).clicked() {
+        let _ = app.run("view.stylesPane", json!({"value": true}));
+    }
+    // The arrows: apply the previous / next gallery style; dimmed at the ends of the list. Each
+    // arrow's label and tooltip name the style it will apply.
+    let prev = at.and_then(|i| i.checked_sub(1)).and_then(|i| gallery.get(i)).cloned();
+    let next = at.and_then(|i| gallery.get(i + 1)).cloned();
+    let arrow = |ui: &mut Ui, up: bool, target: Option<&(String, String)>| {
+        let (r, resp) = ui.allocate_exact_size(vec2(18.0, 22.0), Sense::click());
+        let enabled = target.is_some();
+        let c = if enabled { t.icon } else { t.text_disabled };
+        icons::paint(ui.painter(), r.shrink(3.0), if up { "chevronUp" } else { "chevronDown" }, c, if enabled { t.accent } else { c });
+        if let Some((_, name)) = target {
+            let label = name.clone();
+            let resp = resp.clone().on_hover_text(name.clone());
+            resp.widget_info(move || egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+        }
+        resp.clicked() && enabled
+    };
+    let apply = |app: &mut WordApp, id: &str| {
+        let _ = app.run("para.style", json!({"style": id}));
+    };
+    if arrow(ui, true, prev.as_ref())
+        && let Some((id, _)) = prev.clone()
+    {
+        apply(app, &id);
+    }
+    if arrow(ui, false, next.as_ref())
+        && let Some((id, _)) = next.clone()
+    {
+        apply(app, &id);
+    }
+}
+
+/// The Home tab, WPS's compact two-row groups: the Format Painter and Paste lead the Clipboard,
+/// Font and Paragraph pack their small buttons into two rows, the Styles group is the
+/// current-style box with the style sets beside it, and the Editing group carries Dictate and the
+/// Editor with Find / Replace / Select. Commands the rows leave out (Change Case, Phonetic Guide,
+/// Character Border, Enclose Characters, Text Effects, Multilevel List, text direction) stay
+/// reachable through Search (⌥Q) and their keyboard shortcuts.
 fn home(app: &mut WordApp, ui: &mut Ui) {
     let st = app.session.run("format.state", &json!({})).unwrap_or_default();
     let flag = |k: &str| st.get(k).and_then(Value::as_bool).unwrap_or(false);
     group(ui, "Clipboard", Some("edit.clipboardPane"), app, |ui, app| {
+        format_painter_button(ui, app, true);
         menu_button(ui, app, "paste", Some("Paste"), "Paste (⌘V)", true, "edit.paste", |ui, app| {
             mi(ui, app, "Paste", "edit.paste", json!({}));
             mi(ui, app, "Keep Text Only", "edit.pasteText", json!({}));
@@ -1020,7 +1099,6 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
         stack(ui, |ui| {
             small(ui, app, "cut", Some("Cut"), "Cut", "edit.cut", json!({}), false);
             small(ui, app, "copy", Some("Copy"), "Copy", "edit.copy", json!({}), false);
-            format_painter_button(ui, app);
         });
     });
     group(ui, "Font", Some("format.fontDialog"), app, |ui, app| {
@@ -1058,15 +1136,7 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                 ui.add_space(3.0);
                 small(ui, app, "grow", None, "Increase Font Size", "format.growFont", json!({}), false);
                 small(ui, app, "shrink", None, "Decrease Font Size", "format.shrinkFont", json!({}), false);
-                menu_button(ui, app, "case", None, "Change Case", false, "format.changeCase", |ui, app| {
-                    mi(ui, app, "Sentence case.", "format.changeCase", json!({"mode": "sentence"}));
-                    mi(ui, app, "lowercase", "format.changeCase", json!({"mode": "lower"}));
-                    mi(ui, app, "UPPERCASE", "format.changeCase", json!({"mode": "upper"}));
-                    mi(ui, app, "Capitalize Each Word", "format.changeCase", json!({"mode": "title"}));
-                    mi(ui, app, "tOGGLE cASE", "format.changeCase", json!({"mode": "toggle"}));
-                });
                 small(ui, app, "clear", None, "Clear All Formatting", "format.clear", json!({}), false);
-                small(ui, app, "phonetic", None, "Phonetic Guide", "format.phonetic", json!({}), false);
             });
             ui.add_space(3.0);
             crate::widgets::row(ui, |ui| {
@@ -1087,26 +1157,8 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     }
                 });
                 small(ui, app, "strike", None, "Strikethrough", "format.strikethrough", json!({}), flag("strike"));
-                small(ui, app, "subscript", None, "Subscript", "format.subscript", json!({}), flag("subscript"));
                 small(ui, app, "superscript", None, "Superscript", "format.superscript", json!({}), flag("superscript"));
-                small(ui, app, "charborder", None, "Character Border", "format.border", json!({}), flag("border"));
-                small(ui, app, "enclose", None, "Enclose Characters", "format.enclose", json!({}), false);
-                ui.add_space(4.0);
-                menu_button(ui, app, "effects", None, "Text Effects and Typography", false, "", |ui, app| {
-                    let theme = app.session.doc.settings.theme_colors.clone();
-                    crate::wordart_menus::style_gallery(ui, app, "format.textEffects");
-                    ui.separator();
-                    ui.menu_button(tl!("Text Fill"), |ui| crate::wordart_menus::fill_menu(ui, app, &theme));
-                    let outline = crate::wordart_menus::current_outline(app);
-                    ui.menu_button(tl!("Text Outline"), |ui| crate::wordart_menus::outline_menu(ui, app, &theme, outline));
-                    crate::wordart_menus::effects_menu(ui, app, &theme, false);
-                    ui.separator();
-                    mi(ui, app, "Outline", "format.outline", json!({}));
-                    mi(ui, app, "Shadow", "format.shadow", json!({}));
-                    mi(ui, app, "Small Caps", "format.smallCaps", json!({}));
-                    mi(ui, app, "All Caps", "format.allCaps", json!({}));
-                    mi(ui, app, "Double Strikethrough", "format.doubleStrikethrough", json!({}));
-                });
+                small(ui, app, "subscript", None, "Subscript", "format.subscript", json!({}), flag("subscript"));
                 let hl = app.canvas.last_highlight.clone();
                 split(
                     ui,
@@ -1126,6 +1178,15 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     let theme = app.session.doc.settings.theme_colors.clone();
                     crate::colors::menu(ui, app, &theme, Target::cmd("format.color").remember(Remember::FontColor));
                 });
+                // Character Shading, Word's toggle: grey on, then off again (Clear Formatting
+                // clears it too).
+                let shade = app.canvas.char_shading_on;
+                let params = if shade { json!({"color": null}) } else { json!({"color": "C0C0C0"}) };
+                let on = crate::widgets::enabled(app, "format.shading");
+                let resp = small(ui, app, "shading", None, "Character Shading", "format.shading", params, shade);
+                if resp.clicked() && on {
+                    app.canvas.char_shading_on = !shade;
+                }
             });
         });
     });
@@ -1133,7 +1194,6 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
         let rp = app.session.doc.para_at(&app.session.sel.focus).map(|p| app.session.doc.styles.resolve_para(&p.props));
         // The buttons show alignment as seen on the page (Align Right is a right-to-left paragraph's start).
         let align = rp.as_ref().map(|r| r.align.visual(r.bidi)).unwrap_or_default();
-        let rtl = rp.as_ref().is_some_and(|r| r.bidi);
         let lists = wordcraft_engine::cmd::para::list_buttons(&app.session.doc, rp.as_ref().and_then(|r| r.numbering));
         stack(ui, |ui| {
             crate::widgets::row(ui, |ui| {
@@ -1173,40 +1233,13 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     mi(ui, app, "Restart at 1", "para.restartNumbering", json!({}));
                     mi(ui, app, "None", "para.numbering", json!({"off": true}));
                 });
-                split(ui, app, "multilevel", "Multilevel List", "para.multilevel", json!({}), lists.multilevel, None, |ui, app| {
-                    mi(ui, app, "1. 1.1. 1.1.1.", "para.multilevel", json!({"kind": "legal"}));
-                    mi(ui, app, "I. A. 1. a.", "para.multilevel", json!({"kind": "outline"}));
-                    ui.separator();
-                    // Lists linked to the heading styles: the headings carry the numbers. Each item
-                    // reads as its first three levels, number then (translated) style name.
-                    for (numbers, k) in [
-                        (["1", "1.1", "1.1.1"], "headings"),
-                        (["Article I.", "Section 1.01", "(a)"], "article"),
-                        (["I.", "A.", "1."], "outlineHeadings"),
-                        (["Chapter 1", "", ""], "chapter"),
-                    ] {
-                        let text = numbers
-                            .iter()
-                            .zip(["Heading 1", "Heading 2", "Heading 3"])
-                            .map(|(n, h)| if n.is_empty() { tl!(h).to_string() } else { format!("{} {}", tl!(n), tl!(h)) })
-                            .collect::<Vec<_>>()
-                            .join(" / ");
-                        mi_text(ui, app, &text, "list.multilevelPreset", json!({"preset": k}));
-                    }
-                    ui.separator();
-                    mi(ui, app, "Define New Multilevel List…", "list.define", json!({}));
-                    ui.separator();
-                    for lv in 0..5u64 {
-                        mi(ui, app, &format!("Change to Level {}", lv + 1), "para.listLevel", json!({"level": lv}));
-                    }
-                });
                 ui.add_space(4.0);
                 small(ui, app, "outdent", None, "Decrease Indent", "para.outdent", json!({}), false);
                 small(ui, app, "indent", None, "Increase Indent", "para.indent", json!({}), false);
                 ui.add_space(4.0);
-                small(ui, app, "sort", None, "Sort", "para.sort", json!({}), false);
                 let marks = app.session.view.marks;
                 small(ui, app, "pilcrow", None, "Show/Hide ¶", "view.marks", json!({}), marks);
+                small(ui, app, "sort", None, "Sort", "para.sort", json!({}), false);
             });
             ui.add_space(3.0);
             crate::widgets::row(ui, |ui| {
@@ -1215,10 +1248,6 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                 small(ui, app, "alignCenter", None, "Center", "para.alignCenter", json!({}), align == A::Center);
                 small(ui, app, "alignRight", None, "Align Right", "para.alignRight", json!({}), align == A::Right);
                 small(ui, app, "justify", None, "Justify", "para.justify", json!({}), align == A::Justify);
-                ui.add_space(4.0);
-                small(ui, app, "textLtr", None, "Left-to-Right Text Direction", "para.ltr", json!({}), !rtl);
-                small(ui, app, "textRtl", None, "Right-to-Left Text Direction", "para.rtl", json!({}), rtl);
-                ui.add_space(4.0);
                 menu_button(ui, app, "lineSpacing", None, "Line and Paragraph Spacing", false, "para.lineSpacing", |ui, app| {
                     for v in [1.0, 1.15, 1.5, 2.0, 2.5, 3.0] {
                         mi(ui, app, &format!("{v}"), "para.lineSpacing", json!({"value": v}));
@@ -1227,11 +1256,6 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     mi(ui, app, "Add Space Before Paragraph", "para.addSpaceBefore", json!({}));
                     mi(ui, app, "Remove Space After Paragraph", "para.removeSpaceAfter", json!({}));
                     mi(ui, app, "Line Spacing Options…", "para.dialog", json!({}));
-                });
-                split(ui, app, "shading", "Shading", "para.shading", json!({"color": app.canvas.last_shading.clone()}), false, None, |ui, app| {
-                    mi(ui, app, "No Color", "para.shading", json!({"color": null}));
-                    let theme = app.session.doc.settings.theme_colors.clone();
-                    crate::colors::menu(ui, app, &theme, Target::cmd("para.shading").remember(Remember::Shading));
                 });
                 split(ui, app, "borders", "Borders", "para.borders", json!({"kind": "bottom"}), false, None, |ui, app| {
                     for (l, k) in [
@@ -1250,33 +1274,47 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     mi(ui, app, "Horizontal Line", "insert.horizontalLine", json!({}));
                     mi(ui, app, "Borders and Shading…", "para.borders", json!({}));
                 });
+                split(ui, app, "shading", "Shading", "para.shading", json!({"color": app.canvas.last_shading.clone()}), false, None, |ui, app| {
+                    mi(ui, app, "No Color", "para.shading", json!({"color": null}));
+                    let theme = app.session.doc.settings.theme_colors.clone();
+                    crate::colors::menu(ui, app, &theme, Target::cmd("para.shading").remember(Remember::Shading));
+                });
             });
         });
     });
     group(ui, "Styles", Some("styles.pane"), app, |ui, app| {
-        crate::previews::style_gallery(app, ui, &st);
-    });
-    group(ui, "Editing", None, app, |ui, app| {
         stack(ui, |ui| {
-            menu_button(ui, app, "find", Some("Find"), "Find", false, "edit.find", |ui, app| {
-                // As in Word: Find searches in the Navigation pane; Advanced Find is the dialog (#712).
-                mi(ui, app, "Find", "edit.find", json!({}));
-                mi(ui, app, "Advanced Find…", "edit.advancedFind", json!({}));
-                mi(ui, app, "Go To…", "ui.dialog", json!({"name": "goto"}));
-            });
-            small(ui, app, "replace", Some("Replace"), "Replace", "ui.dialog", json!({"name": "replace"}), false);
-            menu_button(ui, app, "select", Some("Select"), "Select", false, "select.all", |ui, app| {
-                mi(ui, app, "Select All", "select.all", json!({}));
-                mi(ui, app, "Select Paragraph", "select.paragraph", json!({}));
-                mi(ui, app, "Select Sentence", "select.sentence", json!({}));
+            crate::widgets::row(ui, |ui| style_box(ui, app, &st));
+            crate::widgets::row(ui, |ui| {
+                menu_button(ui, app, "themes", Some("Style Set"), "Style Set", false, "design.styleSet", |ui, app| {
+                    for name in crate::previews::STYLE_SETS {
+                        mi_text(ui, app, &crate::i18n::fmt(tl!("Style set: {name}"), &[("name", name)]), "design.styleSet", json!({"name": name}));
+                    }
+                });
             });
         });
     });
-    group(ui, "Voice", None, app, |ui, app| {
-        big(ui, app, "dictate", "Dictate", "tools.dictate", json!({}), false);
-    });
-    group(ui, "Editor", None, app, |ui, app| {
-        big(ui, app, "editor", "Editor", "review.spelling", json!({}), false);
+    group(ui, "Editing", None, app, |ui, app| {
+        stack(ui, |ui| {
+            crate::widgets::row(ui, |ui| {
+                menu_button(ui, app, "find", Some("Find"), "Find", false, "edit.find", |ui, app| {
+                    // As in Word: Find searches in the Navigation pane; Advanced Find is the dialog (#712).
+                    mi(ui, app, "Find", "edit.find", json!({}));
+                    mi(ui, app, "Advanced Find…", "edit.advancedFind", json!({}));
+                    mi(ui, app, "Go To…", "ui.dialog", json!({"name": "goto"}));
+                });
+                small(ui, app, "replace", Some("Replace"), "Replace", "ui.dialog", json!({"name": "replace"}), false);
+                menu_button(ui, app, "select", Some("Select"), "Select", false, "select.all", |ui, app| {
+                    mi(ui, app, "Select All", "select.all", json!({}));
+                    mi(ui, app, "Select Paragraph", "select.paragraph", json!({}));
+                    mi(ui, app, "Select Sentence", "select.sentence", json!({}));
+                });
+            });
+            crate::widgets::row(ui, |ui| {
+                small(ui, app, "dictate", Some("Dictate"), "Dictate", "tools.dictate", json!({}), false);
+                small(ui, app, "editor", Some("Editor"), "Editor", "review.spelling", json!({}), false);
+            });
+        });
     });
 }
 
@@ -3396,6 +3434,71 @@ mod tests {
         }
         narrow.run_steps(3);
         assert!(matches!(narrow.state().dialog, Some(crate::dialogs::Dialog::Commands { .. })), "the icon opens Search");
+    }
+
+    /// The Home tab's WPS arrangement: the two-row Font and Paragraph groups with their listed
+    /// buttons, the style box in place of the gallery (opening the full Styles pane), the style
+    /// sets on Home applying `design.styleSet`, Character Shading as a toggle, and Dictate and the
+    /// Editor inside the Editing group.
+    #[test]
+    fn home_wps_groups_style_box_and_style_sets() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::Queryable;
+        let mut h = {
+            let app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Words")), crate::Services::default());
+            egui_kittest::Harness::builder().with_size(vec2(1440.0, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            )
+        };
+        h.run_steps(6);
+        // The Editing group carries what the Voice and Editor groups held.
+        for label in ["Find", "Replace", "Select", "Dictate", "Editor"] {
+            assert!(h.query_by_label(label).is_some(), "{label} is on the Home tab");
+        }
+        // Character Shading toggles: grey, then off.
+        h.state_mut().run("select.all", json!({})).unwrap();
+        let shading = |h: &egui_kittest::Harness<'static, WordApp>| {
+            h.state().session.doc.body.first().and_then(|b| match &**b {
+                wordcraft_doc::Block::Para(p) => p.runs.first().and_then(|r| r.props.shading),
+                _ => None,
+            })
+        };
+        h.get_by_label("Character Shading").click();
+        h.run_steps(3);
+        assert!(shading(&h).is_some(), "the first click applies shading");
+        h.get_by_label("Character Shading").click();
+        h.run_steps(3);
+        assert!(shading(&h).is_none(), "the second click clears it");
+        // The style box opens the full Styles pane, the library the tiles used to show.
+        assert!(!h.state().session.view.styles_pane, "the pane starts closed");
+        h.get_by_role_and_label(Role::Button, "Style").click();
+        h.run_steps(3);
+        assert!(h.state().session.view.styles_pane, "the style box opens the Styles pane");
+        h.state_mut().run("view.stylesPane", json!({"value": false})).unwrap();
+        // The Style Set menu applies a set: "shaded" shades Heading 1.
+        h.get_by_role_and_label(Role::Button, "Style Set").click();
+        h.run_steps(3);
+        h.get_by_label_contains(&crate::i18n::fmt(tl!("Style set: {name}"), &[("name", "shaded")])).click();
+        h.run_steps(3);
+        let h1 = h.state().session.doc.styles.get("Heading1");
+        assert!(h1.is_some_and(|s| s.para.shading.is_some()), "the shaded style set applied");
+        // An arrow applies the next gallery style.
+        let before = h.state().session.doc.para_at(&h.state().session.sel.focus).and_then(|p| p.props.style.clone());
+        let next_name = {
+            let a = h.state();
+            let gallery = a.session.doc.styles.gallery();
+            let at = gallery.iter().position(|s| Some(s.id.clone()) == before || s.id == "Normal");
+            at.and_then(|i| gallery.get(i + 1)).map(|s| crate::i18n::style_name(s))
+        };
+        h.get_by_role_and_label(Role::Button, next_name.as_deref().unwrap_or("Heading 1")).click();
+        h.run_steps(3);
+        let after = h.state().session.doc.para_at(&h.state().session.sel.focus).and_then(|p| p.props.style.clone());
+        assert_ne!(after, before, "the arrow applied the next style");
     }
 
     #[test]

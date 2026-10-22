@@ -1959,6 +1959,7 @@
 	Style	Formatvorlage
 	Style Inspector	Formatvorlagen-Inspektor
 	Style Set	Formatvorlagensatz
+	Style set: {name}	Formatvorlagensatz: {name}
 	Style based on:	Basiert auf:
 	Style name:	Formatvorlagenname:
 	Style:	Art:

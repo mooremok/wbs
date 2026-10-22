@@ -2291,6 +2291,7 @@
 	Style	Style
 	Style Inspector	Inspecteur de styles
 	Style Set	Jeu de styles
+	Style set: {name}	Jeu de styles : {name}
 	Style based on:	Style basé sur :
 	Style name:	Nom du style :
 	Style:	Style :

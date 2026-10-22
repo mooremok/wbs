@@ -1972,6 +1972,7 @@
 	Style	Estilo
 	Style Inspector	Inspetor de estilos
 	Style Set	Conjunto de estilos
+	Style set: {name}	Conjunto de estilos: {name}
 	Style based on:	Estilo baseado em:
 	Style name:	Nome do estilo:
 	Style:	Estilo:

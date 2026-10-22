@@ -2258,6 +2258,7 @@
 	Style	Estilo
 	Style Inspector	Inspector de estilos
 	Style Set	Conjunto de estilos
+	Style set: {name}	Conjunto de estilos: {name}
 	Style based on:	Estilo basado en:
 	Style name:	Nombre del estilo:
 	Style:	Estilo:
