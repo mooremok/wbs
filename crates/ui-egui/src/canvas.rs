@@ -5630,7 +5630,7 @@ mod tests {
 
     fn drawn_rulers(ctx: &egui::Context, a: &mut WordApp, t: &mut f64) -> DrawnRulers {
         *t += 1.0 / 60.0;
-        let screen = Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 900.0));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 908.0));
         let input = egui::RawInput { time: Some(*t), screen_rect: Some(screen), ..Default::default() };
         let out = ctx.run_ui(input, |ui| {
             a.logic(ui.ctx());

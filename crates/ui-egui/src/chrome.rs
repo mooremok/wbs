@@ -265,20 +265,24 @@ impl MacTitleBar {
     }
 }
 
+/// The drawn bar keeps this much room below the measured traffic lights: AppKit pins the lights
+/// to the standard title-bar position, so the extra height reads as padding under them (they end
+/// up just above the bar's centre, which the wider tab row hides).
+const MAC_BAR_EXTRA: f32 = 6.0;
+
 /// The tab bar, WPS's window layout: the logo button (the file menu) at the far left, the Home
 /// tab (首页), one tab per open document and a + for a new one; the Quick Access Toolbar, AutoSave
 /// and the account (Options) button at the right. The bar is also the window's title bar: empty
 /// stretches of it drag the window, and a double-click maximizes it.
 pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    // macOS: shorter, so the system's traffic lights are centred in it; the tallest controls
-    // shrink to keep a margin above and below them.
+    // macOS: the traffic lights decide the height; elsewhere the bar is its own size.
     let mac = app.integrated_titlebar;
     let bar = app.mac_titlebar;
     let left = if mac { bar.content_left as i8 } else { 8 };
-    let control_h = if mac { 22.0 } else { 26.0 };
+    let control_h = if mac { 26.0 } else { 30.0 };
     egui::Panel::top("tab_bar")
-        .exact_size(if mac { bar.height } else { 38.0 })
+        .exact_size(if mac { bar.height + MAC_BAR_EXTRA } else { 46.0 })
         .frame(egui::Frame::NONE.fill(t.title_bar).inner_margin(egui::Margin { left, right: 10, top: 0, bottom: 0 }))
         .show(ui, |ui| {
             let full = ui.max_rect();
@@ -299,7 +303,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                 // WPS words the tab bar's Home tab (首页) differently from the ribbon's Home
                 // tab (开始); other languages keep the one word they have.
                 let home_label = crate::i18n::tc("homeTab", "Home");
-                let home_w = text_width(ui.painter(), home_label, &TypeRung::Control.medium(), TypeRung::Control.tracking(), t.text) + 30.0;
+                let home_w = text_width(ui.painter(), home_label, &TypeRung::Control.medium(), TypeRung::Control.tracking(), t.text) + 36.0;
                 let infos = app.tab_infos();
                 let n = infos.len();
                 let title_ws: Vec<f32> = infos
@@ -307,7 +311,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     .map(|(title, _, _)| text_width(ui.painter(), title, &TypeRung::Control.medium(), TypeRung::Control.tracking(), t.text))
                     .collect();
                 // Room for the label, the padding around it, the unsaved dot and the close ✕.
-                let wants: Vec<f32> = title_ws.iter().map(|w| (w + 58.0).clamp(66.0, 184.0)).collect();
+                let wants: Vec<f32> = title_ws.iter().map(|w| (w + 64.0).clamp(74.0, 190.0)).collect();
                 // What is left of the bar once the fixed ends are paid for. The Quick Access
                 // Toolbar sits at the right end, with AutoSave — and gives way entirely when the
                 // bar is too narrow to hold the tabs beside it (its commands stay reachable
@@ -478,7 +482,7 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     Align2::CENTER_CENTER,
                     label,
                     if active { semibold(12.5) } else { TypeRung::Control.medium() },
-                    if active { t.text } else { t.text_dim },
+                    if active { t.on_accent } else { t.text_dim },
                 );
                 resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, label));
                 if resp.clicked() {
@@ -498,11 +502,14 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     let cx = Rect::from_min_max(pos2(r.max.x - 20.0, r.min.y), r.max);
                     let close = ui.interact(cx, ui.id().with(("tab_close", i)), Sense::click());
                     if close.hovered() {
-                        ui.painter().rect_filled(cx, 4.0, t.hover);
+                        // On the active tab the chip sits on the accent pill, so it lightens the
+                        // accent instead of taking the bar's hover fill.
+                        ui.painter().rect_filled(cx, 4.0, if active { egui::Color32::WHITE.linear_multiply(0.18) } else { t.hover });
                     }
                     let c = close.rect.center();
-                    ui.painter().line_segment([c + vec2(-3.5, -3.5), c + vec2(3.5, 3.5)], Stroke::new(1.2, t.text_dim));
-                    ui.painter().line_segment([c + vec2(-3.5, 3.5), c + vec2(3.5, -3.5)], Stroke::new(1.2, t.text_dim));
+                    let x = if active { t.on_accent } else { t.text_dim };
+                    ui.painter().line_segment([c + vec2(-3.5, -3.5), c + vec2(3.5, 3.5)], Stroke::new(1.2, x));
+                    ui.painter().line_segment([c + vec2(-3.5, 3.5), c + vec2(3.5, -3.5)], Stroke::new(1.2, x));
                     let close = close.on_hover_text(tl!("Close"));
                     if close.clicked() {
                         let _ = app.run("ui.tabClose", json!({"index": i}));
@@ -511,11 +518,11 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
                     let close_room = 20.0;
                     let dot_room = if *dirty { 9.0 } else { 0.0 };
                     if *dirty {
-                        ui.painter().circle_filled(pos2(r.min.x + 10.0, r.center().y), 2.5, t.accent);
+                        ui.painter().circle_filled(pos2(r.min.x + 10.0, r.center().y), 2.5, if active { t.on_accent } else { t.accent });
                     }
                     let room = w - close_room - dot_room - 12.0;
                     let font = if active { semibold(12.0) } else { TypeRung::Control.medium() };
-                    let color = if active { t.text } else { t.text_dim };
+                    let color = if active { t.on_accent } else { t.text_dim };
                     if title_ws.get(i).is_some_and(|tw| *tw > room) {
                         let mut job = egui::text::LayoutJob::single_section(title.clone(), egui::text::TextFormat::simple(font, color));
                         job.wrap =
@@ -638,13 +645,11 @@ pub fn tab_bar(app: &mut WordApp, ui: &mut Ui) {
         });
 }
 
-/// A tab's background: the active one stands out as a card in the bar's colour, the hovered one
-/// gains a soft fill.
+/// A tab's background: the active one is a solid accent pill (its label and ✕ switch to the
+/// on-accent colour), the hovered one gains a soft fill.
 fn tab_look(ui: &mut Ui, r: Rect, hovered: bool, active: bool, t: &Tokens) {
     if active {
-        ui.painter().rect_filled(r, 7.0, t.ribbon);
-        let u = Rect::from_min_max(pos2(r.min.x + 4.0, r.max.y - 2.5), pos2(r.max.x - 4.0, r.max.y));
-        ui.painter().rect_filled(u, 2.0, t.accent);
+        ui.painter().rect_filled(r, 7.0, t.accent);
     } else if hovered {
         ui.painter().rect_filled(r.shrink2(vec2(0.0, 3.0)), 5.0, t.hover);
     }

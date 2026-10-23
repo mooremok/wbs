@@ -3732,7 +3732,7 @@ mod tests {
         let mut a = app();
         a.run("text.insert", json!({"text": "lorem ipsum dolor sit amet consectetur ".repeat(4000)})).unwrap();
         a.run("caret.docStart", json!({})).unwrap();
-        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0));
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 808.0));
         let mut t = 0.0;
         let mut frame = |a: &mut WordApp, events: Vec<egui::Event>| {
             t += 1.0 / 60.0;

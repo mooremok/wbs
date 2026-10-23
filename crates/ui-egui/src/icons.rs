@@ -4477,16 +4477,25 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(17.5, 9.0), (20.5, 12.0), (17.5, 15.0)], a);
         }
         "options" => {
-            pen.frect_r(10.9, 2.6, 13.1, 6.8, 1.0, c);
-            pen.frect_r(17.87, 4.58, 20.07, 8.78, 1.0, c);
-            pen.frect_r(21.4, 10.9, 23.6, 15.1, 1.0, c);
-            pen.frect_r(19.42, 17.87, 21.62, 22.07, 1.0, c);
-            pen.frect_r(13.1, 21.4, 15.3, 25.6, 1.0, c);
-            pen.frect_r(6.13, 19.42, 8.33, 23.62, 1.0, c);
-            pen.frect_r(2.6, 13.1, 4.8, 17.3, 1.0, c);
-            pen.frect_r(4.58, 6.13, 6.78, 10.33, 1.0, c);
-            pen.circle(12.0, 12.0, 5.4, c);
-            pen.fcircle(12.0, 12.0, 2.1, a);
+            // A cog: eight flared teeth round a ring, the hub dot in accent. The teeth are
+            // rotated quads, so they are computed rather than listed.
+            for k in 0..8u32 {
+                let th = (k as f32) * std::f32::consts::FRAC_PI_4;
+                let (cu, su) = (th.cos(), th.sin());
+                let (vx, vy) = (-su, cu);
+                let (root, tip) = (7.4, 10.8);
+                pen.fill(
+                    &[
+                        (12.0 + root * cu + 1.5 * vx, 12.0 + root * su + 1.5 * vy),
+                        (12.0 + tip * cu + 2.0 * vx, 12.0 + tip * su + 2.0 * vy),
+                        (12.0 + tip * cu - 2.0 * vx, 12.0 + tip * su - 2.0 * vy),
+                        (12.0 + root * cu - 1.5 * vx, 12.0 + root * su - 1.5 * vy),
+                    ],
+                    c,
+                );
+            }
+            pen.circle(12.0, 12.0, 6.4, c);
+            pen.fcircle(12.0, 12.0, 2.2, a);
         }
         "recover" => {
             pen.closed(&[(3.0, 2.5), (10.5, 2.5), (13.5, 5.5), (13.5, 15.0), (3.0, 15.0)], c);
