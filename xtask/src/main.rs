@@ -167,9 +167,11 @@ fn cmd_ci() -> Result<(), String> {
         (
             "clippy",
             Box::new(|| {
+                // `--no-deps`: the gate lints this repo's code; vendored third-party trees
+                // (third_party/winit) must not turn a new clippy release into a red main.
                 let mut c = cargo();
-                c.args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]);
-                run(c, "cargo clippy --workspace --all-targets -- -D warnings")
+                c.args(["clippy", "--workspace", "--all-targets", "--no-deps", "--", "-D", "warnings"]);
+                run(c, "cargo clippy --workspace --all-targets --no-deps -- -D warnings")
             }),
         ),
         (
